@@ -18,23 +18,16 @@ def serve_static_files(path):
 
 @app.route('/api/transcribe', methods=['POST'])
 def transcribe():
-    # Platzhalter für Vosk-Erkennung
-    # Hier würdest du z. B. das Audio transkribieren
     return jsonify({"text": "Bonjour, comment ça va ?"})
 
 @app.route('/api/respond', methods=['POST'])
 def respond():
     data = request.get_json()
     user_text = data.get("text", "")
-    
-    # Platzhalter für LLM-Antwort
     response_text = f"Super! Du hast gesagt: {user_text}"
-
-    # Optional: hier würde Coqui TTS verwendet werden
-
     return jsonify({
         "response": response_text,
-        "audio_url": "/sample_audio.mp3"  # Platzhalter, ersetze ggf.
+        "audio_url": "/sample_audio.mp3"
     })
 
 if __name__ == '__main__':

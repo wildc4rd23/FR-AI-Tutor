@@ -1,3 +1,3 @@
-def generate_reply(prompt):
-    # Platzhalter für LLM-Antwort
-    return "C'est une bonne question! Parlons-en."
+def generate_response(prompt):
+    # Platzhalter für ein LLM wie Ollama
+    return f"Simulierte Antwort auf: {prompt}"

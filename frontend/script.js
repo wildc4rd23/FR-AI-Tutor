@@ -1,29 +1,18 @@
 async function startRecording() {
-  const responseEl = document.getElementById("response");
-  const transcriptEl = document.getElementById("transcript");
-  const audioEl = document.getElementById("audio");
+    document.getElementById("transcript").innerText = "Aufnahme läuft...";
+    // Hier müsste echte Aufnahme-Logik stehen
+    const dummyText = "Bonjour, comment ça va ?";
 
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  const mediaRecorder = new MediaRecorder(stream);
-  const audioChunks = [];
+    document.getElementById("transcript").innerText = dummyText;
 
-  mediaRecorder.ondataavailable = (event) => {
-    audioChunks.push(event.data);
-  };
+    const response = await fetch("/api/respond", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ text: dummyText })
+    });
 
-  mediaRecorder.onstop = async () => {
-    const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
-    const formData = new FormData();
-    formData.append("audio", audioBlob, "speech.webm");
-
-    const res = await fetch("/api/respond", { method: "POST", body: formData });
-    const data = await res.json();
-
-    transcriptEl.textContent = "Du hast gesagt: " + data.transcript;
-    responseEl.textContent = "Antwort: " + data.response;
-    audioEl.src = data.tts_url;
-  };
-
-  mediaRecorder.start();
-  setTimeout(() => mediaRecorder.stop(), 4000);
+    const result = await response.json();
+    document.getElementById("response").innerText = result.response;
 }
