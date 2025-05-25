@@ -1,1 +1,7 @@
-Flask
+Flask==2.3.3
+Flask-Cors==4.0.0
+vosk==0.3.45
+soundfile==0.12.1
+numpy==1.26.4
+coqui-tts==0.22.0
+torch==2.2.2
