@@ -16,7 +16,7 @@ async function startRecording() {
     const formData = new FormData();
     formData.append("audio", audioBlob, "speech.webm");
 
-    const res = await fetch("/process", { method: "POST", body: formData });
+    const res = await fetch("/api/respond", { method: "POST", body: formData });
     const data = await res.json();
 
     transcriptEl.textContent = "Du hast gesagt: " + data.transcript;
