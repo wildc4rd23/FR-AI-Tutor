@@ -2,13 +2,15 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>FR-AI Tutor</title>
+    <title>FR AI Tutor</title>
 </head>
 <body>
-    <h1>Bienvenue au FR-AI Tutor</h1>
-    <button onclick="startRecording()">Sprich</button>
-    <p id="transcript">Transkript erscheint hier...</p>
-    <p id="response">Antwort erscheint hier...</p>
+    <h1>Französisch Sprach-Tutor</h1>
+    <button id="record">Aufnehmen</button>
+    <p>Erkannt: <span id="recognizedText"></span></p>
+    <p>Antwort: <span id="responseText"></span></p>
+    <audio id="audioPlayback" controls></audio>
+
     <script src="script.js"></script>
 </body>
 </html>
