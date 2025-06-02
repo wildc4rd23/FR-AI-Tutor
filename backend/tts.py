@@ -1,12 +1,27 @@
 # backend/tts.py
-from TTS.api import TTS
 import os
+import requests
 
-# Der Pfad ist korrekt zur render.yaml abgestimmt
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "tts", "tts_models-fr-mai-tacotron2-DDC")
+MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY")  # aus Umgebungsvariablen laden
+MINIMAX_URL = "https://api.minimaxi.chat/v1/t2a_v2"
 
-tts = TTS(model_path=MODEL_PATH)
+def synthesize_speech_minimax(text: str, output_path: str):
+    headers = {
+        "Authorization": f"Bearer {MINIMAX_API_KEY}",
+        "Content-Type": "application/json"
+    }
 
-def synthesize_speech(text, filename="static/response.wav"):
-    tts.tts_to_file(text=text, file_path=filename)
-    return filename
+    payload = {
+        "text": text,
+        "lang": "fr",
+        "voice_id": "female-001",  # Optional: andere Stimme oder Emotion
+        "emotion": "neutral"
+    }
+
+    response = requests.post(MINIMAX_URL, headers=headers, json=payload)
+
+    if response.status_code == 200:
+        with open(output_path, "wb") as f:
+            f.write(response.content)
+    else:
+        raise Exception(f"Minimax API Fehler: {response.status_code} {response.text}")

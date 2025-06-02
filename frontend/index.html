@@ -1,14 +1,49 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <title>FR AI Tutor</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Sprachassistent</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            text-align: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+
+        .text-block {
+            margin-top: 20px;
+            font-size: 18px;
+            white-space: pre-wrap;
+        }
+
+        audio {
+            margin-top: 20px;
+            width: 100%;
+        }
+    </style>
 </head>
 <body>
-    <h1>Französisch Sprach-Tutor</h1>
-    <button id="record">Aufnehmen</button>
-    <p>Erkannt: <span id="recognizedText"></span></p>
-    <p>Antwort: <span id="responseText"></span></p>
+    <h1>🗣️ Sprachassistent</h1>
+
+    <button id="record">Aufnahme starten</button>
+
+    <div class="text-block">
+        <strong>Erkannt:</strong>
+        <div id="recognizedText">Noch nichts erkannt...</div>
+    </div>
+
+    <div class="text-block">
+        <strong>Antwort:</strong>
+        <div id="responseText">Noch keine Antwort...</div>
+    </div>
+
     <audio id="audioPlayback" controls></audio>
 
     <script src="script.js"></script>

@@ -5,7 +5,7 @@ import os
 
 from vosk_stt import transcribe_audio
 from llm_agent import query_llm
-from tts import synthesize_speech
+from tts import synthesize_speech_minimax
 from utils import get_user_temp_dir, cleanup_temp_dir
 
 app = Flask(__name__, static_folder='../frontend')
@@ -36,7 +36,7 @@ def transcribe():
     text = transcribe_audio(audio_path)
     return jsonify({"text": text, "user_id": user_id})
 
-# === Antwort (LLM + TTS) ===
+# === Antwort (LLM + Minimax TTS) ===
 @app.route('/api/respond', methods=['POST'])
 def respond():
     data = request.get_json()
@@ -48,8 +48,8 @@ def respond():
 
     llm_response = query_llm(user_text)
 
-    output_path = os.path.join(temp_path, "response.wav")
-    synthesize_speech(llm_response, output_path)
+    output_path = os.path.join(temp_path, "response.mp3")  # MP3 statt WAV
+    synthesize_speech_minimax(llm_response, output_path)
 
     cleanup_temp_dir(temp_path, exclude_file=output_path)
 

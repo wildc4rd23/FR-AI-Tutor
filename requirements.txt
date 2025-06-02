@@ -7,12 +7,9 @@ vosk>=0.3.45
 soundfile>=0.12.1
 numpy>=1.24.3
 
-# TTS (Coqui - Tacotron2-DDC)
-TTS>=0.22.0
-torch>=2.3
-
 # LLM (TinyLLaMA via llama-cpp-python)
 llama-cpp-python>=0.2.72
 
-# Werkzeug für sichere UUID-Generierung
+# Werkzeug
 uuid
+requests>=2.31.0  # Für Minimax API

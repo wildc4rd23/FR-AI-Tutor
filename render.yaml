@@ -1,30 +1,18 @@
-    services:
+services:
   - type: web
     name: fr-ai-tutor
-    env: python
+    runtime: python
     plan: free
+    region: frankfurt
     buildCommand: |
-     
-      
-
-      # TinyLLaMA
-      mkdir -p backend/models/llm
-      [ -f backend/models/llm/tinyllama.gguf ] || \
-        curl -L -o backend/models/llm/tinyllama.gguf https://github.com/wildc4rd23/FR-AI-Tutor/raw/refs/heads/main/backend/models/llm/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
-
-
-      # Vosk French model
-      mkdir -p backend/models/stt/vosk
-      [ -d backend/models/stt/vosk/vosk-model-small-fr-0.22 ] || \
-        curl -L -o vosk-fr.zip https://github.com/wildc4rd23/FR-AI-Tutor/raw/refs/heads/main/backend/models/stt/vosk/vosk-model-small-fr-0.22.zip && \
-        unzip vosk-fr.zip -d backend/models/stt/vosk/ && rm vosk-fr.zip
-
-      # Coqui TTS tacotron2-DDC French
-     mkdir -p backend/models/tts/tts_models-fr-mai-tacotron2-DDC
-      [ -f backend/models/tts/tts_models-fr-mai-tacotron2-DDC/model.pth ] || \
-        curl -L -o backend/models/tts/tts_models-fr-mai-tacotron2-DDC/model.pth https://github.com/wildc4rd23/FR-AI-Tutor/raw/refs/heads/main/backend/models/tts/tts_models-fr-mai-tacotron2-DDC/model_file.pth
-      [ -f backend/models/tts/tts_models-fr-mai-tacotron2-DDC/config.json ] || \
-        curl -L -o backend/models/tts/tts_models-fr-mai-tacotron2-DDC/config.json https://github.com/wildc4rd23/FR-AI-Tutor/raw/refs/heads/main/backend/models/tts/tts_models-fr-mai-tacotron2-DDC/config.json
-
-      pip install -r requirements.txt
-    startCommand: "python backend/app.py"
+      apt-get update && apt-get install -y libsndfile1 ffmpeg git-lfs
+      git lfs install
+      mkdir -p backend/models
+    startCommand: python backend/app.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.12
+    build:
+      pythonVersion: 3.10.12
+    repo: https://github.com/wildc4rd23/FR-AI-Tutor.git
+    autoDeploy: true

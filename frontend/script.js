@@ -24,7 +24,7 @@ recordBtn.onclick = async () => {
         formData.append('audio', audioBlob, 'recording.wav');
 
         try {
-            // Schritt 1: Transkription anfordern
+            // Schritt 1: Transkription
             const transcribeRes = await fetch('/api/transcribe', {
                 method: 'POST',
                 body: formData
@@ -39,7 +39,7 @@ recordBtn.onclick = async () => {
 
             recognizedText.textContent = transcribeData.text;
 
-            // Schritt 2: LLM-Antwort anfordern
+            // Schritt 2: LLM-Antwort
             const respondRes = await fetch('/api/respond', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -53,8 +53,9 @@ recordBtn.onclick = async () => {
 
             responseText.textContent = respondData.response;
 
-            // Schritt 3: Wiedergabe der generierten Audioantwort
+            // Schritt 3: MP3-Audio abspielen
             audioPlayback.src = respondData.audio_url;
+            audioPlayback.type = 'audio/mpeg';  // Optional: explizit MP3
             audioPlayback.play();
         } catch (err) {
             console.error('Fehler beim Verarbeiten der Anfrage:', err);
@@ -70,5 +71,5 @@ recordBtn.onclick = async () => {
         mediaRecorder.stop();
         recordBtn.disabled = false;
         recordBtn.textContent = 'Aufnahme starten';
-    }, 15000); // 15 Sekunden Aufnahme
+    }, 15000);
 };
