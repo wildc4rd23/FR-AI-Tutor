@@ -12,5 +12,5 @@ uuid
 requests>=2.31.0  # Für Minimax API
 
 # TTS (Coqui - Tacotron2-DDC)
-#TTS>=0.22.0
+TTS>=0.22.0
 torch>=2.3
