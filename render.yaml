@@ -4,15 +4,19 @@ services:
     runtime: python
     plan: free
     region: frankfurt
+
+    repo: https://github.com/wildc4rd23/FR-AI-Tutor.git
+    autoDeploy: true
+
     buildCommand: |
-      apt-get update && apt-get install -y libsndfile1 ffmpeg git-lfs
+      apt-get update
+      apt-get install -y libsndfile1 ffmpeg git-lfs
       git lfs install
-      mkdir -p backend/models
+      git lfs pull  # ⬅️ Wichtig: Lade .pth Modelldateien per Git LFS herunter
+      pip install -r requirements.txt
+
     startCommand: python backend/app.py
+
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.12
-    build:
-      pythonVersion: 3.10.12
-    repo: https://github.com/wildc4rd23/FR-AI-Tutor.git
-    autoDeploy: true
