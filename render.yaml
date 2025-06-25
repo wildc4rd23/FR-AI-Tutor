@@ -2,13 +2,15 @@ services:
   - type: web
     name: fr-ai-tutor
     runtime: python
+    pythonVersion: 3.10.12
     plan: free
     region: frankfurt
-
     repo: https://github.com/wildc4rd23/FR-AI-Tutor.git
     autoDeploy: true
 
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      pip install -r requirements.txt
+
     startCommand: python backend/app.py
 
     envVars:
