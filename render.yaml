@@ -8,19 +8,21 @@ services:
     repo: https://github.com/wildc4rd23/FR-AI-Tutor.git
     autoDeploy: true
 
-buildCommand: |  # Vereinfachter Build ohne Git LFS
+buildCommand: pip install -r requirements.txt
+
+# Vereinfachter Build ohne Git LFS
  #     apt-get update
  #     apt-get install -y libsndfile1 ffmpeg git-lfs
  #     git lfs install
  #     git lfs pull  # ⬅️ Wichtig: Lade .pth Modelldateien per Git LFS herunter
-      pip install -r requirements.txt
+      
 
     startCommand: python backend/app.py
 
     envVars:
       - key: PYTHON_VERSION
-        value: 3.10.12
-        
+        value: "3.10.12"
+
       # API Keys werden in der Render-Oberfläche gesetzt (sicherer!)
       # - key: MISTRAL_API_KEY
       #   value: WIRD_IN_RENDER_DASHBOARD_GESETZT
