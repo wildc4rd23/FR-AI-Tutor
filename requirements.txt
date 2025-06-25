@@ -1,16 +1,4 @@
 # Webserver
 Flask>=2.3.3
 Flask-Cors>=4.0.0
-
-# STT
-#vosk>=0.3.45
-#soundfile>=0.12.1
-#numpy>=1.24.3
-
-# Werkzeug
-#uuid
 requests>=2.31.0  # Für Minimax API
-
-# TTS (Coqui - Tacotron2-DDC)
-#TTS>=0.22.0
-#torch>=2.3
