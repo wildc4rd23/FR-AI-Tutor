@@ -1,27 +1,41 @@
-# backend/tts.py
+# backend/tts_minimax.py
 import os
 import requests
 
-MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY")  # aus Umgebungsvariablen laden
-MINIMAX_URL = "https://api.minimaxi.chat/v1/t2a_v2"
-
 def synthesize_speech_minimax(text: str, output_path: str):
+    api_key = os.getenv("MINIMAX_API_KEY")
+    if not api_key:
+        raise Exception("MINIMAX_API_KEY Umgebungsvariable fehlt")
+    
+    # Minimax TTS API URL 
+    url = "https://api.minimaxi.chat/v1/t2a_v2"
+    
     headers = {
-        "Authorization": f"Bearer {MINIMAX_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
 
     payload = {
         "text": text,
-        "lang": "fr",
-        "voice_id": "female-001",  # Optional: andere Stimme oder Emotion
-        "emotion": "neutral"
+        "lang": "fr",              
+        "voice_id": "female-001",  
+        "emotion": "neutral",      
+        "speed": 1.0,
+        "vol": 50,
+        "pitch": 0,
+        "audio_sample_rate": 22050,
+        "bitrate": 128000
     }
 
-    response = requests.post(MINIMAX_URL, headers=headers, json=payload)
-
-    if response.status_code == 200:
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        response.raise_for_status()
+        
+        # Speichere die Audio-Datei
         with open(output_path, "wb") as f:
             f.write(response.content)
-    else:
-        raise Exception(f"Minimax API Fehler: {response.status_code} {response.text}")
+            
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Minimax API Fehler: {str(e)}")
+    except Exception as e:
+        raise Exception(f"TTS Fehler: {str(e)}")
