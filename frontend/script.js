@@ -1,286 +1,327 @@
-const recordBtn = document.getElementById('record');
-const stopBtn = document.getElementById('stop');
-const startBtn = document.getElementById('startConversation');
-const newConvBtn = document.getElementById('newConversation');
-const showResponseBtn = document.getElementById('showResponseBtn');
+    // Global variables
+    const recordBtn = document.getElementById('record');
+    const stopBtn = document.getElementById('stop');
+    const startBtn = document.getElementById('startConversation');
+    const newConvBtn = document.getElementById('newConversation');
+    const showResponseBtn = document.getElementById('showResponseBtn');
+    const playAudioBtn = document.getElementById('playAudioBtn');
 
-const recognizedText = document.getElementById('recognizedText');
-const responseText = document.getElementById('responseText');
-const audioPlayback = document.getElementById('audioPlayback');
-const userAudio = document.getElementById('userAudio');
-const responseContainer = document.getElementById('responseContainer');
+    const recognizedText = document.getElementById('recognizedText');
+    const responseText = document.getElementById('responseText');
+    const audioPlayback = document.getElementById('audioPlayback');
+    const userAudio = document.getElementById('userAudio');
 
-const startSection = document.getElementById('startSection');
-const conversationSection = document.getElementById('conversationSection');
-const scenarioSelect = document.getElementById('scenario');
+    const startSection = document.getElementById('startSection');
+    const conversationSection = document.getElementById('conversationSection');
+    const scenarioSelect = document.getElementById('scenario');
+    const globalStatus = document.getElementById('globalStatus');
+    const audioStatus = document.getElementById('audioStatus');
+    const recordingStatus = document.getElementById('recordingStatus');
 
-let mediaRecorder;
-let audioChunks = [];
-let currentUserId = null;
+    const step1 = document.getElementById('step1');
+    const step2 = document.getElementById('step2');
 
-// Utility functions
-function showLoading(element, message = "Chargement...") {
-  element.innerHTML = `<div style="color: #666; font-style: italic;">${message}</div>`;
-}
+    let mediaRecorder;
+    let audioChunks = [];
+    let currentUserId = null;
 
-function showError(element, message) {
-  element.innerHTML = `<div style="color: #d32f2f; font-weight: bold;">⚠️ ${message}</div>`;
-}
-
-function resetUI() {
-  startSection.classList.remove('hidden');
-  conversationSection.classList.add('hidden');
-  responseContainer.classList.add('hidden');
-  recognizedText.textContent = '...';
-  responseText.textContent = '...';
-  audioPlayback.src = '';
-  userAudio.src = '';
-  currentUserId = null;
-  
-  // Reset button states
-  recordBtn.disabled = false;
-  stopBtn.classList.add('hidden');
-  showResponseBtn.textContent = 'Afficher la réponse';
-}
-
-// Enhanced audio playback with better error handling
-function playAudioWithFallback(audioElement, audioUrl) {
-  if (!audioUrl) {
-    console.warn('Keine Audio-URL verfügbar');
-    return;
-  }
-  
-  audioElement.src = audioUrl;
-  
-  // Add error handling for audio playback
-  audioElement.onerror = function(e) {
-    console.error('Audio playback error:', e);
-    showError(responseText, 'Erreur lors de la lecture audio. Le texte est disponible ci-dessus.');
-  };
-  
-  audioElement.oncanplaythrough = function() {
-    console.log('Audio ready to play');
-  };
-  
-  // Auto-play with user gesture check
-  const playPromise = audioElement.play();
-  
-  if (playPromise !== undefined) {
-    playPromise.then(() => {
-      console.log('Audio started playing');
-    }).catch(error => {
-      console.warn('Auto-play prevented:', error);
-      // User interaction required for audio playback
-    });
-  }
-}
-
-startBtn.onclick = async () => {
-  const scenario = scenarioSelect.value;
-
-  if (!scenario) {
-    alert("Veuillez choisir un thème.");
-    return;
-  }
-
-  startSection.classList.add('hidden');
-  conversationSection.classList.remove('hidden');
-
-  if (scenario !== "libre") {
-    // Show loading state
-    showLoading(responseText, "L'assistant prépare la conversation...");
-    
-    const intro = `J'apprends le français au niveau B1/B2. Je voudrais avoir une conversation avec toi sur le thème « ${scenario} ». Corrige-moi si je fais des erreurs et aide-moi à améliorer ma grammaire et mon expression. Commence par me poser une question ou présenter une situation pour démarrer notre conversation.`;
-
-    try {
-      const res = await fetch('/api/respond', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: intro, user_id: 'intro_' + Date.now() })
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-
-      const data = await res.json();
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      responseText.innerHTML = `<div style="line-height: 1.6;">${data.response}</div>`;
-      
-      // Handle TTS error gracefully
-      if (data.tts_error) {
-        console.warn('TTS Error:', data.tts_error);
-        responseText.innerHTML += `<div style="color: #ff9800; font-size: 0.9em; margin-top: 10px;">⚠️ Audio non disponible: ${data.tts_error}</div>`;
-      }
-      
-      if (data.audio_url) {
-        audioPlayback.src = data.audio_url;
-        audioPlayback.type = 'audio/mpeg';
-      }
-      
-    } catch (err) {
-      console.error('Error starting conversation:', err);
-      showError(responseText, `Erreur lors de la récupération de la réponse: ${err.message}`);
+    // Utility functions
+    function showStatus(element, message, type = 'loading') {
+      element.className = `status-message status-${type}`;
+      element.innerHTML = message;
+      element.classList.remove('hidden');
     }
-  }
-};
 
-showResponseBtn.onclick = () => {
-  const isHidden = responseContainer.classList.contains('hidden');
-  
-  if (isHidden) {
-    responseContainer.classList.remove('hidden');
-    showResponseBtn.textContent = 'Masquer la réponse';
-    
-    // Play audio if available
-    if (audioPlayback.src) {
-      playAudioWithFallback(audioPlayback, audioPlayback.src);
+    function hideStatus(element) {
+      element.classList.add('hidden');
     }
-  } else {
-    responseContainer.classList.add('hidden');
-    showResponseBtn.textContent = 'Afficher la réponse';
-    audioPlayback.pause();
-    audioPlayback.currentTime = 0;
-  }
-};
 
-newConvBtn.onclick = () => {
-  // Stop any playing audio
-  if (audioPlayback) {
-    audioPlayback.pause();
-    audioPlayback.currentTime = 0;
-  }
-  if (userAudio) {
-    userAudio.pause();
-    userAudio.currentTime = 0;
-  }
-  
-  resetUI();
-};
+    function showGlobalStatus(message, type = 'loading') {
+      showStatus(globalStatus, message, type);
+    }
 
-recordBtn.onclick = async () => {
-  try {
-    audioChunks = [];
-    
-    // Request microphone permission
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(stream);
+    function hideGlobalStatus() {
+      hideStatus(globalStatus);
+    }
 
-    mediaRecorder.ondataavailable = event => {
-      if (event.data.size > 0) {
-        audioChunks.push(event.data);
-      }
-    };
+    function activateStep(stepNumber) {
+      step1.classList.toggle('active', stepNumber >= 1);
+      step2.classList.toggle('active', stepNumber >= 2);
+    }
 
-    mediaRecorder.onstop = async () => {
-      // Stop all tracks to release microphone
-      stream.getTracks().forEach(track => track.stop());
+    function resetUI() {
+      startSection.classList.remove('hidden');
+      conversationSection.classList.add('hidden');
       
-      if (audioChunks.length === 0) {
-        showError(recognizedText, 'Aucun audio enregistré');
+      recognizedText.textContent = 'En attente d\'enregistrement...';
+      responseText.textContent = '...';
+      
+      audioPlayback.src = '';
+      audioPlayback.classList.add('hidden');
+      userAudio.src = '';
+      
+      showResponseBtn.textContent = '👁️ Afficher la réponse';
+      playAudioBtn.classList.add('hidden');
+      
+      currentUserId = null;
+      
+      // Reset button states
+      recordBtn.disabled = false;
+      recordBtn.innerHTML = '🎙️ Commencer l\'enregistrement';
+      recordBtn.classList.remove('recording');
+      stopBtn.classList.add('hidden');
+      
+      hideGlobalStatus();
+      hideStatus(audioStatus);
+      hideStatus(recordingStatus);
+      
+      activateStep(1);
+    }
+
+    function playAudioWithFallback(audioElement, audioUrl) {
+      if (!audioUrl) {
+        showStatus(audioStatus, '⚠️ Aucun audio disponible', 'error');
         return;
       }
       
-      const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-      const userAudioURL = URL.createObjectURL(audioBlob);
-      userAudio.src = userAudioURL;
-
-      // Show loading states
-      showLoading(recognizedText, "Transcription en cours...");
-      showLoading(responseText, "L'assistant réfléchit...");
-
-      try {
-        // Transcription
-        const formData = new FormData();
-        formData.append('audio', audioBlob, 'recording.wav');
-
-        const transcribeRes = await fetch('/api/transcribe', {
-          method: 'POST',
-          body: formData
+      audioElement.src = audioUrl;
+      audioElement.classList.remove('hidden');
+      
+      audioElement.onerror = function(e) {
+        console.error('Audio playback error:', e);
+        showStatus(audioStatus, '⚠️ Erreur lors de la lecture audio', 'error');
+      };
+      
+      audioElement.oncanplaythrough = function() {
+        hideStatus(audioStatus);
+      };
+      
+      const playPromise = audioElement.play();
+      
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          console.log('Audio started playing');
+        }).catch(error => {
+          console.warn('Auto-play prevented:', error);
         });
+      }
+    }
 
-        if (!transcribeRes.ok) {
-          throw new Error(`Transcription failed: ${transcribeRes.status}`);
-        }
+    // Event Listeners
+    startBtn.onclick = async () => {
+      const scenario = scenarioSelect.value;
 
-        const transcribeData = await transcribeRes.json();
+      if (!scenario) {
+        showGlobalStatus("⚠️ Veuillez choisir un thème.", 'error');
+        setTimeout(hideGlobalStatus, 3000);
+        return;
+      }
 
-        if (transcribeData.error) {
-          throw new Error(transcribeData.error);
-        }
+      startSection.classList.add('hidden');
+      conversationSection.classList.remove('hidden');
+      activateStep(1);
 
-        recognizedText.innerHTML = `<div style="background: #e8f5e8; padding: 10px; border-radius: 5px; border-left: 4px solid #4caf50;">"${transcribeData.text}"</div>`;
-        currentUserId = transcribeData.user_id;
-
-        // Get AI response
-        const respondRes = await fetch('/api/respond', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: transcribeData.text,
-            user_id: transcribeData.user_id
-          })
-        });
-
-        if (!respondRes.ok) {
-          throw new Error(`Response failed: ${respondRes.status}`);
-        }
-
-        const respondData = await respondRes.json();
+      if (scenario !== "libre") {
+        responseText.innerHTML = '<div class="status-message status-loading">🤔 L\'assistant prépare la conversation...</div>';
         
-        if (respondData.error) {
-          throw new Error(respondData.error);
-        }
+        const intro = `J'apprends le français au niveau B1/B2. Je voudrais avoir une conversation avec toi sur le thème « ${scenario} ». Corrige-moi si je fais des erreurs et aide-moi à améliorer ma grammaire et mon expression. Commence par me poser une question ou présenter une situation pour démarrer notre conversation.`;
 
-        responseText.innerHTML = `<div style="line-height: 1.6;">${respondData.response}</div>`;
-        
-        // Handle TTS
-        if (respondData.audio_url) {
-          audioPlayback.src = respondData.audio_url;
-          audioPlayback.type = 'audio/mpeg';
+        try {
+          const res = await fetch('/api/respond', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: intro, user_id: 'intro_' + Date.now() })
+          });
+
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          }
+
+          const data = await res.json();
+
+          if (data.error) {
+            throw new Error(data.error);
+          }
+
+          responseText.innerHTML = data.response;
+          
+          if (data.tts_error) {
+            console.warn('TTS Error:', data.tts_error);
+            showStatus(audioStatus, '⚠️ Audio non disponible: problème technique', 'error');
+          }
+          
+          if (data.audio_url) {
+            audioPlayback.src = data.audio_url;
+            audioPlayback.type = 'audio/mpeg';
+            playAudioBtn.classList.remove('hidden');
+          }
+          
+          activateStep(2);
+          
+        } catch (err) {
+          console.error('Error starting conversation:', err);
+          responseText.innerHTML = `<div class="status-message status-error">⚠️ Erreur: ${err.message}</div>`;
         }
-        
-        if (respondData.tts_error) {
-          console.warn('TTS Error:', respondData.tts_error);
-          responseText.innerHTML += `<div style="color: #ff9800; font-size: 0.9em; margin-top: 10px;">⚠️ Audio non disponible</div>`;
-        }
-        
-        // Hide response until user clicks to reveal
-        responseContainer.classList.add('hidden');
-        showResponseBtn.textContent = 'Afficher la réponse';
-        
-      } catch (err) {
-        console.error('Processing error:', err);
-        showError(recognizedText, 'Erreur lors du traitement de l\'audio');
-        showError(responseText, `Une erreur est survenue: ${err.message}`);
+      } else {
+        responseText.innerHTML = "🎯 Sujet libre sélectionné. Commencez par vous enregistrer ci-dessous !";
+        activateStep(2);
       }
     };
 
-    mediaRecorder.start();
-    recordBtn.disabled = true;
-    stopBtn.classList.remove('hidden');
-    
-    // Visual feedback for recording
-    recordBtn.innerHTML = '🔴 Enregistrement...';
-    
-  } catch (err) {
-    console.error('Recording error:', err);
-    alert('Erreur d\'accès au microphone. Veuillez autoriser l\'accès et réessayer.');
-  }
-};
+    showResponseBtn.onclick = () => {
+      const isHidden = responseText.style.display === 'none' || !responseText.innerHTML.trim();
+      
+      if (responseText.innerHTML.includes('...') || isHidden) {
+        responseText.style.display = 'block';
+        showResponseBtn.textContent = '👁️ Masquer la réponse';
+      } else {
+        responseText.style.display = 'none';
+        showResponseBtn.textContent = '👁️ Afficher la réponse';
+        audioPlayback.pause();
+        audioPlayback.currentTime = 0;
+      }
+    };
 
-stopBtn.onclick = () => {
-  if (mediaRecorder && mediaRecorder.state === "recording") {
-    mediaRecorder.stop();
-    recordBtn.disabled = false;
-    recordBtn.innerHTML = '🎙️ Commencer l\'enregistrement';
-    stopBtn.classList.add('hidden');
-  }
-};
+    playAudioBtn.onclick = () => {
+      if (audioPlayback.src) {
+        playAudioWithFallback(audioPlayback, audioPlayback.src);
+      }
+    };
 
-// Initialize
-resetUI();
+    newConvBtn.onclick = () => {
+      if (audioPlayback) {
+        audioPlayback.pause();
+        audioPlayback.currentTime = 0;
+      }
+      if (userAudio) {
+        userAudio.pause();
+        userAudio.currentTime = 0;
+      }
+      
+      resetUI();
+    };
+
+    recordBtn.onclick = async () => {
+      try {
+        audioChunks = [];
+        
+        showStatus(recordingStatus, '🎙️ Demande d\'accès au microphone...', 'loading');
+        
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+
+        mediaRecorder.ondataavailable = event => {
+          if (event.data.size > 0) {
+            audioChunks.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          stream.getTracks().forEach(track => track.stop());
+          
+          if (audioChunks.length === 0) {
+            showStatus(recordingStatus, '⚠️ Aucun audio enregistré', 'error');
+            return;
+          }
+          
+          const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+          const userAudioURL = URL.createObjectURL(audioBlob);
+          userAudio.src = userAudioURL;
+
+          recognizedText.innerHTML = '<div class="status-message status-loading">🔄 Transcription en cours...</div>';
+          responseText.innerHTML = '<div class="status-message status-loading">🤔 L\'assistant réfléchit...</div>';
+
+          try {
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'recording.wav');
+
+            const transcribeRes = await fetch('/api/transcribe', {
+              method: 'POST',
+              body: formData
+            });
+
+            if (!transcribeRes.ok) {
+              throw new Error(`Transcription failed: ${transcribeRes.status}`);
+            }
+
+            const transcribeData = await transcribeRes.json();
+
+            if (transcribeData.error) {
+              throw new Error(transcribeData.error);
+            }
+
+            recognizedText.innerHTML = `"${transcribeData.text}"`;
+            currentUserId = transcribeData.user_id;
+
+            const respondRes = await fetch('/api/respond', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                text: transcribeData.text,
+                user_id: transcribeData.user_id
+              })
+            });
+
+            if (!respondRes.ok) {
+              throw new Error(`Response failed: ${respondRes.status}`);
+            }
+
+            const respondData = await respondRes.json();
+            
+            if (respondData.error) {
+              throw new Error(respondData.error);
+            }
+
+            responseText.innerHTML = respondData.response;
+            
+            if (respondData.audio_url) {
+              audioPlayback.src = respondData.audio_url;
+              audioPlayback.type = 'audio/mpeg';
+              playAudioBtn.classList.remove('hidden');
+            }
+            
+            if (respondData.tts_error) {
+              console.warn('TTS Error:', respondData.tts_error);
+              showStatus(audioStatus, '⚠️ Audio non disponible', 'error');
+            }
+            
+            hideStatus(recordingStatus);
+            showStatus(recordingStatus, '✅ Enregistrement traité avec succès!', 'success');
+            setTimeout(() => hideStatus(recordingStatus), 3000);
+            
+          } catch (err) {
+            console.error('Processing error:', err);
+            recognizedText.innerHTML = `<div class="status-message status-error">⚠️ Erreur lors du traitement</div>`;
+            responseText.innerHTML = `<div class="status-message status-error">⚠️ ${err.message}</div>`;
+            showStatus(recordingStatus, '⚠️ Erreur lors du traitement', 'error');
+          }
+        };
+
+        mediaRecorder.start();
+        recordBtn.disabled = true;
+        recordBtn.innerHTML = '🔴 Enregistrement en cours...';
+        recordBtn.classList.add('recording');
+        stopBtn.classList.remove('hidden');
+        
+        showStatus(recordingStatus, '🎙️ Enregistrement en cours... Parlez maintenant!', 'success');
+        
+      } catch (err) {
+        console.error('Recording error:', err);
+        showStatus(recordingStatus, '⚠️ Erreur d\'accès au microphone. Veuillez autoriser l\'accès.', 'error');
+      }
+    };
+
+    stopBtn.onclick = () => {
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+        recordBtn.disabled = false;
+        recordBtn.innerHTML = '🎙️ Commencer l\'enregistrement';
+        recordBtn.classList.remove('recording');
+        stopBtn.classList.add('hidden');
+        
+        showStatus(recordingStatus, '⏹️ Enregistrement arrêté. Traitement...', 'loading');
+      }
+    };
+
+    // Initialize
+    resetUI();

@@ -3,81 +3,339 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Assistant Vocal</title>
+  <title>Assistant Vocal Français</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: sans-serif;
-      max-width: 600px;
-      margin: 40px auto;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
       padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      color: #333;
+    }
+
+    .container {
+      background: white;
+      border-radius: 15px;
+      padding: 30px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+    }
+
+    h1 {
       text-align: center;
+      color: #4a5568;
+      margin-bottom: 30px;
+      font-size: 2em;
     }
+
     select, button {
-      padding: 10px;
+      padding: 12px 20px;
       font-size: 16px;
-      margin: 10px 0;
+      border-radius: 8px;
+      border: 2px solid #e2e8f0;
+      margin: 8px 0;
+      transition: all 0.3s ease;
+      font-family: inherit;
     }
-    .hidden { display: none; }
+
+    select {
+      width: 100%;
+      background: white;
+    }
+
+    select:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    button {
+      background: #667eea;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: block;
+      margin: 15px auto;
+      min-width: 200px;
+    }
+
+    button:hover:not(:disabled) {
+      background: #5a67d8;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    button:disabled {
+      background: #a0aec0;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .hidden { 
+      display: none; 
+    }
+
     .text-block {
-      margin: 20px 0;
-      font-size: 18px;
-      white-space: pre-wrap;
+      margin: 25px 0;
+      padding: 20px;
+      background: #f8fafc;
+      border-radius: 10px;
+      border-left: 4px solid #667eea;
     }
+
+    .text-block h3 {
+      margin-top: 0;
+      color: #4a5568;
+      font-size: 1.2em;
+    }
+
+    .text-content {
+      font-size: 16px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      min-height: 60px;
+    }
+
+    .user-input {
+      background: #e6fffa !important;
+      border-left-color: #38b2ac !important;
+    }
+
+    .assistant-response {
+      background: #fef5e7 !important;
+      border-left-color: #ed8936 !important;
+    }
+
     audio {
       width: 100%;
-      margin: 10px 0;
+      margin: 15px 0;
+      border-radius: 8px;
+    }
+
+    .audio-controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+      margin: 15px 0;
+    }
+
+    .record-btn {
+      background: #e53e3e;
+      min-width: auto;
+      padding: 15px 25px;
+      border-radius: 50px;
+      font-size: 18px;
+    }
+
+    .record-btn:hover:not(:disabled) {
+      background: #c53030;
+    }
+
+    .record-btn.recording {
+      background: #fc8181;
+      animation: pulse 1.5s infinite;
+    }
+
+    .stop-btn {
+      background: #2d3748;
+      min-width: auto;
+      padding: 15px 25px;
+      border-radius: 50px;
+    }
+
+    .stop-btn:hover {
+      background: #1a202c;
+    }
+
+    .secondary-btn {
+      background: #718096;
+      font-size: 14px;
+      text-transform: none;
+      letter-spacing: normal;
+      min-width: auto;
+      padding: 10px 20px;
+    }
+
+    .secondary-btn:hover {
+      background: #4a5568;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.7; }
+      100% { opacity: 1; }
+    }
+
+    .status-message {
+      text-align: center;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 15px 0;
+      font-weight: 500;
+    }
+
+    .status-loading {
+      background: #bee3f8;
+      color: #2b6cb0;
+      border-left: 4px solid #3182ce;
+    }
+
+    .status-error {
+      background: #fed7d7;
+      color: #c53030;
+      border-left: 4px solid #e53e3e;
+    }
+
+    .status-success {
+      background: #c6f6d5;
+      color: #2f855a;
+      border-left: 4px solid #38a169;
+    }
+
+    .conversation-flow {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .step {
+      opacity: 0.6;
+      transition: opacity 0.3s ease;
+    }
+
+    .step.active {
+      opacity: 1;
+    }
+
+    .logo {
+      text-align: center;
+      font-size: 4em;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+      
+      .container {
+        padding: 20px;
+      }
+
+      h1 {
+        font-size: 1.5em;
+      }
+
+      .audio-controls {
+        flex-direction: column;
+      }
+
+      button {
+        width: 100%;
+      }
     }
   </style>
   <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#0d6efd" />
+  <meta name="theme-color" content="#667eea" />
 </head>
 <body>
+  <div class="container">
+    <div class="logo">🇫🇷</div>
+    <h1>Assistant Vocal Français</h1>
+    <p style="text-align: center; color: #718096; margin-bottom: 30px;">
+      Pratiquez votre français avec un assistant intelligent (niveau B1/B2)
+    </p>
 
-  <h1>🇫🇷 Assistant vocal (niveau B1/B2)</h1>
-
-  <!-- Themenwahl -->
-  <div id="startSection">
-    <p>Choisissez un thème pour commencer une conversation :</p>
-    <select id="scenario">
-        <option value="restaurant">Restaurant</option>
-        <option value="loisirs">Loisirs</option>
-        <option value="travail">Travail</option>
-        <option value="faire les courses">Faire les courses</option>
-        <option value="visite chez le médecin">Visite chez le médecin</option>
-        <option value="libre">Sujet libre (entrée vocale)</option>
-    </select>
-    <br/>
-    <button id="startConversation">Démarrer la conversation</button>
-  </div>
-
-  <!-- Hauptbereich nach Auswahl -->
-  <div id="conversationSection" class="hidden">
-
-    <!-- LLM Antwort (zuerst versteckt) -->
-    <div class="text-block">
-      <button id="showResponseBtn">Afficher la réponse</button>
-      <div id="responseContainer" class="hidden">
-        <strong>Réponse de l'assistant :</strong>
-        <div id="responseText">...</div>
-      </div>
-      <audio id="audioPlayback" controls></audio>
-    </div>
-
-    <!-- Sprachaufnahme -->
-    <div class="text-block">
-      <button id="record">🎙️ Commencer l'enregistrement</button>
-      <button id="stop" class="hidden">🛑 Arrêter</button>
-      <div>
-        <strong>Votre voix :</strong><br/>
-        <audio id="userAudio" controls></audio>
-      </div>
-      <div>
-        <strong>Texte reconnu :</strong>
-        <div id="recognizedText">...</div>
+    <!-- Themenwahl -->
+    <div id="startSection">
+      <div class="text-block">
+        <h3>Choisissez un thème de conversation :</h3>
+        <select id="scenario">
+          <option value="">-- Sélectionnez un thème --</option>
+          <option value="restaurant">🍽️ Restaurant - Commander un repas</option>
+          <option value="loisirs">🎯 Loisirs - Parler de vos hobbies</option>
+          <option value="travail">💼 Travail - Environnement professionnel</option>
+          <option value="faire les courses">🛒 Faire les courses - Au supermarché</option>
+          <option value="visite chez le médecin">🏥 Visite chez le médecin</option>
+          <option value="voyage">✈️ Voyage - Planifier des vacances</option>
+          <option value="libre">💬 Sujet libre (conversation ouverte)</option>
+        </select>
+        <button id="startConversation">🚀 Démarrer la conversation</button>
       </div>
     </div>
 
-    <button id="newConversation">🔄 Nouveau sujet</button>
+    <!-- Hauptbereich nach Auswahl -->
+    <div id="conversationSection" class="hidden">
+      <div class="conversation-flow">
+        
+        <!-- Schritt 1: Assistant Response -->
+        <div class="step active" id="step1">
+          <div class="text-block assistant-response">
+            <h3>👨‍🏫 Réponse de l'assistant</h3>
+            <div class="text-content" id="responseText">...</div>
+            
+            <div class="audio-controls">
+              <button id="showResponseBtn" class="secondary-btn">👁️ Afficher la réponse</button>
+              <button id="playAudioBtn" class="secondary-btn hidden">🔊 Écouter l'audio</button>
+            </div>
+            
+            <audio id="audioPlayback" controls class="hidden">
+              Votre navigateur ne supporte pas l'élément audio.
+            </audio>
+            
+            <div id="audioStatus" class="hidden"></div>
+          </div>
+        </div>
+
+        <!-- Schritt 2: User Recording -->
+        <div class="step" id="step2">
+          <div class="text-block user-input">
+            <h3>🎙️ Votre réponse</h3>
+            
+            <div class="audio-controls">
+              <button id="record" class="record-btn">🎙️ Commencer l'enregistrement</button>
+              <button id="stop" class="stop-btn hidden">🛑 Arrêter</button>
+            </div>
+            
+            <div id="recordingStatus" class="hidden"></div>
+            
+            <div style="margin-top: 20px;">
+              <strong>Votre enregistrement :</strong>
+              <audio id="userAudio" controls style="margin-top: 10px;">
+                Votre navigateur ne supporte pas l'élément audio.
+              </audio>
+            </div>
+            
+            <div style="margin-top: 15px;">
+              <strong>Texte reconnu :</strong>
+              <div class="text-content" id="recognizedText">En attente d'enregistrement...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contrôles de conversation -->
+      <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
+        <button id="newConversation" class="secondary-btn">🔄 Nouveau sujet</button>
+      </div>
+    </div>
+
+    <!-- Status Messages -->
+    <div id="globalStatus" class="hidden"></div>
   </div>
 
   <script src="script.js"></script>
