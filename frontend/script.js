@@ -2,18 +2,22 @@ const recordBtn = document.getElementById('record');
 const stopBtn = document.getElementById('stop');
 const resetBtn = document.getElementById('reset');
 const scenarioSelect = document.getElementById('scenario');
+
 const recognizedText = document.getElementById('recognizedText');
 const responseText = document.getElementById('responseText');
 const audioPlayback = document.getElementById('audioPlayback');
+const userRecording = document.getElementById('userRecording');
 
 let mediaRecorder;
 let audioChunks = [];
 let recordingTimeout;
+let lastScenario = null;
 
 recordBtn.onclick = async () => {
     const selectedScenario = scenarioSelect.value;
 
-    if (selectedScenario !== 'libre') {
+    // Szenario vorausgewählt (nicht "libre")
+    if (selectedScenario !== 'libre' && selectedScenario !== lastScenario) {
         const intro = `J'apprends le français au niveau B1/B2. Je voudrais avoir une conversation avec toi sur le thème « ${selectedScenario} ». Corrige-moi si je fais des erreurs et aide-moi à améliorer ma grammaire et mon expression.`;
 
         responseText.textContent = "Génération de la question...";
@@ -31,23 +35,28 @@ recordBtn.onclick = async () => {
             const respondData = await respondRes.json();
             responseText.textContent = respondData.response;
             audioPlayback.src = respondData.audio_url;
+            audioPlayback.style.display = "block";
             audioPlayback.play();
 
-            setTimeout(startVoiceRecording, 1000);
+            lastScenario = selectedScenario;
+            recordBtn.textContent = "🎙️ Commencer l'enregistrement";
+            return;
         } catch (err) {
             console.error("Erreur pendant la génération du scénario :", err);
             responseText.textContent = "Erreur lors de la génération.";
+            return;
         }
-    } else {
-        startVoiceRecording();
     }
+
+    // Aufnahme starten
+    startRecording();
 };
 
-function startVoiceRecording() {
+function startRecording() {
     audioChunks = [];
     recognizedText.textContent = '';
-    responseText.textContent = '';
-    audioPlayback.src = '';
+    userRecording.src = '';
+    userRecording.style.display = "none";
 
     navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
         mediaRecorder = new MediaRecorder(stream);
@@ -64,9 +73,8 @@ function startVoiceRecording() {
         recordBtn.disabled = true;
         stopBtn.disabled = false;
         resetBtn.disabled = false;
-        recordBtn.textContent = 'Enregistrement...';
+        recordBtn.textContent = '⏺️ Enregistrement...';
 
-        // Optionaler Auto-Stopp nach 15 Sekunden
         recordingTimeout = setTimeout(() => {
             if (mediaRecorder && mediaRecorder.state === 'recording') {
                 mediaRecorder.stop();
@@ -90,18 +98,19 @@ resetBtn.onclick = () => {
     }
     audioChunks = [];
     recognizedText.textContent = 'Réinitialisé.';
-    responseText.textContent = '';
-    audioPlayback.src = '';
     recordBtn.disabled = false;
     stopBtn.disabled = true;
     resetBtn.disabled = true;
-    recordBtn.textContent = 'Commencer';
+    recordBtn.textContent = '🎙️ Commencer';
 };
 
 async function handleRecordingStop() {
     const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.wav');
+
+    userRecording.src = URL.createObjectURL(audioBlob);
+    userRecording.style.display = "block";
 
     try {
         const transcribeRes = await fetch('/api/transcribe', {
@@ -129,6 +138,7 @@ async function handleRecordingStop() {
         const respondData = await respondRes.json();
         responseText.textContent = respondData.response;
         audioPlayback.src = respondData.audio_url;
+        audioPlayback.style.display = "block";
         audioPlayback.play();
     } catch (err) {
         console.error('Erreur pendant la reconnaissance :', err);
@@ -137,6 +147,6 @@ async function handleRecordingStop() {
         recordBtn.disabled = false;
         stopBtn.disabled = true;
         resetBtn.disabled = true;
-        recordBtn.textContent = 'Commencer';
+        recordBtn.textContent = '🎙️ Commencer';
     }
 }

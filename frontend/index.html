@@ -1,40 +1,48 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Assistant Vocal</title>
-    <style>
-        body {
-            font-family: sans-serif;
-            max-width: 600px;
-            margin: 50px auto;
-            text-align: center;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Assistant vocal</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      text-align: center;
+    }
 
-        button, select {
-            padding: 10px 20px;
-            font-size: 16px;
-            margin-top: 10px;
-        }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 5px;
+    }
 
-        .text-block {
-            margin-top: 20px;
-            font-size: 18px;
-            white-space: pre-wrap;
-        }
+    .text-block {
+      margin-top: 20px;
+      font-size: 18px;
+      white-space: pre-wrap;
+    }
 
-        audio {
-            margin-top: 20px;
-            width: 100%;
-        }
-    </style>
+    audio {
+      margin-top: 20px;
+      width: 100%;
+    }
+
+    select {
+      font-size: 16px;
+      padding: 8px;
+      margin-bottom: 20px;
+    }
+  </style>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#0d6efd" />
 </head>
 <body>
-    <h1>🗣️ Assistant Vocal</h1>
+  <h1>🗣️ Assistant vocal</h1>
 
-    <label for="scenario"><strong>Choisis un thème :</strong></label><br>
-    <select id="scenario">
+  <label for="scenario"><strong>Choisis un thème :</strong></label><br/>
+  <select id="scenario">
         <option value="restaurant">Restaurant</option>
         <option value="loisirs">Loisirs</option>
         <option value="travail">Travail</option>
@@ -44,22 +52,30 @@
     </select>
 
     <br><br>
-    <button id="record">Commencer</button> 
-    <button id="stop" disabled>⏹️ Arrêter</button> 
-    <button id="reset" disabled>🔄 Recommencer</button>
+    <button id="record">🎙️ Commencer</button>
+  <button id="stop" disabled>⏹️ Arrêter</button>
+  <button id="reset" disabled>🔄 Recommencer</button>
 
-    <div class="text-block">
-        <strong>Reconnu :</strong>
-        <div id="recognizedText">Rien de reconnu pour l’instant...</div>
-    </div>
+  <div class="text-block">
+    <strong>Texte reconnu :</strong>
+    <div id="recognizedText">Aucune entrée reconnue pour le moment...</div>
+  </div>
 
-    <div class="text-block">
-        <strong>Réponse :</strong>
-        <div id="responseText">Pas encore de réponse...</div>
-    </div>
+  <div class="text-block">
+    <strong>Réponse de l’IA :</strong>
+    <div id="responseText">Aucune réponse pour l’instant...</div>
+  </div>
 
-    <audio id="audioPlayback" controls></audio>
+  <div class="text-block">
+    <strong>Ta propre voix :</strong><br/>
+    <audio id="userRecording" controls style="display:none;"></audio>
+  </div>
 
-    <script src="script.js"></script>
+  <div class="text-block">
+    <strong>Audio de réponse :</strong><br/>
+    <audio id="audioPlayback" controls style="display:none;"></audio>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>
