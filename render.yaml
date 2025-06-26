@@ -11,7 +11,8 @@ services:
     buildCommand: |
       pip install -r requirements.txt
 
-    startCommand: python backend/app.py
+    # Verwende Gunicorn für Production
+    startCommand: gunicorn --bind 0.0.0.0:$PORT backend.app:app
 
     envVars:
       - key: PYTHON_VERSION
