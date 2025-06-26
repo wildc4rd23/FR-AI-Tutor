@@ -1,3 +1,24 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:8c49beb8704345f47ac06f8737b887ac5823df69404b3e4046d68ff2a09af050
-size 549
+/* manifest.json */
+{
+  "name": "Assistant Vocal Français",
+  "short_name": "Assistant",
+  "description": "Un assistant vocal pour pratiquer le français (niveau B1/B2)",
+  "lang": "fr-FR",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0d6efd",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
