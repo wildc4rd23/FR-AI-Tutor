@@ -3,46 +3,42 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Assistant vocal</title>
+  <title>Assistant Vocal</title>
   <style>
     body {
       font-family: sans-serif;
       max-width: 600px;
-      margin: 50px auto;
+      margin: 40px auto;
+      padding: 20px;
       text-align: center;
     }
-
-    button {
-      padding: 10px 20px;
+    select, button {
+      padding: 10px;
       font-size: 16px;
-      margin: 5px;
+      margin: 10px 0;
     }
-
+    .hidden { display: none; }
     .text-block {
-      margin-top: 20px;
+      margin: 20px 0;
       font-size: 18px;
       white-space: pre-wrap;
     }
-
     audio {
-      margin-top: 20px;
       width: 100%;
-    }
-
-    select {
-      font-size: 16px;
-      padding: 8px;
-      margin-bottom: 20px;
+      margin: 10px 0;
     }
   </style>
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#0d6efd" />
 </head>
 <body>
-  <h1>🗣️ Assistant vocal</h1>
 
-  <label for="scenario"><strong>Choisis un thème :</strong></label><br/>
-  <select id="scenario">
+  <h1>🇫🇷 Assistant vocal (niveau B1/B2)</h1>
+
+  <!-- Themenwahl -->
+  <div id="startSection">
+    <p>Choisissez un thème pour commencer une conversation :</p>
+    <select id="scenario">
         <option value="restaurant">Restaurant</option>
         <option value="loisirs">Loisirs</option>
         <option value="travail">Travail</option>
@@ -50,30 +46,38 @@
         <option value="visite chez le médecin">Visite chez le médecin</option>
         <option value="libre">Sujet libre (entrée vocale)</option>
     </select>
-
-    <br><br>
-    <button id="record">🎙️ Commencer</button>
-  <button id="stop" disabled>⏹️ Arrêter</button>
-  <button id="reset" disabled>🔄 Recommencer</button>
-
-  <div class="text-block">
-    <strong>Texte reconnu :</strong>
-    <div id="recognizedText">Aucune entrée reconnue pour le moment...</div>
+    <br/>
+    <button id="startConversation">Démarrer la conversation</button>
   </div>
 
-  <div class="text-block">
-    <strong>Réponse de l’IA :</strong>
-    <div id="responseText">Aucune réponse pour l’instant...</div>
-  </div>
+  <!-- Hauptbereich nach Auswahl -->
+  <div id="conversationSection" class="hidden">
 
-  <div class="text-block">
-    <strong>Ta propre voix :</strong><br/>
-    <audio id="userRecording" controls style="display:none;"></audio>
-  </div>
+    <!-- LLM Antwort (zuerst versteckt) -->
+    <div class="text-block">
+      <button id="showResponseBtn">Afficher la réponse</button>
+      <div id="responseContainer" class="hidden">
+        <strong>Réponse de l'assistant :</strong>
+        <div id="responseText">...</div>
+      </div>
+      <audio id="audioPlayback" controls></audio>
+    </div>
 
-  <div class="text-block">
-    <strong>Audio de réponse :</strong><br/>
-    <audio id="audioPlayback" controls style="display:none;"></audio>
+    <!-- Sprachaufnahme -->
+    <div class="text-block">
+      <button id="record">🎙️ Commencer l'enregistrement</button>
+      <button id="stop" class="hidden">🛑 Arrêter</button>
+      <div>
+        <strong>Votre voix :</strong><br/>
+        <audio id="userAudio" controls></audio>
+      </div>
+      <div>
+        <strong>Texte reconnu :</strong>
+        <div id="recognizedText">...</div>
+      </div>
+    </div>
+
+    <button id="newConversation">🔄 Nouveau sujet</button>
   </div>
 
   <script src="script.js"></script>
