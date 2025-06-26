@@ -18,7 +18,6 @@ let mediaRecorder;
 let audioChunks = [];
 
 function resetUI() {
-  // Reset Sichtbarkeit und Inhalte
   startSection.classList.remove('hidden');
   conversationSection.classList.add('hidden');
   responseContainer.classList.add('hidden');
@@ -39,8 +38,8 @@ startBtn.onclick = async () => {
   startSection.classList.add('hidden');
   conversationSection.classList.remove('hidden');
 
-  if (scenario !== "eigenes") {
-const intro = `J'apprends le français au niveau B1/B2. Je voudrais avoir une conversation avec toi sur le thème « ${selectedScenario} ». Corrige-moi si je fais des erreurs et aide-moi à améliorer ma grammaire et mon expression.`;
+  if (scenario !== "libre") {
+    const intro = `J'apprends le français au niveau B1/B2. Je voudrais avoir une conversation avec toi sur le thème « ${scenario} ». Corrige-moi si je fais des erreurs et aide-moi à améliorer ma grammaire et mon expression.`;
 
     try {
       const res = await fetch('/api/respond', {
@@ -54,7 +53,7 @@ const intro = `J'apprends le français au niveau B1/B2. Je voudrais avoir une co
       responseText.textContent = data.response;
       audioPlayback.src = data.audio_url;
       audioPlayback.type = 'audio/mpeg';
-      audioPlayback.play();
+      // Noch nicht abspielen – erst auf Button-Klick
     } catch (err) {
       responseText.textContent = 'Erreur lors de la récupération de la réponse.';
       console.error(err);
@@ -91,7 +90,6 @@ recordBtn.onclick = async () => {
     userAudio.src = userAudioURL;
 
     try {
-      // Schritt 1: Transkription
       const transcribeRes = await fetch('/api/transcribe', {
         method: 'POST',
         body: formData
@@ -105,7 +103,6 @@ recordBtn.onclick = async () => {
 
       recognizedText.textContent = transcribeData.text;
 
-      // Schritt 2: LLM-Antwort
       const respondRes = await fetch('/api/respond', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -119,6 +116,7 @@ recordBtn.onclick = async () => {
       responseText.textContent = respondData.response;
       audioPlayback.src = respondData.audio_url;
       audioPlayback.type = 'audio/mpeg';
+      responseContainer.classList.add('hidden'); // verstecken bis "Afficher la réponse" gedrückt wird
     } catch (err) {
       recognizedText.textContent = 'Une erreur est survenue.';
       console.error(err);
