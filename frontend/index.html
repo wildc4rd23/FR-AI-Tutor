@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="fr">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Sprachassistent</title>
+    <title>Assistant Vocal</title>
     <style>
         body {
             font-family: sans-serif;
@@ -12,9 +12,10 @@
             text-align: center;
         }
 
-        button {
+        button, select {
             padding: 10px 20px;
             font-size: 16px;
+            margin-top: 10px;
         }
 
         .text-block {
@@ -30,18 +31,31 @@
     </style>
 </head>
 <body>
-    <h1>🗣️ Sprachassistent</h1>
+    <h1>🗣️ Assistant Vocal</h1>
 
-    <button id="record">Aufnahme starten</button>
+    <label for="scenario"><strong>Choisis un thème :</strong></label><br>
+    <select id="scenario">
+        <option value="restaurant">Restaurant</option>
+        <option value="loisirs">Loisirs</option>
+        <option value="travail">Travail</option>
+        <option value="faire les courses">Faire les courses</option>
+        <option value="visite chez le médecin">Visite chez le médecin</option>
+        <option value="libre">Sujet libre (entrée vocale)</option>
+    </select>
+
+    <br><br>
+    <button id="record">Commencer</button> 
+    <button id="stop" disabled>⏹️ Arrêter</button> 
+    <button id="reset" disabled>🔄 Recommencer</button>
 
     <div class="text-block">
-        <strong>Erkannt:</strong>
-        <div id="recognizedText">Noch nichts erkannt...</div>
+        <strong>Reconnu :</strong>
+        <div id="recognizedText">Rien de reconnu pour l’instant...</div>
     </div>
 
     <div class="text-block">
-        <strong>Antwort:</strong>
-        <div id="responseText">Noch keine Antwort...</div>
+        <strong>Réponse :</strong>
+        <div id="responseText">Pas encore de réponse...</div>
     </div>
 
     <audio id="audioPlayback" controls></audio>

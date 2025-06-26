@@ -68,7 +68,7 @@ def respond():
         audio_url = f"/{output_path.replace(os.sep, '/')}"
         
     except Exception as e:
-        print(f"[WARN] Minimax fehlgeschlagen, Tacotron-Fallback aktiviert: {e}")
+        print(f"[WARN] Minimax fehlgeschlagen, Tacotron-Fallback (dummy) aktiviert: {e}")
         
         # FALLBACK: Tacotron TTS (auskommentiert wegen Render-Größe)
         # try:
