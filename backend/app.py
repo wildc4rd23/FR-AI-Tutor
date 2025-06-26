@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import os
 import requests
+import logging
 
 # Aktive Imports
 from llm_agent_mistral import query_llm_mistral
@@ -15,6 +16,10 @@ from utils import get_user_temp_dir, cleanup_temp_dir
 
 app = Flask(__name__, static_folder='../frontend')
 CORS(app)
+
+# Logging konfigurieren
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # === Frontend ===
 @app.route('/')
@@ -33,71 +38,118 @@ def transcribe():
 
     temp_path, user_id = get_user_temp_dir()
     audio_path = os.path.join(temp_path, "audio_input.wav")
-    request.files['audio'].save(audio_path)
-
-    # TEMPORÄR: Dummy-Transkription
-    text = "Bonjour, comment allez-vous?"
     
-    # FALLBACK: Vosk STT (auskommentiert wegen Render-Größe)
-    # cleanup_temp_dir(temp_path, exclude_file=audio_path)
-    # text = transcribe_audio(audio_path)
-    
-    return jsonify({"text": text, "user_id": user_id})
+    try:
+        request.files['audio'].save(audio_path)
+        
+        # TEMPORÄR: Dummy-Transkription für Testing
+        text = "Bonjour, comment allez-vous?"
+        
+        # FALLBACK: Vosk STT (auskommentiert wegen Render-Größe)
+        # cleanup_temp_dir(temp_path, exclude_file=audio_path)
+        # text = transcribe_audio(audio_path)
+        
+        logger.info(f"Audio transkribiert für User {user_id}: {text}")
+        return jsonify({"text": text, "user_id": user_id})
+        
+    except Exception as e:
+        logger.error(f"Transkriptionsfehler: {str(e)}")
+        return jsonify({'error': f'Transkriptionsfehler: {str(e)}'}), 500
 
 # === Antwort (LLM + Minimax TTS mit Tacotron Fallback) ===
 @app.route('/api/respond', methods=['POST'])
 def respond():
-    data = request.get_json()
-    user_text = data.get("text", "")
-    user_id = data.get("user_id", "")
-
-    temp_path = os.path.join("static", f"temp_{user_id}")
-    os.makedirs(temp_path, exist_ok=True)
-
-    # LLM Response
     try:
-        llm_response = query_llm_mistral(user_text)
-    except Exception as e:
-        llm_response = f"Entschuldigung, ein Fehler ist aufgetreten: {str(e)}"
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Keine JSON-Daten empfangen'}), 400
+            
+        user_text = data.get("text", "")
+        user_id = data.get("user_id", "")
+        
+        if not user_text:
+            return jsonify({'error': 'Kein Text empfangen'}), 400
 
-    # TTS: Minimax Primary, Tacotron Fallback
-    try:
-        # PRIMARY: Minimax TTS
-        output_path = os.path.join(temp_path, "response.mp3")
-        synthesize_speech_minimax(llm_response, output_path)
-        audio_url = f"/{output_path.replace(os.sep, '/')}"
+        # Temp-Verzeichnis erstellen
+        temp_path = os.path.join("static", f"temp_{user_id}")
+        os.makedirs(temp_path, exist_ok=True)
+
+        # LLM Response mit besserer Französisch-Instruktion
+        try:
+            # Erweiterte Instruktion für bessere Französisch-Antworten
+            enhanced_prompt = f"""Tu es un professeur de français expérimenté qui aide des apprenants de niveau B1/B2. 
+            Réponds naturellement en français à la question suivante, en utilisant un vocabulaire et une grammaire appropriés pour ce niveau.
+            Si l'apprenant fait des erreurs, corrige-les gentiment et explique brièvement.
+            
+            Question de l'apprenant: {user_text}"""
+            
+            llm_response = query_llm_mistral(enhanced_prompt)
+            logger.info(f"LLM Response für User {user_id}: {llm_response[:100]}...")
+            
+        except Exception as e:
+            logger.error(f"LLM Fehler: {str(e)}")
+            llm_response = f"Excusez-moi, j'ai rencontré un problème technique. Pouvez-vous répéter votre question?"
+
+        # TTS: Minimax Primary, Tacotron Fallback
+        audio_url = None
+        tts_error = None
         
-    except Exception as e:
-        print(f"[WARN] Minimax fehlgeschlagen, Tacotron-Fallback (dummy) aktiviert: {e}")
+        try:
+            # PRIMARY: Minimax TTS
+            output_path = os.path.join(temp_path, "response.mp3")
+            synthesize_speech_minimax(llm_response, output_path)
+            
+            # Prüfen ob Datei erfolgreich erstellt wurde
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                audio_url = f"/{output_path.replace(os.sep, '/')}"
+                logger.info(f"Minimax TTS erfolgreich für User {user_id}")
+            else:
+                raise Exception("Audio-Datei wurde nicht korrekt erstellt")
+                
+        except Exception as e:
+            logger.warning(f"Minimax fehlgeschlagen für User {user_id}: {str(e)}")
+            tts_error = str(e)
+            
+            # FALLBACK: Tacotron TTS (auskommentiert wegen Render-Größe)
+            # try:
+            #     output_path = os.path.join(temp_path, "response.wav")
+            #     synthesize_tacotron(llm_response, output_path)
+            #     if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+            #         audio_url = f"/{output_path.replace(os.sep, '/')}"
+            #         logger.info(f"Tacotron Fallback erfolgreich für User {user_id}")
+            #         tts_error = None
+            # except Exception as fallback_e:
+            #     logger.error(f"Tacotron-Fallback fehlgeschlagen für User {user_id}: {str(fallback_e)}")
+            #     tts_error = f"Minimax: {str(e)}, Tacotron: {str(fallback_e)}"
+
+        # Cleanup (aber behalte die Audio-Datei)
+        if audio_url:
+            cleanup_temp_dir(temp_path, exclude_file=output_path)
         
-        # FALLBACK: Tacotron TTS (auskommentiert wegen Render-Größe)
-        # try:
-        #     output_path = os.path.join(temp_path, "response.wav")
-        #     synthesize_tacotron(llm_response, output_path)
-        #     audio_url = f"/{output_path.replace(os.sep, '/')}"
-        # except Exception as fallback_e:
-        #     print(f"[ERROR] Auch Tacotron-Fallback fehlgeschlagen: {fallback_e}")
-        #     return jsonify({
-        #         "response": llm_response,
-        #         "audio_url": None,
-        #         "tts_error": f"Minimax: {str(e)}, Tacotron: {str(fallback_e)}"
-        #     })
-        
-        # TEMPORÄRER FALLBACK: Kein Audio
-        return jsonify({
+        response_data = {
             "response": llm_response,
-            "audio_url": None,
-            "tts_error": str(e)
-        })
+            "audio_url": audio_url
+        }
+        
+        if tts_error:
+            response_data["tts_error"] = tts_error
+            
+        return jsonify(response_data)
+        
+    except Exception as e:
+        logger.error(f"Allgemeiner Fehler in /api/respond: {str(e)}")
+        return jsonify({
+            'error': f'Serverfehler: {str(e)}',
+            'response': 'Excusez-moi, il y a eu un problème technique.'
+        }), 500
 
-    cleanup_temp_dir(temp_path, exclude_file=output_path)
-    
-    return jsonify({
-        "response": llm_response,
-        "audio_url": audio_url
-    })
+# === Health Check für Render ===
+@app.route('/health')
+def health_check():
+    return jsonify({'status': 'healthy', 'service': 'FR-AI-Tutor'}), 200
 
 if __name__ == '__main__':
-    # KORREKTUR: Port richtig abfragen
+    # Port richtig abfragen
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    logger.info(f"Starting FR-AI-Tutor on port {port}")
+    app.run(host="0.0.0.0", port=port, debug=False)
