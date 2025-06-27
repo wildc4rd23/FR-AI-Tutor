@@ -316,15 +316,17 @@ document.addEventListener('DOMContentLoaded', function() {
       } else {
         // No audio available, show text immediately
         console.warn('No audio URL received, showing text immediately');
-        if (elements.responseText) {
-          elements.responseText.innerHTML = currentResponse;
+         if (elements.responseText) {
+            elements.responseText.innerHTML = currentResponse;
+            elements.responseText.dataset.showingText = 'true';  // ✅ Text ist bereits sichtbar
+          }
+          elements.showResponseBtn?.classList.add('hidden');      // ✅ Button NICHT anzeigen
+          audioHasBeenPlayed = true;                              // ✅ Flag setzen
+
+          if (data.tts_error) {
+            showStatus(elements.audioStatus, '⚠️ Audio non disponible: ' + data.tts_error, 'error');
+          }
         }
-        elements.showResponseBtn?.classList.remove('hidden');
-        
-        if (data.tts_error) {
-          showStatus(elements.audioStatus, '⚠️ Audio non disponible: ' + data.tts_error, 'error');
-        }
-      }
       
       // Reset user input
       if (elements.userText) {
@@ -395,11 +397,12 @@ document.addEventListener('DOMContentLoaded', function() {
             showProgressStatus(4, '✅ Lecture terminée! Vous pouvez maintenant voir le texte.');
           }, { once: true });
         } else {
-          // No audio, show text immediately
           if (elements.responseText) {
             elements.responseText.innerHTML = currentResponse;
+            elements.responseText.dataset.showingText = 'true';  // ✅ Sichtbar markieren
           }
-          elements.showResponseBtn?.classList.remove('hidden');
+          elements.showResponseBtn?.classList.add('hidden');      // ✅ Nicht anzeigen
+          audioHasBeenPlayed = true;                              // ✅ Sofort anzeigen erlaubt
         }
         
       } catch (err) {

@@ -100,9 +100,15 @@ def respond():
             synthesize_speech_minimax(llm_response, output_path)
             
             # Prüfen ob Datei erfolgreich erstellt wurde
-            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 512:
+                # Optional: Header-Check ergänzen
+                with open(output_path, "rb") as f:
+                    header = f.read(4)
+                    if not (header.startswith(b'ID3') or header[1:4] == b'MP3' or header.startswith(b'\xff\xfb')):
+                        raise Exception("Ungültige MP3-Datei (Headercheck fehlgeschlagen)")
+    
                 audio_url = f"/{output_path.replace(os.sep, '/')}"
-                logger.info(f"Minimax TTS erfolgreich für User {user_id}")
+                logger.info(f"Minimax TTS erfolgreich für User {user_id}"))
             else:
                 raise Exception("Audio-Datei wurde nicht korrekt erstellt")
                 
