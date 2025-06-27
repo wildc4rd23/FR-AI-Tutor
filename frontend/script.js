@@ -1,3 +1,4 @@
+// script.js
 document.addEventListener('DOMContentLoaded', function() {
   // DOM Elements
   const elements = {
@@ -8,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
     startBtn: document.getElementById('startConversation'),
     newConvBtn: document.getElementById('newConversation'),
     showResponseBtn: document.getElementById('showResponseBtn'),
-    playAudioBtn: document.getElementById('playAudioBtn'),
+    playAudioBtn: document.getElementById('playAudioBtn'), // This button will now be more of a replay button
     
     userText: document.getElementById('userText'),
     responseText: document.getElementById('responseText'),
@@ -58,6 +59,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (elements.responseText) {
       elements.responseText.innerHTML = progressBarHTML;
+      elements.responseText.dataset.showingText = 'false'; // Hide text by default when progress bar is shown
     }
   }
 
@@ -70,6 +72,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     if (elements.responseText) {
       elements.responseText.textContent = '...';
+      elements.responseText.dataset.showingText = 'false'; // Reset text visibility
     }
     
     if (elements.audioPlayback) {
@@ -252,6 +255,7 @@ document.addEventListener('DOMContentLoaded', function() {
     currentResponse = null;
     elements.playAudioBtn?.classList.add('hidden');
     elements.showResponseBtn?.classList.add('hidden');
+    elements.responseText.dataset.showingText = 'false'; // Ensure text is hidden initially
 
     // Step 1: Show processing started
     showProgressStatus(1, '🤔 L\'assistant réfléchit...');
@@ -289,11 +293,22 @@ document.addEventListener('DOMContentLoaded', function() {
           elements.audioPlayback.src = data.audio_url;
           elements.audioPlayback.classList.remove('hidden');
           
-          // Wait for audio to be loadable
-          elements.audioPlayback.addEventListener('canplay', function() {
-            // Step 4: Audio ready to play
-            showProgressStatus(4, '🔊 Audio prêt! Cliquez sur "Écouter" pour commencer.');
-            elements.playAudioBtn?.classList.remove('hidden');
+          // Wait for audio to be loadable and then play
+          elements.audioPlayback.addEventListener('canplaythrough', function() { // Use canplaythrough for better reliability
+            // Step 4: Audio ready to play - AUTO PLAY
+            showProgressStatus(4, '🔊 Lecture de l\'audio...');
+            elements.playAudioBtn?.classList.remove('hidden'); // Show replay button
+            elements.audioPlayback.play().catch(err => {
+              console.error('Audio auto-play failed:', err);
+              showStatus(elements.audioStatus, '⚠️ Auto-lecture impossible, cliquez sur "Écouter".', 'error');
+              elements.playAudioBtn?.classList.remove('hidden'); // Ensure button is visible for manual play
+              elements.showResponseBtn?.classList.remove('hidden'); // Allow showing text if auto-play fails
+              if (elements.responseText) {
+                 elements.responseText.innerHTML = currentResponse; // Show text if auto-play fails
+                 elements.responseText.dataset.showingText = 'true';
+              }
+              audioHasBeenPlayed = true; // Mark as played to allow text display
+            });
           }, { once: true });
 
           // Track when audio finishes playing
@@ -301,6 +316,12 @@ document.addEventListener('DOMContentLoaded', function() {
             audioHasBeenPlayed = true;
             elements.showResponseBtn?.classList.remove('hidden');
             showProgressStatus(4, '✅ Lecture terminée! Vous pouvez maintenant voir le texte.');
+             // Automatically show text after audio finishes
+            if (elements.responseText) {
+                elements.responseText.innerHTML = currentResponse;
+                elements.responseText.dataset.showingText = 'true';
+            }
+            elements.showResponseBtn.innerHTML = '👁️ Masquer le texte'; // Update button text
           }, { once: true });
 
           // Handle audio load errors
@@ -309,8 +330,11 @@ document.addEventListener('DOMContentLoaded', function() {
             elements.showResponseBtn?.classList.remove('hidden');
             if (elements.responseText) {
               elements.responseText.innerHTML = currentResponse;
+              elements.responseText.dataset.showingText = 'true'; // Mark text as visible
             }
             showStatus(elements.audioStatus, '⚠️ Problème audio - texte affiché directement', 'error');
+            audioHasBeenPlayed = true; // Allow showing text
+            elements.showResponseBtn.innerHTML = '👁️ Masquer le texte'; // Update button text
           }, { once: true });
         }
       } else {
@@ -318,10 +342,11 @@ document.addEventListener('DOMContentLoaded', function() {
         console.warn('No audio URL received, showing text immediately');
          if (elements.responseText) {
             elements.responseText.innerHTML = currentResponse;
-            elements.responseText.dataset.showingText = 'true';  // ✅ Text ist bereits sichtbar
+            elements.responseText.dataset.showingText = 'true';  // Text is visible
           }
-          elements.showResponseBtn?.classList.add('hidden');      // ✅ Button NICHT anzeigen
-          audioHasBeenPlayed = true;                              // ✅ Flag setzen
+          elements.showResponseBtn?.classList.remove('hidden'); // Show button to toggle
+          elements.showResponseBtn.innerHTML = '👁️ Masquer le texte'; // Update button text
+          audioHasBeenPlayed = true;                              // Flag to allow showing text immediately
 
           if (data.tts_error) {
             showStatus(elements.audioStatus, '⚠️ Audio non disponible: ' + data.tts_error, 'error');
@@ -342,6 +367,7 @@ document.addEventListener('DOMContentLoaded', function() {
       console.error('Send error:', err);
       if (elements.responseText) {
         elements.responseText.innerHTML = `<div class="status-message status-error">⚠️ ${err.message}</div>`;
+        elements.responseText.dataset.showingText = 'true'; // Show error text
       }
     }
   }
@@ -362,6 +388,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     elements.startSection?.classList.add('hidden');
     elements.conversationSection?.classList.remove('hidden');
+    elements.responseText.dataset.showingText = 'false'; // Hide text initially
 
     if (scenario !== "libre") {
       showProgressStatus(1, '🤔 L\'assistant prépare la conversation...');
@@ -386,50 +413,75 @@ document.addEventListener('DOMContentLoaded', function() {
           elements.audioPlayback.src = data.audio_url;
           elements.audioPlayback.classList.remove('hidden');
           
-          elements.audioPlayback.addEventListener('canplay', function() {
-            showProgressStatus(4, '🔊 Audio prêt! Cliquez sur "Écouter" pour commencer.');
+          elements.audioPlayback.addEventListener('canplaythrough', function() { // Use canplaythrough
+            showProgressStatus(4, '🔊 Lecture de l\'audio...');
             elements.playAudioBtn?.classList.remove('hidden');
+            elements.audioPlayback.play().catch(err => {
+              console.error('Audio auto-play failed:', err);
+              showStatus(elements.audioStatus, '⚠️ Auto-lecture impossible, cliquez sur "Écouter".', 'error');
+              elements.playAudioBtn?.classList.remove('hidden');
+              elements.showResponseBtn?.classList.remove('hidden');
+              if (elements.responseText) {
+                 elements.responseText.innerHTML = currentResponse;
+                 elements.responseText.dataset.showingText = 'true';
+              }
+              audioHasBeenPlayed = true;
+            });
           }, { once: true });
 
           elements.audioPlayback.addEventListener('ended', function() {
             audioHasBeenPlayed = true;
             elements.showResponseBtn?.classList.remove('hidden');
             showProgressStatus(4, '✅ Lecture terminée! Vous pouvez maintenant voir le texte.');
+             // Automatically show text after audio finishes
+            if (elements.responseText) {
+                elements.responseText.innerHTML = currentResponse;
+                elements.responseText.dataset.showingText = 'true';
+            }
+            elements.showResponseBtn.innerHTML = '👁️ Masquer le texte';
           }, { once: true });
         } else {
+          // If no audio URL, display text immediately
           if (elements.responseText) {
             elements.responseText.innerHTML = currentResponse;
-            elements.responseText.dataset.showingText = 'true';  // ✅ Sichtbar markieren
+            elements.responseText.dataset.showingText = 'true';  // Mark as visible
           }
-          elements.showResponseBtn?.classList.add('hidden');      // ✅ Nicht anzeigen
-          audioHasBeenPlayed = true;                              // ✅ Sofort anzeigen erlaubt
+          elements.showResponseBtn?.classList.remove('hidden');      // Show button to toggle
+          elements.showResponseBtn.innerHTML = '👁️ Masquer le texte'; // Update button text
+          audioHasBeenPlayed = true;                              // Allow showing text immediately
+          if (data.tts_error) {
+              showStatus(elements.audioStatus, '⚠️ Audio non disponible: ' + data.tts_error, 'error');
+          }
         }
         
       } catch (err) {
         console.error('Error starting conversation:', err);
         if (elements.responseText) {
           elements.responseText.innerHTML = `<div class="status-message status-error">⚠️ Erreur: ${err.message}</div>`;
+          elements.responseText.dataset.showingText = 'true'; // Show error text
         }
       }
     } else {
       if (elements.responseText) {
         elements.responseText.innerHTML = "🎯 Sujet libre sélectionné. Tapez votre message ou enregistrez-vous!";
+        elements.responseText.dataset.showingText = 'true'; // Mark as visible
       }
     }
   });
 
   elements.newConvBtn?.addEventListener('click', resetUI);
 
-  // Updated Show Response Button - only shows text after audio has been played
+  // Updated Show Response Button - now toggles visibility
   elements.showResponseBtn?.addEventListener('click', () => {
-    if (currentResponse && audioHasBeenPlayed) {
+    if (currentResponse) { // No longer dependent on audioHasBeenPlayed to *show* it, only for initial text display
       const isTextVisible = elements.responseText?.dataset.showingText === 'true';
       
       if (isTextVisible) {
-        // Hide text, show progress status again
-        showProgressStatus(4, '✅ Texte masqué. Cliquez pour réafficher.');
-        elements.showResponseBtn.innerHTML = '👁️ Afficher le texte';
+        // Hide text
+        showProgressStatus(4, '✅ Texte masqué. Cliquez pour réafficher.'); // Re-show progress bar style if text is hidden
         elements.responseText.dataset.showingText = 'false';
+        elements.responseText.innerHTML = '<div style="text-align: center; margin-top: 8px; font-weight: 500;">Cliquez sur "Afficher le texte" pour voir la réponse.</div>'; // Placeholder
+        elements.showResponseBtn.innerHTML = '👁️ Afficher le texte';
       } else {
         // Show text
         if (elements.responseText) {
@@ -438,13 +490,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         elements.showResponseBtn.innerHTML = '👁️ Masquer le texte';
       }
-    } else if (!audioHasBeenPlayed) {
-      showStatus(elements.globalStatus, '⚠️ Veuillez d\'abord écouter l\'audio', 'error');
-      setTimeout(() => hideStatus(elements.globalStatus), 3000);
+    } else {
+        showStatus(elements.globalStatus, '⚠️ Aucune réponse à afficher pour le moment.', 'error');
+        setTimeout(() => hideStatus(elements.globalStatus), 3000);
     }
   });
 
-  // Play Audio Button
+  // Play Audio Button (now primarily for replay)
   elements.playAudioBtn?.addEventListener('click', () => {
     if (elements.audioPlayback?.src) {
       elements.audioPlayback.play().catch(err => {
