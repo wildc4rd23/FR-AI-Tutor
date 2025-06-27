@@ -65,22 +65,33 @@ def synthesize_speech_minimax(text: str, output_path: str):
             else:
                 raise Exception(f"Minimax API Fehler ({response.status_code}): {response.text[:200]}")
 
-        # If response is OK, proceed to save the content
+        # --- NEUE LOGGING-INFORMATIONEN HIER ---
+        logger.info(f"Minimax response content length: {len(response.content) if response.content else 0} bytes")
         if not response.content:
-            raise Exception("Leere Antwort von Minimax API erhalten")
+            raise Exception("Leere Antwort von Minimax API erhalten (nach erfolgreichem Statuscode).")
         
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        # Sicherstellen, dass das Verzeichnis existiert
+        target_dir = os.path.dirname(output_path)
+        logger.info(f"Attempting to create directory: {target_dir}")
+        os.makedirs(target_dir, exist_ok=True)
+        logger.info(f"Directory {target_dir} exists: {os.path.exists(target_dir)}")
         
+        # Audio-Inhalt schreiben
+        logger.info(f"Attempting to write audio to: {output_path}")
         with open(output_path, "wb") as f:
             f.write(response.content)
         
+        # Validieren dass Datei geschrieben wurde
+        logger.info(f"Checking if file was correctly saved: {output_path}")
         if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
-            raise Exception("Audio-Datei wurde nicht korrekt gespeichert")
+            file_size_after_write = os.path.getsize(output_path) if os.path.exists(output_path) else -1
+            raise Exception(f"Audio-Datei wurde nicht korrekt gespeichert (existiert nicht oder Größe 0). Größe: {file_size_after_write} Bytes.")
         
+        # Audio-Format validieren (erste Bytes prüfen)
         with open(output_path, "rb") as f:
             header = f.read(4)
             if not (header.startswith(b'ID3') or header[1:4] == b'MP3' or header.startswith(b'\xff\xfb')):
-                logger.warning("Audio-Datei scheint kein gültiges MP3 zu sein")
+                logger.warning(f"Audio-Datei '{output_path}' scheint kein gültiges MP3 zu sein. Header: {header.hex()}")
             
         logger.info(f"Audio erfolgreich gespeichert: {output_path} ({os.path.getsize(output_path)} bytes)")
             
