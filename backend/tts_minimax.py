@@ -100,6 +100,7 @@ def synthesize_speech_minimax(text: str, output_path: str):
         
         # Prüfen ob es sich um JSON-Fehler handelt
         if 'application/json' in content_type:
+            logger.error(f"Minimax API returned JSON with 200 OK status. Raw JSON: {response.text}")
             try:
                 error_data = response.json()
                 error_msg = error_data.get('message') or error_data.get('error') or 'Unbekannter API Fehler'
