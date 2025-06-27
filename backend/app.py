@@ -108,7 +108,7 @@ def respond():
                         raise Exception("Ungültige MP3-Datei (Headercheck fehlgeschlagen)")
     
                 audio_url = f"/{output_path.replace(os.sep, '/')}"
-                logger.info(f"Minimax TTS erfolgreich für User {user_id}"))
+                logger.info(f"Minimax TTS erfolgreich für User {user_id}")
             else:
                 raise Exception("Audio-Datei wurde nicht korrekt erstellt")
                 
