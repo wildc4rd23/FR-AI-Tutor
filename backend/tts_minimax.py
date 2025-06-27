@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 def synthesize_speech_minimax(text: str, output_path: str):
     """
-    Synthesiert Sprache mit Minimax TTS API
+    Synthesisiert Sprache mit Minimax TTS API
     """
     api_key = os.getenv("MINIMAX_API_KEY")
     if not api_key:
@@ -17,10 +17,6 @@ def synthesize_speech_minimax(text: str, output_path: str):
     if not text or len(text.strip()) == 0:
         raise Exception("Leerer Text kann nicht synthetisiert werden")
 
-    # Text validieren und bereinigen
-    if not text or len(text.strip()) == 0:
-        raise Exception("Leerer Text kann nicht synthetisiert werden")
-    
     # Text bereinigen (HTML-Tags entfernen, etc.)
     import re
     text = re.sub(r'<[^>]+>', '', text)  # HTML-Tags entfernen
@@ -31,45 +27,39 @@ def synthesize_speech_minimax(text: str, output_path: str):
         text = text[:997] + "..."
         logger.warning("Text wurde auf 1000 Zeichen gekürzt")
     
-    # Minimax TTS API URL 
-   # url = "https://api.minimaxi.chat/v1/t2a_v2"
-    
-   # headers = {
-   #     "Authorization": f"Bearer {api_key}",
-   #     "Content-Type": "application/json"
-   # }
-
-   # payload = {
-   #     "text": text,
-   #     "lang": "fr",              # Französisch
-   #     "voice_id": "female-001",  # Weibliche Stimme
-   #     "emotion": "neutral",      
-   #     "speed": 1.0,              # Normale Geschwindigkeit
-   #     "vol": 50,                 # Mittlere Lautstärke
-   #     "pitch": 0,                # Normale Tonhöhe
-   #     "audio_sample_rate": 22050,
-   #     "bitrate": 128000
-   # }
-
-    # Korrekte Minimax TTS API URL und Parameter
-    url = "https://api.minimaxi.chat/v1/t2a_pro"
+    # Korrigierte Minimax TTS API URL und Parameter für t2a_v2
+    url = "https://api.minimax.io/v1/t2a_v2" # <--- NEUER ENDPUNKT
     
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
 
-    # Korrigierte Parameter für Minimax API
     payload = {
         "text": text,
         "lang": "fr",              # Französisch
-        "model": "speech-01",  # Spezifisches Modell
-        "voice_id": "female-lisa",  # Französische Stimme
+        "model": "speech-02-hd",
+        "voice_id": "female-001",  # Weibliche Stimme
+        "emotion": "neutral",      
         "response_format": "mp3",  # Explizit MP3 anfordern
-        "speed": 1.0,
-        "volume": 1.0,
-        "pitch": 0
+        "speed": 1.0,              # Normale Geschwindigkeit
+        "vol": 50,                 # Mittlere Lautstärke
+        "pitch": 0,                # Normale Tonhöhe
+        "audio_sample_rate": 22050,
+        "bitrate": 128000
     }
+
+    # Aktualisierte Parameter für Minimax T2A V2 API
+    #payload = {
+    #    "text": text,
+    #    "lang": "fr",              # Französisch
+    #    "model": "speech-02-hd",   # <--- NEUES MODELL
+    #    "voice_id": "Friendly_Person", # <--- NEUE VOICE_ID
+    #    "response_format": "mp3",  # Explizit MP3 anfordern
+    #    ""speed": 1.0,
+    #    "volume": 1.0,
+    #    "pitch": 0
+    #}
 
     try:
         logger.info(f"Sending TTS request to Minimax for text: {text[:50]}...")
@@ -98,18 +88,15 @@ def synthesize_speech_minimax(text: str, output_path: str):
         if not response.content:
             raise Exception("Leere Antwort von Minimax API erhalten")
         
-        # Prüfen ob es sich um JSON-Fehler handelt
+        # Prüfen ob es sich um JSON-Fehler handelt (auch bei 200 OK Status)
         if 'application/json' in content_type:
             logger.error(f"Minimax API returned JSON with 200 OK status. Raw JSON: {response.text}")
             try:
                 error_data = response.json()
-                error_msg = error_data.get('message') or error_data.get('error') or 'Unbekannter API Fehler'
+                error_msg = error_data.get('message') or error_data.get('error') or error_data.get('base_resp', {}).get('status_msg') or 'Unbekannter API Fehler'
             except Exception:
                 error_msg = f"Fehler beim Parsen der JSON-Antwort: {response.text}"
-            raise Exception(f"Minimax API Fehler ({response.status_code}): {error_msg}")
-        else:
-            # Kein JSON – z.B. Text oder HTML
-            raise Exception(f"Minimax API Fehler ({response.status_code}): {response.text[:200]}")
+            raise Exception(f"Minimax API Fehler ({response.status_code}): {error_msg}. Erwartet: audio/mpeg, Erhalten: {content_type}")
         
         # Verzeichnis erstellen falls nicht vorhanden
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
