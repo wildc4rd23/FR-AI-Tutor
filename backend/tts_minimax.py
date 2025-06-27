@@ -102,10 +102,13 @@ def synthesize_speech_minimax(text: str, output_path: str):
         if 'application/json' in content_type:
             try:
                 error_data = response.json()
-                error_msg = error_data.get('message', 'Unbekannter API Fehler')
-                raise Exception(f"Minimax API Fehler: {error_msg}")
-            except ValueError:
-                pass  # Nicht JSON, weiter mit Audio-Verarbeitung
+                error_msg = error_data.get('message') or error_data.get('error') or 'Unbekannter API Fehler'
+            except Exception:
+                error_msg = f"Fehler beim Parsen der JSON-Antwort: {response.text}"
+            raise Exception(f"Minimax API Fehler ({response.status_code}): {error_msg}")
+        else:
+            # Kein JSON – z.B. Text oder HTML
+            raise Exception(f"Minimax API Fehler ({response.status_code}): {response.text[:200]}")
         
         # Verzeichnis erstellen falls nicht vorhanden
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
