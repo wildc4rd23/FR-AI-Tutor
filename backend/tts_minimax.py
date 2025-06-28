@@ -2,6 +2,7 @@
 import os
 import requests
 import logging
+import json # <--- NEU: json Modul importieren
 
 logger = logging.getLogger(__name__)
 
@@ -27,44 +28,42 @@ def synthesize_speech_minimax(text: str, output_path: str):
         text = text[:997] + "..."
         logger.warning("Text wurde auf 1000 Zeichen gekürzt")
     
-    # Korrigierte Minimax TTS API URL und Parameter für t2a_v2
-    url = "https://api.minimax.io/v1/t2a_v2" # <--- NEUER ENDPUNKT
+    # Korrigierte Minimax TTS API URL für t2a_v2
+    url = "https://api.minimax.io/v1/t2a_v2" 
     
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json" # Bleibt application/json
     }
 
-    payload = {
-        "text": text,
+    # NEUE PAYLOAD-STRUKTUR BASIEREND AUF IHRER DOKUMENTATION
+    payload_dict = {
+        "model":"speech-02-hd",  
+        "text": text,  
+        "stream":False,  
         "lang": "fr",              # Französisch
         "model": "speech-02-hd",
-        "voice_id": "female-001",  # Weibliche Stimme
-      #  "emotion": "neutral",      
-        "response_format": "mp3",  # Explizit MP3 anfordern
-        "speed": 1.0,              # Normale Geschwindigkeit
-        "vol": 50,                 # Mittlere Lautstärke
-        "pitch": 0,                # Normale Tonhöhe
-     #   "audio_sample_rate": 22050,
-     #   "bitrate": 128000
+        "voice_setting":{
+            "voice_id": "Friendly_Person",
+            "speed":1,    
+            "vol":1,       # vol als Integer, wie im Beispiel
+            "pitch":0  
+        },  
+        "audio_setting":{    
+            "sample_rate":32000, 
+            "bitrate":128000,    
+            "format":"mp3",    
+            "channel":1  
+        }
     }
 
-    # Aktualisierte Parameter für Minimax T2A V2 API
-    #payload = {
-    #    "text": text,
-    #    "lang": "fr",              # Französisch
-    #    "model": "speech-02-hd",   # <--- NEUES MODELL
-    #    "voice_id": "Friendly_Person", # <--- NEUE VOICE_ID
-    #    "response_format": "mp3",  # Explizit MP3 anfordern
-    #    ""speed": 1.0,
-    #    "volume": 1.0,
-    #    "pitch": 0
-    #}
+    # Das Payload-Dictionary in einen JSON-String umwandeln
+    payload_json = json.dumps(payload_dict)
 
     try:
         logger.info(f"Sending TTS request to Minimax for text: {text[:50]}...")
-        
-        response = requests.post(url, headers=headers, json=payload, timeout=45)
+        # Payload als 'data' senden, da es bereits ein JSON-String ist
+        response = requests.post(url, headers=headers, data=payload_json, timeout=45) 
         
         # Debug-Informationen
         logger.info(f"Minimax Response Status: {response.status_code}")
@@ -93,7 +92,11 @@ def synthesize_speech_minimax(text: str, output_path: str):
             logger.error(f"Minimax API returned JSON with 200 OK status. Raw JSON: {response.text}")
             try:
                 error_data = response.json()
-                error_msg = error_data.get('message') or error_data.get('error') or error_data.get('base_resp', {}).get('status_msg') or 'Unbekannter API Fehler'
+                # Versuche, spezifischere Fehlermeldungen zu extrahieren
+                error_msg = error_data.get('message') or \
+                            error_data.get('error') or \
+                            error_data.get('base_resp', {}).get('status_msg') or \
+                            'Unbekannter API Fehler'
             except Exception:
                 error_msg = f"Fehler beim Parsen der JSON-Antwort: {response.text}"
             raise Exception(f"Minimax API Fehler ({response.status_code}): {error_msg}. Erwartet: audio/mpeg, Erhalten: {content_type}")
