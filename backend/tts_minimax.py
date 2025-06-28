@@ -40,13 +40,13 @@ def synthesize_speech_minimax(text: str, output_path: str):
         "lang": "fr",              # Französisch
         "model": "speech-02-hd",
         "voice_id": "female-001",  # Weibliche Stimme
-        "emotion": "neutral",      
+      #  "emotion": "neutral",      
         "response_format": "mp3",  # Explizit MP3 anfordern
         "speed": 1.0,              # Normale Geschwindigkeit
         "vol": 50,                 # Mittlere Lautstärke
         "pitch": 0,                # Normale Tonhöhe
-        "audio_sample_rate": 22050,
-        "bitrate": 128000
+     #   "audio_sample_rate": 22050,
+     #   "bitrate": 128000
     }
 
     # Aktualisierte Parameter für Minimax T2A V2 API
