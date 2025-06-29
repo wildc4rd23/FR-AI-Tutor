@@ -5,12 +5,40 @@ import os
 import requests
 import logging
 
-# Aktive Imports
+# =========================================================
+# TTS KONFIGURATION: Wählen Sie hier Ihren aktiven TTS-Anbieter
+# Mögliche Werte: "GOOGLE", "MINIMAX", "OPENAI"
+ACTIVE_TTS_PROVIDER = "OPENAI" # <--- HIER KÖNNEN SIE DEN ANBIETER WECHSELN
+# =========================================================
+
+# Aktive Imports basierend auf der Konfiguration
 from llm_agent_mistral import query_llm_mistral
-from tts_minimax import synthesize_speech_minimax
 from utils import get_user_temp_dir, cleanup_temp_dir
 
-# Fallback Imports (für späteren Einsatz)
+# Bedingte TTS-Importe
+if ACTIVE_TTS_PROVIDER == "GOOGLE":
+    from tts_google import synthesize_speech_google
+    logger = logging.getLogger(__name__) # Logger neu initialisieren, falls vorheriger Import ihn überschreibt
+    logger.info("Aktiver TTS-Anbieter: Google Cloud Text-to-Speech")
+elif ACTIVE_TTS_PROVIDER == "MINIMAX":
+    from tts_minimax import synthesize_speech_minimax
+    logger = logging.getLogger(__name__)
+    logger.info("Aktiver TTS-Anbieter: Minimax TTS")
+elif ACTIVE_TTS_PROVIDER == "OPENAI": 
+    from tts_openai import synthesize_speech_openai
+    logger = logging.getLogger(__name__)
+    logger.info("Aktiver TTS-Anbieter: OpenAI TTS")
+else:
+    logger = logging.getLogger(__name__)
+    logger.error(f"Unbekannter TTS_PROVIDER: {ACTIVE_TTS_PROVIDER}. Keine TTS-Synthese wird ausgeführt.")
+    # Fallback, wenn ein unbekannter Anbieter konfiguriert ist
+    def dummy_synthesize_speech(text, output_path):
+        raise NotImplementedError(f"Kein gültiger TTS-Anbieter konfiguriert: {ACTIVE_TTS_PROVIDER}.")
+    synthesize_speech_google = dummy_synthesize_speech
+    synthesize_speech_minimax = dummy_synthesize_speech
+    synthesize_speech_openai = dummy_synthesize_speech 
+
+# Fallback Imports (für späteren Einsatz, auskommentiert)
 # from vosk_stt import transcribe_audio
 # from tts_tacotron import synthesize_speech as synthesize_tacotron
 
@@ -18,8 +46,9 @@ app = Flask(__name__, static_folder='../frontend')
 CORS(app)
 
 # Logging konfigurieren
+# Dies sollte nach allen anderen möglichen Logger-Initialisierungen erfolgen
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__) # Sicherstellen, dass der Logger nach der Konfiguration korrekt ist
 
 # === Frontend ===
 @app.route('/')
@@ -42,91 +71,77 @@ def transcribe():
     try:
         request.files['audio'].save(audio_path)
         
-        # TEMPORÄR: Dummy-Transkription für Testing
-        text = "Bonjour, comment allez-vous?"
-        
-        # FALLBACK: Vosk STT (auskommentiert wegen Render-Größe)
-        # cleanup_temp_dir(temp_path, exclude_file=audio_path)
-        # text = transcribe_audio(audio_path)
-        
-        logger.info(f"Audio transkribiert für User {user_id}: {text}")
-        return jsonify({"text": text, "user_id": user_id})
+        # TEMPORÄR: Dummy-Antwort oder tatsächliche Transkription, wenn Vosk aktiv ist
+        # Falls Sie Vosk aktivieren möchten:
+        # from vosk_stt import transcribe_audio
+        # transcribed_text = transcribe_audio(audio_path)
+        # return jsonify({'transcribed_text': transcribed_text})
+
+        return jsonify({'transcribed_text': 'Dies ist ein Platzhalter für Ihre Transkription.'})
         
     except Exception as e:
-        logger.error(f"Transkriptionsfehler: {str(e)}")
-        return jsonify({'error': f'Transkriptionsfehler: {str(e)}'}), 500
+        logger.error(f"Fehler bei der Transkription: {str(e)}")
+        return jsonify({'error': f'Fehler bei der Transkription: {str(e)}'}), 500
 
-# === Antwort (LLM + Minimax TTS mit Tacotron Fallback) ===
+# === LLM Response & TTS ===
 @app.route('/api/respond', methods=['POST'])
 def respond():
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'Keine JSON-Daten empfangen'}), 400
-            
-        user_text = data.get("text", "")
-        user_id = data.get("user_id", "")
-        
-        if not user_text:
-            return jsonify({'error': 'Kein Text empfangen'}), 400
-
-        # Temp-Verzeichnis erstellen
-        temp_path = os.path.join("static", f"temp_{user_id}")
-        os.makedirs(temp_path, exist_ok=True)
-
-        # LLM Response mit besserer Französisch-Instruktion
-        try:
-            # Erweiterte Instruktion für bessere Französisch-Antworten
-            enhanced_prompt = f"""Tu es un professeur de français expérimenté qui aide des apprenants de niveau B1/B2. 
-            Réponds naturellement en français à la question suivante, en utilisant un vocabulaire et une grammaire appropriés pour ce niveau.
-            Si l'apprenant fait des erreurs, corrige-les gentiment et explique brièvement.
-            
-            Question de l'apprenant: {user_text}"""
-            
-            llm_response = query_llm_mistral(enhanced_prompt)
-            logger.info(f"LLM Response für User {user_id}: {llm_response[:100]}...")
-            
-        except Exception as e:
-            logger.error(f"LLM Fehler: {str(e)}")
-            llm_response = f"Excusez-moi, j'ai rencontré un problème technique. Pouvez-vous répéter votre question?"
-
-        # TTS: Minimax Primary, Tacotron Fallback
-        audio_url = None
-        tts_error = None
-        
-        try:
-            # PRIMARY: Minimax TTS
-            output_path = os.path.join(temp_path, "response.mp3")
-            synthesize_speech_minimax(llm_response, output_path)
-            
-            # Prüfen ob Datei erfolgreich erstellt wurde
-            if os.path.exists(output_path) and os.path.getsize(output_path) > 512:
-                # Optional: Header-Check ergänzen
-                with open(output_path, "rb") as f:
-                    header = f.read(4)
-                    if not (header.startswith(b'ID3') or header[1:4] == b'MP3' or header.startswith(b'\xff\xfb')):
-                        raise Exception("Ungültige MP3-Datei (Headercheck fehlgeschlagen)")
+    user_message = request.json.get('message')
+    user_id = request.json.get('userId') # Holen der user_id
     
-                audio_url = f"/{output_path.replace(os.sep, '/')}"
-                logger.info(f"Minimax TTS erfolgreich für User {user_id}")
+    if not user_message:
+        return jsonify({'error': 'Nachricht fehlt'}), 400
+
+    temp_path, user_id = get_user_temp_dir(user_id) # Sicherstellen, dass temp_path für user_id erstellt wird
+    output_path = os.path.join(temp_path, "response.mp3")
+    
+    llm_response = ""
+    audio_url = None
+    tts_error = None
+
+    try:
+        logger.info(f"Anfrage an LLM für User {user_id} mit Nachricht: {user_message[:50]}...")
+        llm_response = query_llm_mistral(user_message)
+        logger.info(f"LLM-Antwort für User {user_id}: {llm_response[:50]}...")
+        
+        # Text-to-Speech (TTS)
+        logger.info(f"Starte TTS-Synthese für User {user_id}...")
+        
+        try:
+            if ACTIVE_TTS_PROVIDER == "GOOGLE":
+                synthesize_speech_google(llm_response, output_path)
+            elif ACTIVE_TTS_PROVIDER == "MINIMAX":
+                synthesize_speech_minimax(llm_response, output_path)
+            elif ACTIVE_TTS_PROVIDER == "OPENAI": 
+                synthesize_speech_openai(llm_response, output_path)
             else:
-                raise Exception("Audio-Datei wurde nicht korrekt erstellt")
-                
+                raise Exception(f"Ungültiger TTS-Anbieter konfiguriert: {ACTIVE_TTS_PROVIDER}")
+            
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                audio_url = f"/{output_path.replace(os.sep, '/')}"
+                logger.info(f"TTS erfolgreich für User {user_id} mit {ACTIVE_TTS_PROVIDER}")
+            else:
+                tts_error = "TTS-Ausgabe ist leer oder konnte nicht gespeichert werden."
+
         except Exception as e:
-            logger.warning(f"Minimax fehlgeschlagen für User {user_id}: {str(e)}")
+            logger.error(f"{ACTIVE_TTS_PROVIDER} TTS fehlgeschlagen für User {user_id}: {str(e)}")
             tts_error = str(e)
             
-            # FALLBACK: Tacotron TTS (auskommentiert wegen Render-Größe)
+            # --- Hier der Tacotron Fallback (auskommentiert) ---
+            # Wenn der primäre TTS-Anbieter fehlschlägt, versuchen Sie Tacotron als Fallback
+            # from tts_tacotron import synthesize_speech as synthesize_tacotron
+            # logger.warning(f"{ACTIVE_TTS_PROVIDER} fehlgeschlagen, versuche Tacotron-Fallback für User {user_id}...")
             # try:
-            #     output_path = os.path.join(temp_path, "response.wav")
-            #     synthesize_tacotron(llm_response, output_path)
-            #     if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-            #         audio_url = f"/{output_path.replace(os.sep, '/')}"
+            #     fallback_output_path = os.path.join(temp_path, "response_fallback.mp3") # Separater Pfad für Fallback
+            #     synthesize_tacotron(llm_response, fallback_output_path)
+            #     if os.path.exists(fallback_output_path) and os.path.getsize(fallback_output_path) > 0:
+            #         audio_url = f"/{fallback_output_path.replace(os.sep, '/')}"
             #         logger.info(f"Tacotron Fallback erfolgreich für User {user_id}")
-            #         tts_error = None
+            #         tts_error = None # Fehler zurücksetzen, da Fallback erfolgreich war
             # except Exception as fallback_e:
             #     logger.error(f"Tacotron-Fallback fehlgeschlagen für User {user_id}: {str(fallback_e)}")
-            #     tts_error = f"Minimax: {str(e)}, Tacotron: {str(fallback_e)}"
+            #     tts_error = f"{ACTIVE_TTS_PROVIDER}: {str(e)}, Tacotron: {str(fallback_e)}"
+
 
         # Cleanup (aber behalte die Audio-Datei)
         if audio_url:
@@ -155,7 +170,4 @@ def health_check():
     return jsonify({'status': 'healthy', 'service': 'FR-AI-Tutor'}), 200
 
 if __name__ == '__main__':
-    # Port richtig abfragen
-    port = int(os.environ.get("PORT", 5000))
-    logger.info(f"Starting FR-AI-Tutor on port {port}")
-    app.run(host="0.0.0.0", port=port, debug=False)
+    app.run(debug=True, host='0.0.0.0', port=os.getenv('PORT', 5000))

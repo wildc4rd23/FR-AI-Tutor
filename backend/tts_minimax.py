@@ -2,7 +2,7 @@
 import os
 import requests
 import logging
-import json # <--- NEU: json Modul importieren
+import json #  json Modul importieren
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,6 @@ def synthesize_speech_minimax(text: str, output_path: str):
         "text": text,  
         "stream":False,  
         "lang": "fr",              # Französisch
-        "model": "speech-02-hd",
         "voice_setting":{
             "voice_id": "Friendly_Person",
             "speed":1,    
