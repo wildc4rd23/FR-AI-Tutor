@@ -33,7 +33,7 @@ def synthesize_speech_openai(text: str, output_path: str):
         # Sprache wird durch den Text erkannt, aber die Stimmen sind "generisch" und funktionieren gut für Französisch.
         response = client.audio.speech.create(
             model="gpt-4o-mini-tts",  # Oder "tts-1", oder "tts-1-hd" für höhere Qualität
-            voice="coral",   # Eine der verfügbaren Stimmen: 'alloy', 'echo', 'fable', 'mira', 'nova', 'onyx'
+            voice="nova",   # Eine der verfügbaren Stimmen: 'coral, 'alloy', 'echo', 'fable', 'mira', 'nova', 'onyx'
             input=text,
             response_format="mp3"
         )

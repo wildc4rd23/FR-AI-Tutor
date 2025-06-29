@@ -101,7 +101,7 @@ def respond():
 
     try:
         logger.info(f"Anfrage an LLM für User {user_id} mit Nachricht: {user_message[:50]}...")
-        llm_response = query_llm_mistral(user_message)
+        llm_response = query_llm_for_scenario(user_message, scenario="restaurant", max_tokens=120)
         logger.info(f"LLM-Antwort für User {user_id}: {llm_response[:50]}...")
         
         # Text-to-Speech (TTS)
