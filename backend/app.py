@@ -12,7 +12,7 @@ ACTIVE_TTS_PROVIDER = "OPENAI" # <--- HIER KÖNNEN SIE DEN ANBIETER WECHSELN
 # =========================================================
 
 # Aktive Imports basierend auf der Konfiguration
-from llm_agent_mistral import query_llm_mistral
+from llm_agent_mistral import query_llm_mistral, query_llm_for_scenario
 from utils import get_user_temp_dir, cleanup_temp_dir
 
 # Bedingte TTS-Importe
@@ -77,7 +77,7 @@ def transcribe():
         # transcribed_text = transcribe_audio(audio_path)
         # return jsonify({'transcribed_text': transcribed_text})
 
-        return jsonify({'transcribed_text': 'Dies ist ein Platzhalter für Ihre Transkription.'})
+        return jsonify({'text': 'Dies ist ein Platzhalter für Ihre Transkription.'})
         
     except Exception as e:
         logger.error(f"Fehler bei der Transkription: {str(e)}")
@@ -86,10 +86,16 @@ def transcribe():
 # === LLM Response & TTS ===
 @app.route('/api/respond', methods=['POST'])
 def respond():
-    user_message = request.json.get('message')
-    user_id = request.json.get('userId') # Holen der user_id
+    # Sowohl 'message' als auch 'text' unterstützen für Kompatibilität
+    request_data = request.get_json()
+    if not request_data:
+        return jsonify({'error': 'Keine JSON-Daten empfangen'}), 400
+    
+    user_message = request_data.get('message') or request_data.get('text')
+    user_id = request_data.get('userId') or request_data.get('user_id')
     
     if not user_message:
+        logger.error(f"Keine Nachricht erhalten. Request data: {request_data}")
         return jsonify({'error': 'Nachricht fehlt'}), 400
 
     temp_path, user_id = get_user_temp_dir(user_id) # Sicherstellen, dass temp_path für user_id erstellt wird
@@ -118,7 +124,9 @@ def respond():
                 raise Exception(f"Ungültiger TTS-Anbieter konfiguriert: {ACTIVE_TTS_PROVIDER}")
             
             if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-                audio_url = f"/{output_path.replace(os.sep, '/')}"
+                # Korrigiere den Audio-URL-Pfad für das Frontend
+                relative_path = os.path.relpath(output_path, app.static_folder)
+                audio_url = f"/{relative_path.replace(os.sep, '/')}"
                 logger.info(f"TTS erfolgreich für User {user_id} mit {ACTIVE_TTS_PROVIDER}")
             else:
                 tts_error = "TTS-Ausgabe ist leer oder konnte nicht gespeichert werden."
@@ -141,7 +149,6 @@ def respond():
             # except Exception as fallback_e:
             #     logger.error(f"Tacotron-Fallback fehlgeschlagen für User {user_id}: {str(fallback_e)}")
             #     tts_error = f"{ACTIVE_TTS_PROVIDER}: {str(e)}, Tacotron: {str(fallback_e)}"
-
 
         # Cleanup (aber behalte die Audio-Datei)
         if audio_url:
