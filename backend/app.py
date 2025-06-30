@@ -7,8 +7,8 @@ import logging
 
 # =========================================================
 # TTS KONFIGURATION: Wählen Sie hier Ihren aktiven TTS-Anbieter
-# Mögliche Werte: "GOOGLE", "MINIMAX", "OPENAI"
-ACTIVE_TTS_PROVIDER = "OPENAI" # <--- HIER KÖNNEN SIE DEN ANBIETER WECHSELN
+# Mögliche Werte: "GOOGLE", "MINIMAX", "OPENAI", "AMAZON_POLLY"
+ACTIVE_TTS_PROVIDER = "AMAZON_POLLY" # <--- HIER KÖNNEN SIE DEN ANBIETER WECHSELN
 # =========================================================
 
 # Aktive Imports basierend auf der Konfiguration
@@ -28,6 +28,10 @@ elif ACTIVE_TTS_PROVIDER == "OPENAI":
     from tts_openai import synthesize_speech_openai
     logger = logging.getLogger(__name__)
     logger.info("Aktiver TTS-Anbieter: OpenAI TTS")
+elif ACTIVE_TTS_PROVIDER == "AMAZON_POLLY":
+    from tts_amzpolly import synthesize_speech_amzpolly
+    logger = logging.getLogger(__name__)
+    logger.info("Aktiver TTS-Anbieter: Amazon Polly")
 else:
     logger = logging.getLogger(__name__)
     logger.error(f"Unbekannter TTS_PROVIDER: {ACTIVE_TTS_PROVIDER}. Keine TTS-Synthese wird ausgeführt.")
@@ -37,6 +41,7 @@ else:
     synthesize_speech_google = dummy_synthesize_speech
     synthesize_speech_minimax = dummy_synthesize_speech
     synthesize_speech_openai = dummy_synthesize_speech 
+    synthesize_speech_amzpolly = dummy_synthesize_speech
 
 # Fallback Imports (für späteren Einsatz, auskommentiert)
 # from vosk_stt import transcribe_audio
@@ -120,6 +125,8 @@ def respond():
                 synthesize_speech_minimax(llm_response, output_path)
             elif ACTIVE_TTS_PROVIDER == "OPENAI": 
                 synthesize_speech_openai(llm_response, output_path)
+            elif ACTIVE_TTS_PROVIDER == "AMAZON_POLLY":
+                synthesize_speech_amzpolly(llm_response, output_path)
             else:
                 raise Exception(f"Ungültiger TTS-Anbieter konfiguriert: {ACTIVE_TTS_PROVIDER}")
             

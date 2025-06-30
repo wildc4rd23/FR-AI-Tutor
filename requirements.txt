@@ -4,3 +4,7 @@ Flask-Cors>=4.0.0
 requests>=2.31.0  # Für Minimax API
 gunicorn>=21.2.0  # Production WSGI server
 openai
+
+# Amazon Polly TTS
+boto3>=1.34.0  # AWS SDK für Python
+botocore>=1.34.0  # AWS Core Bibliothek
