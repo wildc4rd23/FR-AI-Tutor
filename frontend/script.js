@@ -90,31 +90,39 @@ document.addEventListener('DOMContentLoaded', function() {
     return 'user_' + Math.random().toString(36).substr(2, 9);
   }
 
+  // GEÄNDERT: resetUI setzt jetzt auf den Startbildschirm zurück
   function resetUI() {
+    // Clear conversation elements
     elements.responseText.innerText = '';
     elements.audioPlayback.src = '';
     elements.audioPlayback.classList.add('hidden');
     elements.userAudio.src = '';
     elements.userAudioSection.classList.add('hidden');
+    recordedAudioBlob = null;
+    currentResponse = null;
+    audioHasBeenPlayed = false;
+
+    // Show Start Section, Hide Conversation Section
+    elements.startSection.classList.remove('hidden');    // <--- GEÄNDERT: Zeigt die Start-Sektion
+    elements.conversationSection.classList.add('hidden'); // <--- GEÄNDERT: Versteckt die Konversations-Sektion
+
+    // Reset Input and Buttons
     elements.recordBtn.classList.remove('hidden');
     elements.stopBtn.classList.add('hidden');
     elements.useSTTBtn.classList.add('hidden');
     elements.showResponseBtn.classList.add('hidden');
     elements.playAudioBtn.classList.add('hidden');
-    elements.startSection.classList.add('hidden');
-    elements.conversationSection.classList.remove('hidden');
-    recordedAudioBlob = null;
-    currentResponse = null;
-    audioHasBeenPlayed = false;
-    currentUserId = currentUserId || generateUserId(); // Behalte ID, wenn bereits vorhanden
 
-    // GEÄNDERT: Platzhaltertext für userText setzen
+    // Platzhaltertext für userText setzen
     const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
     elements.userText.innerText = placeholderText;
     elements.userText.classList.add('placeholder');
     elements.userText.dataset.isPlaceholder = 'true';
+    
+    // Generate or keep user ID
+    currentUserId = currentUserId || generateUserId(); 
 
-    showProgressStatus(4, 'Bereit für die Konversation');
+    showProgressStatus(0, 'Wählen Sie ein Thema oder starten Sie die Konversation.'); // Passenderer Initialstatus
   }
 
   // GEÄNDERT: Event Listener für userText (contenteditable placeholder)
@@ -137,8 +145,39 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
   // Event Listeners
+  // GEÄNDERT: startBtn verwaltet jetzt den Übergang zum Konversationsbereich
   elements.startBtn?.addEventListener('click', () => {
-    resetUI();
+    // Versteckt die Start-Sektion und zeigt die Konversations-Sektion
+    elements.startSection.classList.add('hidden');
+    elements.conversationSection.classList.remove('hidden');
+    
+    // Holt und zeigt das ausgewählte Szenario an
+    const selectedScenario = elements.scenarioSelect?.value || 'Conversation générale'; // Standardwert, falls keiner ausgewählt ist
+    document.getElementById('currentScenarioDisplay').innerText = selectedScenario;
+
+    // Setzt andere UI-Elemente für die Konversationsbereitschaft zurück
+    elements.responseText.innerText = '';
+    elements.audioPlayback.src = '';
+    elements.audioPlayback.classList.add('hidden');
+    elements.userAudio.src = '';
+    elements.userAudioSection.classList.add('hidden');
+    recordedAudioBlob = null;
+    currentResponse = null;
+    audioHasBeenPlayed = false;
+    elements.recordBtn.classList.remove('hidden');
+    elements.stopBtn.classList.add('hidden');
+    elements.useSTTBtn.classList.add('hidden');
+    elements.showResponseBtn.classList.add('hidden');
+    elements.playAudioBtn.classList.add('hidden');
+    
+    // Setzt den userText-Eingabebereich zurück (wichtig für einen frischen Start im Konversationsmodus)
+    const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
+    elements.userText.innerText = placeholderText;
+    elements.userText.classList.add('placeholder');
+    elements.userText.dataset.isPlaceholder = 'true';
+
+    showProgressStatus(4, 'Bereit für die Konversation');
+    console.log('Conversation started with scenario:', selectedScenario);
   });
 
   elements.recordBtn?.addEventListener('click', async () => {
@@ -352,7 +391,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  elements.newConvBtn?.addEventListener('click', resetUI);
+  elements.newConvBtn?.addEventListener('click', resetUI); // GEÄNDERT: Ruft jetzt resetUI auf, um zum Startbildschirm zurückzukehren
 
   // Updated Show Response Button - only shows text after audio has been played
   elements.showResponseBtn?.addEventListener('click', () => {
@@ -401,6 +440,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
   // Initialize
-  resetUI();
+  // GEÄNDERT: Initialer Aufruf von resetUI, um den Startbildschirm anzuzeigen
+  resetUI(); 
   console.log('FR-AI-Tutor Frontend initialized...');
 });
