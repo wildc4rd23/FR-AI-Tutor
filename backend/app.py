@@ -1,5 +1,5 @@
 # backend/app.py
-from flask import Flask, request, jsonify, send_from_directory, abort # <-- 'abort' hier importieren
+from flask import Flask, request, jsonify, send_from_directory, abort # <-- GEÄNDERT: 'abort' hier importieren
 from flask_cors import CORS
 import os
 import requests
@@ -50,11 +50,11 @@ CORS(app)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Bestimme das Projekt-Root-Verzeichnis (eine Ebene über dem 'backend'-Ordner)
+# GEÄNDERT: Bestimme das Projekt-Root-Verzeichnis (eine Ebene über dem 'backend'-Ordner)
 PROJECT_ROOT = os.path.dirname(app.root_path)
-# Dies ist der Basisordner, in dem ALLE temporären Audio-Dateien gespeichert werden
+# GEÄNDERT: Dies ist der Basisordner, in dem ALLE temporären Audio-Dateien gespeichert werden
 TEMP_AUDIO_DIR_ROOT = os.path.join(PROJECT_ROOT, 'temp_audio')
-os.makedirs(TEMP_AUDIO_DIR_ROOT, exist_ok=True) # Stelle sicher, dass der Ordner existiert
+os.makedirs(TEMP_AUDIO_DIR_ROOT, exist_ok=True) # GEÄNDERT: Stelle sicher, dass der Ordner existiert
 
 # === Frontend ===
 @app.route('/')
@@ -63,13 +63,13 @@ def index():
 
 @app.route('/<path:path>')
 def static_files(path):
-    # Diese Route sollte ausschließlich für statische Frontend-Dateien sein (z.B. CSS, JS, Bilder)
+    # GEÄNDERT: Diese Route sollte ausschließlich für statische Frontend-Dateien sein (z.B. CSS, JS, Bilder)
     # Temporäre Audio-Dateien werden von der neuen 'serve_temp_audio'-Route serviert.
     # Entfernen Sie hier jeden Aufruf zu serve_temp_audio, falls vorhanden.
     return send_from_directory(app.static_folder, path)
 
 # === NEUE Route zum Servieren temporärer Audio-Dateien ===
-# Diese Route fängt Anfragen wie /temp_audio/intro_.../response.mp3 ab
+# GEÄNDERT: Diese Route fängt Anfragen wie /temp_audio/intro_.../response.mp3 ab
 @app.route('/temp_audio/<path:filename>')
 def serve_temp_audio(filename):
     full_audio_path = os.path.join(TEMP_AUDIO_DIR_ROOT, filename)
@@ -77,7 +77,7 @@ def serve_temp_audio(filename):
 
     if not os.path.exists(full_audio_path):
         logger.error(f"Audio-Datei nicht gefunden: {full_audio_path}")
-        abort(404) # 'abort' ist jetzt importiert
+        abort(404) # GEÄNDERT: 'abort' ist jetzt importiert
 
     try:
         # send_from_directory benötigt das Basisverzeichnis (TEMP_AUDIO_DIR_ROOT)
@@ -85,7 +85,7 @@ def serve_temp_audio(filename):
         return send_from_directory(TEMP_AUDIO_DIR_ROOT, filename)
     except Exception as e:
         logger.error(f"Fehler beim Servieren der Audio-Datei {filename}: {str(e)}")
-        abort(500) # 'abort' ist jetzt importiert
+        abort(500) # GEÄNDERT: 'abort' ist jetzt importiert
 
 
 # === Transkription (Vosk für später) ===
@@ -94,7 +94,7 @@ def transcribe():
     if 'audio' not in request.files:
         return jsonify({'error': 'Keine Audiodatei empfangen'}), 400
 
-    # `get_user_temp_dir` sollte jetzt wissen, dass es innerhalb von `TEMP_AUDIO_DIR_ROOT` arbeiten soll.
+    # GEÄNDERT: `get_user_temp_dir` sollte jetzt wissen, dass es innerhalb von `TEMP_AUDIO_DIR_ROOT` arbeiten soll.
     temp_path_for_stt, user_id = get_user_temp_dir(base_dir=TEMP_AUDIO_DIR_ROOT)
     audio_path = os.path.join(temp_path_for_stt, "audio_input.wav")
 
@@ -121,13 +121,13 @@ def respond():
     if not user_message:
         return jsonify({'error': 'Nachricht fehlt'}), 400
 
-    # `temp_path_absolute` ist der vollständige Pfad zum temporären Ordner des Benutzers.
+    # GEÄNDERT: `temp_path_absolute` ist der vollständige Pfad zum temporären Ordner des Benutzers.
     # `get_user_temp_dir` muss sicherstellen, dass dieser Pfad unter `TEMP_AUDIO_DIR_ROOT` liegt.
     temp_path_absolute, user_id = get_user_temp_dir(user_id, base_dir=TEMP_AUDIO_DIR_ROOT)
     output_filename = "response.mp3"
     output_path_absolute = os.path.join(temp_path_absolute, output_filename)
 
-    # Der relative Pfad, der in der URL verwendet wird.
+    # GEÄNDERT: Der relative Pfad, der in der URL verwendet wird.
     # Dieser muss relativ zum `TEMP_AUDIO_DIR_ROOT` sein, damit die `serve_temp_audio`-Route funktioniert.
     # Beispiel: Wenn output_path_absolute = '/project/root/temp_audio/intro_123/user_abc/response.mp3'
     # Dann output_path_relative = 'intro_123/user_abc/response.mp3'
@@ -167,7 +167,7 @@ def respond():
                 raise Exception(f"Ungültiger TTS-Anbieter konfiguriert: {ACTIVE_TTS_PROVIDER}")
 
             if os.path.exists(output_path_absolute) and os.path.getsize(output_path_absolute) > 0:
-                audio_url = f"/temp_audio/{output_path_relative.replace(os.sep, '/')}" # <-- Wichtig: Neue URL-Struktur
+                audio_url = f"/temp_audio/{output_path_relative.replace(os.sep, '/')}" # <-- GEÄNDERT: Neue URL-Struktur
                 logger.info(f"TTS erfolgreich für User {user_id} mit {ACTIVE_TTS_PROVIDER}. Audio-URL: {audio_url}")
             else:
                 tts_error = "TTS-Ausgabe ist leer oder konnte nicht gespeichert werden."
