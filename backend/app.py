@@ -62,7 +62,36 @@ def index():
 
 @app.route('/<path:path>')
 def static_files(path):
+    # Spezielle Behandlung für Audio-Dateien
+    if path.startswith('intro_') and path.endswith('.mp3'):
+        return serve_temp_audio(path)
     return send_from_directory(app.static_folder, path)
+
+# === Audio-Serving Route ===
+@app.route('/temp_audio/<path:filepath>')
+def serve_temp_audio(filepath):
+    """Serviert temporäre Audio-Dateien"""
+    try:
+        # Basis-Pfad für temp-Dateien
+        temp_audio_base = app.static_folder
+        full_path = os.path.join(temp_audio_base, filepath)
+        
+        # Sicherheitscheck: Datei muss existieren und im erlaubten Bereich sein
+        if not os.path.exists(full_path):
+            logger.error(f"Audio-Datei nicht gefunden: {full_path}")
+            abort(404)
+        
+        # Verzeichnis und Dateiname extrahieren
+        directory = os.path.dirname(full_path)
+        filename = os.path.basename(full_path)
+        
+        logger.info(f"Serving audio file: {full_path}")
+        return send_from_directory(directory, filename, mimetype='audio/mpeg')
+        
+    except Exception as e:
+        logger.error(f"Fehler beim Servieren der Audio-Datei {filepath}: {str(e)}")
+        abort(404)
+
 
 # === Transkription (Vosk für später) ===
 @app.route('/api/transcribe', methods=['POST'])
@@ -131,10 +160,13 @@ def respond():
                 raise Exception(f"Ungültiger TTS-Anbieter konfiguriert: {ACTIVE_TTS_PROVIDER}")
             
             if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-                # Korrigiere den Audio-URL-Pfad für das Frontend
+                # KORRIGIERTE URL-Generierung
+                # Relativer Pfad vom static_folder aus
                 relative_path = os.path.relpath(output_path, app.static_folder)
-                audio_url = f"/{relative_path.replace(os.sep, '/')}"
+                audio_url = f"/temp_audio/{relative_path.replace(os.sep, '/')}"
                 logger.info(f"TTS erfolgreich für User {user_id} mit {ACTIVE_TTS_PROVIDER}")
+                logger.info(f"Audio URL: {audio_url}")
+                logger.info(f"Vollständiger Pfad: {output_path}")
             else:
                 tts_error = "TTS-Ausgabe ist leer oder konnte nicht gespeichert werden."
 
