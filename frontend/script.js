@@ -34,454 +34,340 @@ document.addEventListener('DOMContentLoaded', function() {
   let audioHasBeenPlayed = false; // Track if audio was played
 
   // Utility Functions
-  function showStatus(element, message, type = 'loading') {
-    if (!element) return;
-    element.className = `status-message status-${type}`;
-    element.innerHTML = message;
-    element.classList.remove('hidden');
+  function showStatus(element, message, type) {
+    if (element) {
+      element.innerText = message;
+      element.className = `status-message ${type}`;
+      element.classList.remove('hidden');
+    }
   }
 
   function hideStatus(element) {
-    if (!element) return;
-    element.classList.add('hidden');
+    if (element) {
+      element.classList.add('hidden');
+    }
   }
 
-  // Progress Bar Function
+  // GEÄNDERT: Neue Funktion zur Anzeige des Fortschritts mit visuellem Indikator
   function showProgressStatus(step, message) {
-    const progressBarHTML = `
-      <div style="margin-bottom: 15px;">
-        <div style="background: #e2e8f0; border-radius: 10px; height: 20px; overflow: hidden;">
-          <div style="background: linear-gradient(90deg, #667eea, #764ba2); height: 100%; width: ${step * 25}%; transition: width 0.5s ease;"></div>
-        </div>
-        <div style="text-align: center; margin-top: 8px; font-weight: 500;">${message}</div>
-      </div>
-    `;
-    
-    if (elements.responseText) {
-      elements.responseText.innerHTML = progressBarHTML;
-      elements.responseText.dataset.showingText = 'false'; // Hide text by default when progress bar is shown
+    const totalSteps = 4; // Example: 0-Init, 1-Recording, 2-Sending, 3-STT, 4-Ready
+    let progressBar = document.getElementById('progressBar');
+    if (!progressBar) {
+      progressBar = document.createElement('div');
+      progressBar.id = 'progressBar';
+      progressBar.style.width = '0%';
+      progressBar.style.height = '4px';
+      progressBar.style.backgroundColor = '#4CAF50';
+      progressBar.style.position = 'absolute';
+      progressBar.style.bottom = '0';
+      progressBar.style.left = '0';
+      progressBar.style.transition = 'width 0.3s ease-in-out';
+      document.body.appendChild(progressBar);
     }
+    
+    const progressWidth = (step / totalSteps) * 100;
+    progressBar.style.width = `${progressWidth}%`;
+
+    // Optional: Visueller Hinweis im Status
+    let statusIcon = '';
+    if (step === 0) statusIcon = '⚙️'; // Initialisierung
+    else if (step === 1) statusIcon = '🎤'; // Aufnahme
+    else if (step === 2) statusIcon = '📤'; // Senden
+    else if (step === 3) statusIcon = '💬'; // Transkription
+    else if (step === 4) statusIcon = '✅'; // Bereit / Fertig
+
+    showStatus(elements.globalStatus, `${statusIcon} ${message}`, 'info');
+    
+    if (step >= totalSteps) { // Fortschrittsleiste nach Abschluss oder Fehler ausblenden
+        setTimeout(() => {
+            if (progressBar) progressBar.style.width = '0%';
+            hideStatus(elements.globalStatus); // Versteckt auch den GlobalStatus
+        }, 1500);
+    }
+  }
+
+  function generateUserId() {
+    return 'user_' + Math.random().toString(36).substr(2, 9);
   }
 
   function resetUI() {
-    elements.startSection?.classList.remove('hidden');
-    elements.conversationSection?.classList.add('hidden');
-    
-    if (elements.userText) {
-      elements.userText.innerHTML = 'Tapez votre message ici ou utilisez l\'enregistrement...';
-    }
-    if (elements.responseText) {
-      elements.responseText.textContent = '...';
-      elements.responseText.dataset.showingText = 'false'; // Reset text visibility
-    }
-    
-    if (elements.audioPlayback) {
-      elements.audioPlayback.src = '';
-      elements.audioPlayback.classList.add('hidden');
-    }
-    
-    if (elements.userAudio) {
-      elements.userAudio.src = '';
-    }
-    
-    elements.userAudioSection?.classList.add('hidden');
-    elements.playAudioBtn?.classList.add('hidden');
-    elements.showResponseBtn?.classList.add('hidden');
-    
-    // Reset buttons
-    if (elements.recordBtn) {
-      elements.recordBtn.disabled = false;
-      elements.recordBtn.innerHTML = '🎙️ Enregistrer';
-      elements.recordBtn.classList.remove('recording');
-    }
-    elements.stopBtn?.classList.add('hidden');
-    elements.useSTTBtn?.classList.add('hidden');
-    
-    currentUserId = null;
+    elements.responseText.innerText = '';
+    elements.audioPlayback.src = '';
+    elements.audioPlayback.classList.add('hidden');
+    elements.userAudio.src = '';
+    elements.userAudioSection.classList.add('hidden');
+    elements.recordBtn.classList.remove('hidden');
+    elements.stopBtn.classList.add('hidden');
+    elements.useSTTBtn.classList.add('hidden');
+    elements.showResponseBtn.classList.add('hidden');
+    elements.playAudioBtn.classList.add('hidden');
+    elements.startSection.classList.add('hidden');
+    elements.conversationSection.classList.remove('hidden');
     recordedAudioBlob = null;
     currentResponse = null;
     audioHasBeenPlayed = false;
-    
-    hideStatus(elements.globalStatus);
-    hideStatus(elements.audioStatus);
-    hideStatus(elements.recordingStatus);
+    currentUserId = currentUserId || generateUserId(); // Behalte ID, wenn bereits vorhanden
+
+    // GEÄNDERT: Platzhaltertext für userText setzen
+    const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
+    elements.userText.innerText = placeholderText;
+    elements.userText.classList.add('placeholder');
+    elements.userText.dataset.isPlaceholder = 'true';
+
+    showProgressStatus(4, 'Bereit für die Konversation');
   }
 
-  // Audio Recording Functions
-  async function startRecording() {
+  // GEÄNDERT: Event Listener für userText (contenteditable placeholder)
+  elements.userText?.addEventListener('focus', function() {
+    if (this.dataset.isPlaceholder === 'true') {
+      this.innerText = '';
+      this.classList.remove('placeholder');
+      this.dataset.isPlaceholder = 'false';
+    }
+  });
+
+  elements.userText?.addEventListener('blur', function() {
+    if (this.innerText.trim() === '') {
+      const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
+      this.innerText = placeholderText;
+      this.classList.add('placeholder');
+      this.dataset.isPlaceholder = 'true';
+    }
+  });
+
+
+  // Event Listeners
+  elements.startBtn?.addEventListener('click', () => {
+    resetUI();
+  });
+
+  elements.recordBtn?.addEventListener('click', async () => {
+    hideStatus(elements.globalStatus);
+    hideStatus(elements.audioStatus);
+    showProgressStatus(1, '🔴 Aufnahme läuft...');
+
     try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
       audioChunks = [];
-      showStatus(elements.recordingStatus, '🎙️ Demande d\'accès au microphone...', 'loading');
-      
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 16000
-        }
-      });
-      
-      // Prüfe MediaRecorder Support
-      if (!MediaRecorder.isTypeSupported('audio/webm')) {
-        console.warn('audio/webm not supported, using default');
-      }
-      
-      const options = {};
-      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-        options.mimeType = 'audio/webm;codecs=opus';
-      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-        options.mimeType = 'audio/webm';
-      }
-      
-      mediaRecorder = new MediaRecorder(stream, options);
+      recordedAudioBlob = null; // Clear previous recording
 
       mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0) {
-          audioChunks.push(event.data);
-        }
+        audioChunks.push(event.data);
       };
 
       mediaRecorder.onstop = () => {
+        recordedAudioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+        const audioUrl = URL.createObjectURL(recordedAudioBlob);
+        elements.userAudio.src = audioUrl;
+        elements.userAudioSection.classList.remove('hidden'); // Show the audio player
+
+        // Stop stream tracks to release microphone
         stream.getTracks().forEach(track => track.stop());
-        
-        if (audioChunks.length === 0) {
-          showStatus(elements.recordingStatus, '⚠️ Aucun audio enregistré', 'error');
-          return;
-        }
-        
-        const mimeType = mediaRecorder.mimeType || 'audio/webm';
-        recordedAudioBlob = new Blob(audioChunks, { type: mimeType });
-        
-        // Audio-Preview erstellen
-        const audioURL = URL.createObjectURL(recordedAudioBlob);
-        if (elements.userAudio) {
-          elements.userAudio.src = audioURL;
-          elements.userAudioSection?.classList.remove('hidden');
-        }
-        
-        // STT Button anzeigen
-        elements.useSTTBtn?.classList.remove('hidden');
-        
-        showStatus(elements.recordingStatus, '✅ Enregistrement terminé! Vous pouvez maintenant utiliser la reconnaissance vocale.', 'success');
+        showProgressStatus(4, 'Aufnahme beendet. Bereit.');
       };
 
-      mediaRecorder.onerror = (event) => {
-        console.error('MediaRecorder error:', event);
-        showStatus(elements.recordingStatus, '⚠️ Erreur lors de l\'enregistrement', 'error');
-      };
-
-      mediaRecorder.start(100);
-      
-      elements.recordBtn.disabled = true;
-      elements.recordBtn.innerHTML = '🔴 Enregistrement...';
-      elements.recordBtn.classList.add('recording');
-      elements.stopBtn?.classList.remove('hidden');
-      
-      showStatus(elements.recordingStatus, '🎙️ Enregistrement en cours... Parlez maintenant!', 'success');
-      
+      mediaRecorder.start();
+      elements.recordBtn.classList.add('hidden');
+      elements.stopBtn.classList.remove('hidden');
+      elements.useSTTBtn.classList.add('hidden'); // Hide STT button during recording
     } catch (err) {
-      console.error('Recording error:', err);
-      showStatus(elements.recordingStatus, '⚠️ Erreur microphone: ' + err.message, 'error');
-    }
-  }
-
-  function stopRecording() {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-      mediaRecorder.stop();
-      elements.recordBtn.disabled = false;
-      elements.recordBtn.innerHTML = '🎙️ Enregistrer';
-      elements.recordBtn.classList.remove('recording');
-      elements.stopBtn?.classList.add('hidden');
-    }
-  }
-
-  // STT Function
-  async function processSTT() {
-    if (!recordedAudioBlob) {
-      showStatus(elements.recordingStatus, '⚠️ Aucun enregistrement disponible', 'error');
-      return;
-    }
-
-    showStatus(elements.recordingStatus, '🔄 Transcription en cours...', 'loading');
-
-    try {
-      const formData = new FormData();
-      formData.append('audio', recordedAudioBlob, 'recording.wav');
-
-      const response = await fetch('/api/transcribe', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        throw new Error(`Transcription failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      // Text in editierbares Feld einfügen
-      if (elements.userText && data.text) {
-        elements.userText.innerHTML = data.text;
-      }
-      
-      currentUserId = data.user_id;
-      
-      showStatus(elements.recordingStatus, '✅ Transcription terminée! Vous pouvez maintenant modifier le texte.', 'success');
-      setTimeout(() => hideStatus(elements.recordingStatus), 3000);
-      
-    } catch (err) {
-      console.error('STT error:', err);
-      showStatus(elements.recordingStatus, '⚠️ Erreur de transcription: ' + err.message, 'error');
-    }
-  }
-
-  // Send Message Function with Progress Workflow
-  async function sendMessage() {
-    const text = elements.userText?.innerText.trim();
-    
-    if (!text || text === 'Tapez votre message ici ou utilisez l\'enregistrement...') {
-      showStatus(elements.globalStatus, '⚠️ Veuillez entrer un message', 'error');
+      console.error('Error accessing microphone:', err);
+      showStatus(elements.globalStatus, '❌ Mikrofonzugriff verweigert oder Fehler.', 'error');
       setTimeout(() => hideStatus(elements.globalStatus), 3000);
+      showProgressStatus(4, 'Bereit für die Konversation');
+    }
+  });
+
+  elements.stopBtn?.addEventListener('click', () => {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+      elements.stopBtn.classList.add('hidden');
+      elements.recordBtn.classList.remove('hidden');
+      elements.useSTTBtn.classList.remove('hidden'); // Show STT button after recording stops
+    }
+  });
+
+  elements.useSTTBtn?.addEventListener('click', async () => {
+    if (recordedAudioBlob) {
+      hideStatus(elements.globalStatus);
+      showProgressStatus(3, '⏳ Transkription läuft...');
+      try {
+        const formData = new FormData();
+        formData.append('audio', recordedAudioBlob, 'recording.wav');
+
+        const response = await fetch('/api/transcribe', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          elements.userText.innerText = data.transcript;
+          // GEÄNDERT: Placeholder-Status entfernen, da jetzt echter Text vorhanden ist
+          elements.userText.classList.remove('placeholder');
+          elements.userText.dataset.isPlaceholder = 'false';
+
+          showStatus(elements.globalStatus, '✅ Transkription erfolgreich!', 'success');
+        } else {
+          showStatus(elements.globalStatus, `⚠️ Transkriptionsfehler: ${data.error}`, 'error');
+        }
+      } catch (error) {
+        console.error('STT-Fehler:', error);
+        showStatus(elements.globalStatus, '❌ STT-Verbindungsfehler.', 'error');
+      } finally {
+        setTimeout(() => hideStatus(elements.globalStatus), 3000);
+        showProgressStatus(4, 'Bereit für die Konversation');
+      }
+    } else {
+      showStatus(elements.globalStatus, '⚠️ Keine Audioaufnahme zum Transkribieren.', 'warning');
+      setTimeout(() => hideStatus(elements.globalStatus), 3000);
+    }
+  });
+
+  elements.sendBtn?.addEventListener('click', async () => {
+    hideStatus(elements.globalStatus);
+    hideStatus(elements.audioStatus);
+    showProgressStatus(0, '⏳ Sende Nachricht...');
+
+    // GEÄNDERT: Den aktuellen Text aus dem bearbeitbaren Div holen
+    let userText = elements.userText.innerText.trim();
+    // GEÄNDERT: Wenn der Text der Platzhalter ist, behandeln wir ihn als leer
+    if (elements.userText.dataset.isPlaceholder === 'true') {
+        userText = '';
+    }
+
+    // GEÄNDERT: Wenn kein Text vorhanden ist, aber eine Audioaufnahme existiert,
+    // versuchen wir zuerst, die Audioaufnahme zu transkribieren.
+    if (!userText && recordedAudioBlob) {
+      showProgressStatus(3, '⏳ Keine Textnachricht gefunden. Transkription des Audios läuft automatisch...');
+      try {
+        const formData = new FormData();
+        formData.append('audio', recordedAudioBlob, 'recording.wav');
+
+        const response = await fetch('/api/transcribe', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await response.json();
+        if (response.ok && data.transcript) {
+          elements.userText.innerText = data.transcript; // userText mit Transkription füllen
+          userText = data.transcript; // Update userText für den aktuellen Sendevorgang
+          // GEÄNDERT: Placeholder-Status entfernen, da jetzt echter Text vorhanden ist
+          elements.userText.classList.remove('placeholder');
+          elements.userText.dataset.isPlaceholder = 'false';
+
+          showStatus(elements.globalStatus, '✅ Audio transkribiert. Nachricht wird gesendet.', 'success');
+        } else {
+          showStatus(elements.globalStatus, `⚠️ Transkriptionsfehler: ${data.error || 'Unbekannt'}. Nachricht kann nicht gesendet werden.`, 'error');
+          setTimeout(() => hideStatus(elements.globalStatus), 3000);
+          showProgressStatus(4, 'Bereit für die Konversation');
+          return; // Stoppen, wenn Transkription fehlschlägt oder leer ist
+        }
+      } catch (error) {
+        console.error('STT-Fehler beim automatischen Senden:', error);
+        showStatus(elements.globalStatus, '❌ STT-Verbindungsfehler beim automatischen Senden.', 'error');
+        setTimeout(() => hideStatus(elements.globalStatus), 3000);
+        showProgressStatus(4, 'Bereit für die Konversation');
+        return; // Stoppen, wenn Verbindungsfehler auftritt
+      }
+    }
+
+    // Nach potenzieller Transkription erneut prüfen, ob userText leer ist
+    if (!userText) {
+      showStatus(elements.globalStatus, '⚠️ Bitte geben Sie Text ein oder nehmen Sie Audio auf, das transkribiert werden kann.', 'warning');
+      setTimeout(() => hideStatus(elements.globalStatus), 3000);
+      showProgressStatus(4, 'Bereit für die Konversation');
       return;
     }
 
-    // Reset state
-    audioHasBeenPlayed = false;
-    currentResponse = null;
-    elements.playAudioBtn?.classList.add('hidden');
-    elements.showResponseBtn?.classList.add('hidden');
-    elements.responseText.dataset.showingText = 'false'; // Ensure text is hidden initially
-
-    // Step 1: Show processing started
-    showProgressStatus(1, '🤔 L\'assistant réfléchit...');
+    // GEÄNDERT: Fortschrittsanzeige auf "Nachricht senden" setzen, nachdem Text feststeht
+    showProgressStatus(2, '📤 Nachricht senden...');
 
     try {
       const response = await fetch('/api/respond', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          text: text,
-          user_id: currentUserId || 'user_' + Date.now()
-        })
+          message: userText,
+          userId: currentUserId,
+          scenario: elements.scenarioSelect?.value || ''
+        }),
       });
 
-      if (!response.ok) {
-        throw new Error(`Response failed: ${response.status}`);
-      }
-
       const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      // Step 2: LLM response received
-      currentResponse = data.response;
-      showProgressStatus(2, '📝 Réponse reçue, génération de l\'audio...');
-
-      // Step 3: Check if audio is available
-      if (data.audio_url) {
-        showProgressStatus(3, '🎵 Audio généré, préparation de la lecture...');
-        
-        // Set up audio
-        if (elements.audioPlayback) {
-          elements.audioPlayback.src = data.audio_url;
-          elements.audioPlayback.classList.remove('hidden');
-          
-          // Wait for audio to be loadable and then play
-          elements.audioPlayback.addEventListener('canplaythrough', function() { // Use canplaythrough for better reliability
-            // Step 4: Audio ready to play - AUTO PLAY
-            showProgressStatus(4, '🔊 Lecture de l\'audio...');
-            elements.playAudioBtn?.classList.remove('hidden'); // Show replay button
-            elements.audioPlayback.play().catch(err => {
-              console.error('Audio auto-play failed:', err);
-              showStatus(elements.audioStatus, '⚠️ Auto-lecture impossible, cliquez sur "Écouter".', 'error');
-              elements.playAudioBtn?.classList.remove('hidden'); // Ensure button is visible for manual play
-              elements.showResponseBtn?.classList.remove('hidden'); // Allow showing text if auto-play fails
-              if (elements.responseText) {
-                 elements.responseText.innerHTML = currentResponse; // Show text if auto-play fails
-                 elements.responseText.dataset.showingText = 'true';
-              }
-              audioHasBeenPlayed = true; // Mark as played to allow text display
-            });
-          }, { once: true });
-
-          // Track when audio finishes playing
-          elements.audioPlayback.addEventListener('ended', function() {
-            audioHasBeenPlayed = true;
-            elements.showResponseBtn?.classList.remove('hidden');
-            showProgressStatus(4, '✅ Lecture terminée! Vous pouvez maintenant voir le texte.');
-             // Automatically show text after audio finishes
-            if (elements.responseText) {
-                elements.responseText.innerHTML = currentResponse;
-                elements.responseText.dataset.showingText = 'true';
-            }
-            elements.showResponseBtn.innerHTML = '👁️ Masquer le texte'; // Update button text
-          }, { once: true });
-
-          // Handle audio load errors
-          elements.audioPlayback.addEventListener('error', function() {
-            console.warn('Audio load failed, showing text immediately');
-            elements.showResponseBtn?.classList.remove('hidden');
-            if (elements.responseText) {
-              elements.responseText.innerHTML = currentResponse;
-              elements.responseText.dataset.showingText = 'true'; // Mark text as visible
-            }
-            showStatus(elements.audioStatus, '⚠️ Problème audio - texte affiché directement', 'error');
-            audioHasBeenPlayed = true; // Allow showing text
-            elements.showResponseBtn.innerHTML = '👁️ Masquer le texte'; // Update button text
-          }, { once: true });
-        }
-      } else {
-        // No audio available, show text immediately
-        console.warn('No audio URL received, showing text immediately');
-         if (elements.responseText) {
-            elements.responseText.innerHTML = currentResponse;
-            elements.responseText.dataset.showingText = 'true';  // Text is visible
-          }
-          elements.showResponseBtn?.classList.remove('hidden'); // Show button to toggle
-          elements.showResponseBtn.innerHTML = '👁️ Masquer le texte'; // Update button text
-          audioHasBeenPlayed = true;                              // Flag to allow showing text immediately
-
-          if (data.tts_error) {
-            showStatus(elements.audioStatus, '⚠️ Audio non disponible: ' + data.tts_error, 'error');
-          }
-        }
-      
-      // Reset user input
-      if (elements.userText) {
-        elements.userText.innerHTML = 'Tapez votre message ici ou utilisez l\'enregistrement...';
-      }
-      
-      // Reset audio recording
-      recordedAudioBlob = null;
-      elements.userAudioSection?.classList.add('hidden');
-      elements.useSTTBtn?.classList.add('hidden');
-      
-    } catch (err) {
-      console.error('Send error:', err);
-      if (elements.responseText) {
-        elements.responseText.innerHTML = `<div class="status-message status-error">⚠️ ${err.message}</div>`;
-        elements.responseText.dataset.showingText = 'true'; // Show error text
-      }
-    }
-  }
-
-  // Event Listeners
-  elements.recordBtn?.addEventListener('click', startRecording);
-  elements.stopBtn?.addEventListener('click', stopRecording);
-  elements.useSTTBtn?.addEventListener('click', processSTT);
-  elements.sendBtn?.addEventListener('click', sendMessage);
-
-  elements.startBtn?.addEventListener('click', async () => {
-    const scenario = elements.scenarioSelect?.value;
-    if (!scenario) {
-      showStatus(elements.globalStatus, "⚠️ Veuillez choisir un thème.", 'error');
-      setTimeout(() => hideStatus(elements.globalStatus), 3000);
-      return;
-    }
-
-    elements.startSection?.classList.add('hidden');
-    elements.conversationSection?.classList.remove('hidden');
-    elements.responseText.dataset.showingText = 'false'; // Hide text initially
-
-    if (scenario !== "libre") {
-      showProgressStatus(1, '🤔 L\'assistant prépare la conversation...');
-      
-      const intro = `J'apprends le français au niveau B1/B2. Je voudrais avoir une conversation avec toi sur le thème « ${scenario} ». Corrige-moi si je fais des erreurs et aide-moi à améliorer ma grammaire et mon expression. Commence par me poser une question ou présenter une situation pour démarrer notre conversation.`;
-
-      try {
-        const res = await fetch('/api/respond', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: intro, user_id: 'intro_' + Date.now() })
-        });
-
-        const data = await res.json();
+      if (response.ok) {
         currentResponse = data.response;
-        
-        showProgressStatus(2, '📝 Conversation préparée, génération de l\'audio...');
-        
-        if (data.audio_url && elements.audioPlayback) {
-          showProgressStatus(3, '🎵 Audio généré, préparation de la lecture...');
-          
-          elements.audioPlayback.src = data.audio_url;
-          elements.audioPlayback.classList.remove('hidden');
-          
-          elements.audioPlayback.addEventListener('canplaythrough', function() { // Use canplaythrough
-            showProgressStatus(4, '🔊 Lecture de l\'audio...');
-            elements.playAudioBtn?.classList.remove('hidden');
-            elements.audioPlayback.play().catch(err => {
-              console.error('Audio auto-play failed:', err);
-              showStatus(elements.audioStatus, '⚠️ Auto-lecture impossible, cliquez sur "Écouter".', 'error');
-              elements.playAudioBtn?.classList.remove('hidden');
-              elements.showResponseBtn?.classList.remove('hidden');
-              if (elements.responseText) {
-                 elements.responseText.innerHTML = currentResponse;
-                 elements.responseText.dataset.showingText = 'true';
-              }
-              audioHasBeenPlayed = true;
-            });
-          }, { once: true });
+        elements.audioPlayback.src = data.audio_url;
+        elements.audioPlayback.classList.remove('hidden');
+        elements.showResponseBtn.classList.remove('hidden');
+        elements.playAudioBtn.classList.remove('hidden');
+        audioHasBeenPlayed = false; // Reset for new audio
 
-          elements.audioPlayback.addEventListener('ended', function() {
-            audioHasBeenPlayed = true;
-            elements.showResponseBtn?.classList.remove('hidden');
-            showProgressStatus(4, '✅ Lecture terminée! Vous pouvez maintenant voir le texte.');
-             // Automatically show text after audio finishes
-            if (elements.responseText) {
-                elements.responseText.innerHTML = currentResponse;
-                elements.responseText.dataset.showingText = 'true';
-            }
-            elements.showResponseBtn.innerHTML = '👁️ Masquer le texte';
-          }, { once: true });
+        elements.responseText.innerHTML = '<div style="text-align: center; margin-top: 8px; font-weight: 500;">Cliquez sur "Afficher le texte" pour voir la réponse.</div>'; // Placeholder
+        elements.responseText.dataset.showingText = 'false';
+        elements.showResponseBtn.innerHTML = '👁️ Afficher le texte';
+
+        if (data.tts_error) {
+          showStatus(elements.audioStatus, `TTS-Fehler: ${data.tts_error}. Audio möglicherweise nicht verfügbar.`, 'error');
+          setTimeout(() => hideStatus(elements.audioStatus), 5000);
         } else {
-          // If no audio URL, display text immediately
-          if (elements.responseText) {
-            elements.responseText.innerHTML = currentResponse;
-            elements.responseText.dataset.showingText = 'true';  // Mark as visible
-          }
-          elements.showResponseBtn?.classList.remove('hidden');      // Show button to toggle
-          elements.showResponseBtn.innerHTML = '👁️ Masquer le texte'; // Update button text
-          audioHasBeenPlayed = true;                              // Allow showing text immediately
-          if (data.tts_error) {
-              showStatus(elements.audioStatus, '⚠️ Audio non disponible: ' + data.tts_error, 'error');
-          }
+          showStatus(elements.audioStatus, '✅ Antwort erhalten. Audio wird geladen...', 'success');
+          // Start playing audio automatically
+          elements.audioPlayback.play().then(() => {
+            audioHasBeenPlayed = true;
+            showStatus(elements.audioStatus, '🎵 Audio wird abgespielt.', 'info');
+          }).catch(err => {
+            console.error('Automatische Audiowiedergabe fehlgeschlagen:', err);
+            showStatus(elements.audioStatus, '⚠️ Automatische Wiedergabe fehlgeschlagen. Bitte manuell abspielen.', 'warning');
+          });
         }
-        
-      } catch (err) {
-        console.error('Error starting conversation:', err);
-        if (elements.responseText) {
-          elements.responseText.innerHTML = `<div class="status-message status-error">⚠️ Erreur: ${err.message}</div>`;
-          elements.responseText.dataset.showingText = 'true'; // Show error text
-        }
+        showProgressStatus(4, 'Antwort empfangen');
+      } else {
+        const errorMsg = data.error || 'Unbekannter Fehler';
+        showStatus(elements.globalStatus, `❌ Fehler vom Server: ${errorMsg}`, 'error');
+        elements.responseText.innerText = data.response || "Es gab ein Problem bei der Verarbeitung Ihrer Anfrage.";
+        showProgressStatus(4, 'Fehler bei der Anfrage');
       }
-    } else {
-      if (elements.responseText) {
-        elements.responseText.innerHTML = "🎯 Sujet libre sélectionné. Tapez votre message ou enregistrez-vous!";
-        elements.responseText.dataset.showingText = 'true'; // Mark as visible
+    } catch (error) {
+      console.error('Fetch-Fehler:', error);
+      showStatus(elements.globalStatus, '❌ Netzwerkfehler. Bitte überprüfen Sie Ihre Verbindung.', 'error');
+      elements.responseText.innerText = "Ein Netzwerkfehler ist aufgetreten.";
+      showProgressStatus(4, 'Netzwerkfehler');
+    } finally {
+      // Cleanup for next message
+      // elements.userText.innerText = ''; // Clear input after sending
+      // GEÄNDERT: userText nur leeren, wenn er nicht von STT gefüllt wurde und nicht der Platzhalter ist
+      if (elements.userText.dataset.isPlaceholder !== 'true' && recordedAudioBlob === null) {
+          elements.userText.innerText = '';
       }
+      recordedAudioBlob = null;
+      elements.userAudio.src = '';
+      elements.userAudioSection.classList.add('hidden');
+      elements.useSTTBtn.classList.add('hidden');
+      setTimeout(() => hideStatus(elements.globalStatus), 5000); // Hide global status after a while
     }
   });
 
   elements.newConvBtn?.addEventListener('click', resetUI);
 
-  // Updated Show Response Button - now toggles visibility
+  // Updated Show Response Button - only shows text after audio has been played
   elements.showResponseBtn?.addEventListener('click', () => {
-    if (currentResponse) { // No longer dependent on audioHasBeenPlayed to *show* it, only for initial text display
+    // GEÄNDERT: Nur prüfen, ob currentResponse existiert. Die Audio-Wiedergabe-Regel
+    // kann in der UI-Logik lockerer sein, aber der Button sollte immer eine Funktion haben.
+    if (currentResponse) {
       const isTextVisible = elements.responseText?.dataset.showingText === 'true';
       
       if (isTextVisible) {
-        // Hide text
-        showProgressStatus(4, '✅ Texte masqué. Cliquez pour réafficher.'); // Re-show progress bar style if text is hidden
-        elements.responseText.dataset.showingText = 'false';
-        elements.responseText.innerHTML = '<div style="text-align: center; margin-top: 8px; font-weight: 500;">Cliquez sur "Afficher le texte" pour voir la réponse.</div>'; // Placeholder
+        // Hide text, show progress status again
+        showProgressStatus(4, '✅ Texte masqué. Cliquez pour réafficher.');
         elements.showResponseBtn.innerHTML = '👁️ Afficher le texte';
+        // GEÄNDERT: Zeige den Platzhaltertext für die Antwort an, wenn der Text ausgeblendet ist
+        elements.responseText.innerHTML = '<div style="text-align: center; margin-top: 8px; font-weight: 500;">Cliquez sur "Afficher le texte" um die Antwort zu sehen.</div>';
+        elements.responseText.dataset.showingText = 'false';
       } else {
         // Show text
         if (elements.responseText) {
@@ -506,7 +392,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  // Event Listener für Audio Playback Ended
+  elements.audioPlayback?.addEventListener('ended', () => {
+    audioHasBeenPlayed = true;
+    showStatus(elements.audioStatus, 'Audio-Wiedergabe beendet.', 'info');
+    setTimeout(() => hideStatus(elements.audioStatus), 2000);
+  });
+
+
   // Initialize
   resetUI();
-  console.log('FR-AI-Tutor Frontend initialized with progress workflow');
+  console.log('FR-AI-Tutor Frontend initialized...');
 });
