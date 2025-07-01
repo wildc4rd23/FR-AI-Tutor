@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let recordedAudioBlob = null;
   let currentResponse = null; // Store response for later display
   let audioHasBeenPlayed = false; // Track if audio was played
+  let isTextCurrentlyVisible = false; // NEW: Track if text is actually visible
 
   // Utility Functions
   function showStatus(element, message, type = 'loading') {
@@ -58,7 +59,41 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (elements.responseText) {
       elements.responseText.innerHTML = progressBarHTML;
+      isTextCurrentlyVisible = false; // Progress bar is NOT the response text
     }
+  }
+
+  // NEW: Function to update button visibility and text
+  function updateShowResponseButton() {
+    if (!elements.showResponseBtn) return;
+    
+    if (audioHasBeenPlayed && currentResponse) {
+      elements.showResponseBtn.classList.remove('hidden');
+      
+      if (isTextCurrentlyVisible) {
+        elements.showResponseBtn.innerHTML = '👁️ Masquer le texte';
+      } else {
+        elements.showResponseBtn.innerHTML = '👁️ Afficher le texte';
+      }
+    } else {
+      elements.showResponseBtn.classList.add('hidden');
+    }
+  }
+
+  // NEW: Function to show the actual response text
+  function showResponseText() {
+    if (elements.responseText && currentResponse) {
+      elements.responseText.innerHTML = currentResponse;
+      isTextCurrentlyVisible = true;
+      updateShowResponseButton();
+    }
+  }
+
+  // NEW: Function to hide the response text (show progress instead)
+  function hideResponseText() {
+    showProgressStatus(4, '✅ Texte masqué. Cliquez pour réafficher.');
+    isTextCurrentlyVisible = false;
+    updateShowResponseButton();
   }
 
   function resetUI() {
@@ -98,6 +133,7 @@ document.addEventListener('DOMContentLoaded', function() {
     recordedAudioBlob = null;
     currentResponse = null;
     audioHasBeenPlayed = false;
+    isTextCurrentlyVisible = false; // Reset visibility state
     
     hideStatus(elements.globalStatus);
     hideStatus(elements.audioStatus);
@@ -249,9 +285,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Reset state
     audioHasBeenPlayed = false;
+    isTextCurrentlyVisible = false;
     currentResponse = null;
     elements.playAudioBtn?.classList.add('hidden');
-    elements.showResponseBtn?.classList.add('hidden');
+    updateShowResponseButton(); // This will hide the button
 
     // Step 1: Show processing started
     showProgressStatus(1, '🤔 L\'assistant réfléchit...');
@@ -294,39 +331,34 @@ document.addEventListener('DOMContentLoaded', function() {
             // Step 4: Audio ready to play
             showProgressStatus(4, '🔊 Audio prêt! Cliquez sur "Écouter" pour commencer.');
             elements.playAudioBtn?.classList.remove('hidden');
+            // DON'T show the response button here - only after audio is played
           }, { once: true });
 
           // Track when audio finishes playing
           elements.audioPlayback.addEventListener('ended', function() {
             audioHasBeenPlayed = true;
-            elements.showResponseBtn?.classList.remove('hidden');
             showProgressStatus(4, '✅ Lecture terminée! Vous pouvez maintenant voir le texte.');
+            updateShowResponseButton(); // NOW show the button
           }, { once: true });
 
           // Handle audio load errors
           elements.audioPlayback.addEventListener('error', function() {
             console.warn('Audio load failed, showing text immediately');
-            elements.showResponseBtn?.classList.remove('hidden');
-            if (elements.responseText) {
-              elements.responseText.innerHTML = currentResponse;
-            }
+            audioHasBeenPlayed = true;
+            showResponseText();
             showStatus(elements.audioStatus, '⚠️ Problème audio - texte affiché directement', 'error');
           }, { once: true });
         }
       } else {
         // No audio available, show text immediately
         console.warn('No audio URL received, showing text immediately');
-         if (elements.responseText) {
-            elements.responseText.innerHTML = currentResponse;
-            elements.responseText.dataset.showingText = 'true';  // ✅ Text ist bereits sichtbar
-          }
-          elements.showResponseBtn?.classList.add('hidden');      // ✅ Button NICHT anzeigen
-          audioHasBeenPlayed = true;                              // ✅ Flag setzen
+        audioHasBeenPlayed = true;
+        showResponseText();
 
-          if (data.tts_error) {
-            showStatus(elements.audioStatus, '⚠️ Audio non disponible: ' + data.tts_error, 'error');
-          }
+        if (data.tts_error) {
+          showStatus(elements.audioStatus, '⚠️ Audio non disponible: ' + data.tts_error, 'error');
         }
+      }
       
       // Reset user input
       if (elements.userText) {
@@ -393,16 +425,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
           elements.audioPlayback.addEventListener('ended', function() {
             audioHasBeenPlayed = true;
-            elements.showResponseBtn?.classList.remove('hidden');
             showProgressStatus(4, '✅ Lecture terminée! Vous pouvez maintenant voir le texte.');
+            updateShowResponseButton();
           }, { once: true });
         } else {
-          if (elements.responseText) {
-            elements.responseText.innerHTML = currentResponse;
-            elements.responseText.dataset.showingText = 'true';  // ✅ Sichtbar markieren
-          }
-          elements.showResponseBtn?.classList.add('hidden');      // ✅ Nicht anzeigen
-          audioHasBeenPlayed = true;                              // ✅ Sofort anzeigen erlaubt
+          audioHasBeenPlayed = true;
+          showResponseText();
         }
         
       } catch (err) {
@@ -420,23 +448,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
   elements.newConvBtn?.addEventListener('click', resetUI);
 
-  // Updated Show Response Button - only shows text after audio has been played
+  // FIXED: Show/Hide Response Button
   elements.showResponseBtn?.addEventListener('click', () => {
     if (currentResponse && audioHasBeenPlayed) {
-      const isTextVisible = elements.responseText?.dataset.showingText === 'true';
-      
-      if (isTextVisible) {
-        // Hide text, show progress status again
-        showProgressStatus(4, '✅ Texte masqué. Cliquez pour réafficher.');
-        elements.showResponseBtn.innerHTML = '👁️ Afficher le texte';
-        elements.responseText.dataset.showingText = 'false';
+      if (isTextCurrentlyVisible) {
+        // Hide text
+        hideResponseText();
       } else {
         // Show text
-        if (elements.responseText) {
-          elements.responseText.innerHTML = currentResponse;
-          elements.responseText.dataset.showingText = 'true';
-        }
-        elements.showResponseBtn.innerHTML = '👁️ Masquer le texte';
+        showResponseText();
       }
     } else if (!audioHasBeenPlayed) {
       showStatus(elements.globalStatus, '⚠️ Veuillez d\'abord écouter l\'audio', 'error');
@@ -456,5 +476,5 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Initialize
   resetUI();
-  console.log('FR-AI-Tutor Frontend initialized with progress workflow');
-});//test
+  console.log('FR-AI-Tutor Frontend initialized with FIXED button functionality');
+});
