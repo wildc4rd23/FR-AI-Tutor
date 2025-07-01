@@ -88,13 +88,25 @@ def transcribe():
     if 'audio' not in request.files:
         return jsonify({'error': 'Keine Audiodatei empfangen'}), 400
 
+    # KORRIGIERT: Hole user_id aus Form-Daten falls vorhanden
+    user_id = request.form.get('user_id')
+    
     # GEÄNDERT: get_user_temp_dir wird jetzt mit base_dir aufgerufen
-    temp_path_for_stt, user_id = get_user_temp_dir(base_dir=TEMP_AUDIO_DIR_ROOT)
+    temp_path_for_stt, user_id = get_user_temp_dir(user_id, base_dir=TEMP_AUDIO_DIR_ROOT)
     audio_path = os.path.join(temp_path_for_stt, "recording.mp3") # Speichert die Benutzeraufnahme als 'recording.mp3'
 
     try:
-        request.files['audio'].save(audio_path)
+        # KORRIGIERT: Speichere die empfangene Audio-Datei
+        audio_file = request.files['audio']
+        audio_file.save(audio_path)
         logger.info(f"Benutzeraufnahme für User {user_id} als {audio_path} gespeichert.")
+        
+        # Prüfe ob Datei korrekt gespeichert wurde
+        if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
+            logger.info(f"Aufnahme erfolgreich gespeichert: {audio_path} ({os.path.getsize(audio_path)} bytes)")
+        else:
+            logger.error(f"Aufnahme nicht korrekt gespeichert: {audio_path}")
+            return jsonify({'error': 'Fehler beim Speichern der Audiodatei'}), 500
         
         # VOSK STT Integration (für späteren Einsatz)
         # from vosk_stt import transcribe_audio # Import hier, wenn Vosk verwendet wird
@@ -109,7 +121,11 @@ def transcribe():
         
         # Wenn Vosk nicht verwendet wird, einfach eine Erfolgsmeldung zurückgeben.
         # Die Transkription wird im Frontend durchgeführt.
-        return jsonify({'message': 'Audio erfolgreich gespeichert.'})
+        return jsonify({
+            'message': 'Audio erfolgreich gespeichert.',
+            'user_id': user_id,
+            'audio_path': audio_path
+        })
 
     except Exception as e:
         logger.error(f"Fehler beim Speichern der Audio-Transkription für User {user_id}: {str(e)}")

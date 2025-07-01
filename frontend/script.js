@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let currentUserId = null;
   let currentResponse = null;
   let audioHasBeenPlayed = false;
+  let isTextCurrentlyVisible = false; // HINZUGEFÜGT: Track text visibility
 
   const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
 
@@ -93,11 +94,36 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // NEW: Function to hide the response text (show progress instead)
+  // HINZUGEFÜGT: Function to show the actual response text
+  function showResponseText() {
+    if (currentResponse && elements.responseText) {
+      elements.responseText.innerHTML = currentResponse;
+      isTextCurrentlyVisible = true;
+      updateShowResponseButton();
+    }
+  }
+
+  // HINZUGEFÜGT: Function to hide the response text (show progress instead)
   function hideResponseText() {
     showProgressStatus(4, '✅ Texte masqué. Cliquez pour réafficher.');
     isTextCurrentlyVisible = false;
     updateShowResponseButton();
+  }
+
+  // HINZUGEFÜGT: Function to update the show/hide button state
+  function updateShowResponseButton() {
+    if (!elements.showResponseBtn) return;
+    
+    if (audioHasBeenPlayed && currentResponse) {
+      elements.showResponseBtn.classList.remove('hidden');
+      if (isTextCurrentlyVisible) {
+        elements.showResponseBtn.innerHTML = '🙈 Masquer la réponse';
+      } else {
+        elements.showResponseBtn.innerHTML = '👁️ Afficher la réponse';
+      }
+    } else {
+      elements.showResponseBtn.classList.add('hidden');
+    }
   }
 
   function resetUI() {
@@ -232,18 +258,24 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // STT Function
+  // KORRIGIERT: STT Function - sendet jetzt die Aufnahme an den Server
   async function processSTT() {
     if (!recordedAudioBlob) {
       showStatus(elements.recordingStatus, '⚠️ Aucun enregistrement disponible', 'error');
       return;
     }
 
-    showStatus(elements.recordingStatus, '🔄 Transcription en cours...', 'loading');
+    showStatus(elements.recordingStatus, '🔄 Envoi de l\'audio au serveur...', 'loading');
 
     try {
       const formData = new FormData();
-      formData.append('audio', recordedAudioBlob, 'recording.wav');
+      // KORRIGIERT: Verwende recordedAudioBlob statt eines nicht existierenden Files
+      formData.append('audio', recordedAudioBlob, 'recording.mp3');
+      
+      // KORRIGIERT: Falls currentUserId existiert, sende es mit
+      if (currentUserId) {
+        formData.append('user_id', currentUserId);
+      }
 
       const response = await fetch('/api/transcribe', {
         method: 'POST',
@@ -260,14 +292,20 @@ document.addEventListener('DOMContentLoaded', function() {
         throw new Error(data.error);
       }
 
-      // Text in editierbares Feld einfügen
-      if (elements.userText && data.text) {
-        elements.userText.innerHTML = data.text;
+      // Erfolgsmeldung - auch wenn keine Transkription zurückkommt
+      showStatus(elements.recordingStatus, '✅ Audio envoyé au serveur! Utilisez la reconnaissance vocale du navigateur.', 'success');
+      
+      // Setze userId wenn vom Server zurückgegeben
+      if (data.user_id) {
+        currentUserId = data.user_id;
       }
       
-      currentUserId = data.user_id;
+      // Starte Browser-basierte Spracherkennung
+      if (recognition) {
+        showStatus(elements.recordingStatus, '🎤 Démarrage de la reconnaissance vocale...', 'loading');
+        recognition.start();
+      }
       
-      showStatus(elements.recordingStatus, '✅ Transcription terminée! Vous pouvez maintenant modifier le texte.', 'success');
       setTimeout(() => hideStatus(elements.recordingStatus), 3000);
       
     } catch (err) {
@@ -337,7 +375,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // DON'T show the response button here - only after audio is played
           }, { once: true });
 
-          // Track when audio finishes playing
+          // KORRIGIERT: Track when audio finishes playing
           elements.audioPlayback.addEventListener('ended', function() {
             audioHasBeenPlayed = true;
             showProgressStatus(4, '✅ Lecture terminée! Vous pouvez maintenant voir le texte.');
@@ -451,7 +489,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   elements.newConvBtn?.addEventListener('click', resetUI);
 
-  // FIXED: Show/Hide Response Button
+  // KORRIGIERT: Show/Hide Response Button
   elements.showResponseBtn?.addEventListener('click', () => {
     if (currentResponse && audioHasBeenPlayed) {
       if (isTextCurrentlyVisible) {
