@@ -1,3 +1,4 @@
+// script.js
 document.addEventListener('DOMContentLoaded', function() {
   // DOM Elements
   const elements = {
@@ -29,442 +30,413 @@ document.addEventListener('DOMContentLoaded', function() {
   let audioChunks = [];
   let currentUserId = null;
   let recordedAudioBlob = null;
-  let currentResponse = null; // Store response for later display
-  let audioHasBeenPlayed = false; // Track if audio was played
-  let isTextCurrentlyVisible = false; // NEW: Track if text is actually visible
+  let currentResponse = null;
+  let audioHasBeenPlayed = false;
+
+  // GEÄNDERT: Initialisiere SpeechRecognition API
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.continuous = false; // Set to true for continuous recognition
+    recognition.interimResults = false; // Set to true for interim results
+    recognition.lang = 'fr-FR'; // Set language for recognition (e.g., French)
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      elements.userText.innerText = transcript;
+      elements.userText.classList.remove('placeholder');
+      elements.userText.dataset.isPlaceholder = 'false';
+      showStatus(elements.globalStatus, '✅ Transkription erfolgreich!', 'success');
+    };
+
+    recognition.onerror = (event) => {
+      console.error('Speech Recognition Error:', event.error);
+      showStatus(elements.globalStatus, `⚠️ Spracherkennungsfehler: ${event.error}`, 'error');
+      setTimeout(() => hideStatus(elements.globalStatus), 3000);
+    };
+
+    recognition.onend = () => {
+      showProgressStatus(4, 'Spracherkennung beendet.');
+    };
+  } else {
+    console.warn('Web Speech API (SpeechRecognition) wird von diesem Browser nicht unterstützt.');
+    elements.useSTTBtn.classList.add('hidden'); // Verstecke den STT-Button, wenn die API nicht verfügbar ist
+    showStatus(elements.globalStatus, '⚠️ Spracherkennung nicht unterstützt. Bitte geben Sie Text ein.', 'warning');
+  }
+
 
   // Utility Functions
-  function showStatus(element, message, type = 'loading') {
-    if (!element) return;
-    element.className = `status-message status-${type}`;
-    element.innerHTML = message;
-    element.classList.remove('hidden');
+  function showStatus(element, message, type) {
+    if (element) {
+      element.innerText = message;
+      element.className = `status-message ${type}`;
+      element.classList.remove('hidden');
+    }
   }
 
   function hideStatus(element) {
-    if (!element) return;
-    element.classList.add('hidden');
+    if (element) {
+      element.classList.add('hidden');
+    }
   }
 
-  // Progress Bar Function
   function showProgressStatus(step, message) {
-    const progressBarHTML = `
-      <div style="margin-bottom: 15px;">
-        <div style="background: #e2e8f0; border-radius: 10px; height: 20px; overflow: hidden;">
-          <div style="background: linear-gradient(90deg, #667eea, #764ba2); height: 100%; width: ${step * 25}%; transition: width 0.5s ease;"></div>
-        </div>
-        <div style="text-align: center; margin-top: 8px; font-weight: 500;">${message}</div>
-      </div>
-    `;
+    const totalSteps = 4;
+    let progressBar = document.getElementById('progressBar');
+    if (!progressBar) {
+      progressBar = document.createElement('div');
+      progressBar.id = 'progressBar';
+      progressBar.style.width = '0%';
+      progressBar.style.height = '4px';
+      progressBar.style.backgroundColor = '#4CAF50';
+      progressBar.style.position = 'absolute';
+      progressBar.style.bottom = '0';
+      progressBar.style.left = '0';
+      progressBar.style.transition = 'width 0.3s ease-in-out';
+      document.body.appendChild(progressBar);
+    }
     
-    if (elements.responseText) {
-      elements.responseText.innerHTML = progressBarHTML;
-      isTextCurrentlyVisible = false; // Progress bar is NOT the response text
-    }
-  }
+    const progressWidth = (step / totalSteps) * 100;
+    progressBar.style.width = `${progressWidth}%`;
 
-  // NEW: Function to update button visibility and text
-  function updateShowResponseButton() {
-    if (!elements.showResponseBtn) return;
+    let statusIcon = '';
+    if (step === 0) statusIcon = '⚙️';
+    else if (step === 1) statusIcon = '🎤';
+    else if (step === 2) statusIcon = '📤';
+    else if (step === 3) statusIcon = '💬';
+    else if (step === 4) statusIcon = '✅';
+
+    showStatus(elements.globalStatus, `${statusIcon} ${message}`, 'info');
     
-    if (audioHasBeenPlayed && currentResponse) {
-      elements.showResponseBtn.classList.remove('hidden');
-      
-      if (isTextCurrentlyVisible) {
-        elements.showResponseBtn.innerHTML = '👁️ Masquer le texte';
-      } else {
-        elements.showResponseBtn.innerHTML = '👁️ Afficher le texte';
-      }
-    } else {
-      elements.showResponseBtn.classList.add('hidden');
+    if (step >= totalSteps) {
+        setTimeout(() => {
+            if (progressBar) progressBar.style.width = '0%';
+            hideStatus(elements.globalStatus);
+        }, 1500);
     }
   }
 
-  // NEW: Function to show the actual response text
-  function showResponseText() {
-    if (elements.responseText && currentResponse) {
-      elements.responseText.innerHTML = currentResponse;
-      isTextCurrentlyVisible = true;
-      updateShowResponseButton();
-    }
-  }
-
-  // NEW: Function to hide the response text (show progress instead)
-  function hideResponseText() {
-    showProgressStatus(4, '✅ Texte masqué. Cliquez pour réafficher.');
-    isTextCurrentlyVisible = false;
-    updateShowResponseButton();
+  function generateUserId() {
+    return 'user_' + Math.random().toString(36).substr(2, 9);
   }
 
   function resetUI() {
-    elements.startSection?.classList.remove('hidden');
-    elements.conversationSection?.classList.add('hidden');
-    
-    if (elements.userText) {
-      elements.userText.innerHTML = 'Tapez votre message ici ou utilisez l\'enregistrement...';
-    }
-    if (elements.responseText) {
-      elements.responseText.textContent = '...';
-    }
-    
-    if (elements.audioPlayback) {
-      elements.audioPlayback.src = '';
-      elements.audioPlayback.classList.add('hidden');
-    }
-    
-    if (elements.userAudio) {
-      elements.userAudio.src = '';
-    }
-    
-    elements.userAudioSection?.classList.add('hidden');
-    elements.playAudioBtn?.classList.add('hidden');
-    elements.showResponseBtn?.classList.add('hidden');
-    
-    // Reset buttons
-    if (elements.recordBtn) {
-      elements.recordBtn.disabled = false;
-      elements.recordBtn.innerHTML = '🎙️ Enregistrer';
-      elements.recordBtn.classList.remove('recording');
-    }
-    elements.stopBtn?.classList.add('hidden');
-    elements.useSTTBtn?.classList.add('hidden');
-    
-    currentUserId = null;
+    elements.responseText.innerText = '';
+    elements.audioPlayback.src = '';
+    elements.audioPlayback.classList.add('hidden');
+    elements.userAudio.src = '';
+    elements.userAudioSection.classList.add('hidden');
     recordedAudioBlob = null;
     currentResponse = null;
     audioHasBeenPlayed = false;
-    isTextCurrentlyVisible = false; // Reset visibility state
+
+    elements.startSection.classList.remove('hidden');
+    elements.conversationSection.classList.add('hidden');
+
+    elements.recordBtn.classList.remove('hidden');
+    elements.stopBtn.classList.add('hidden');
+    // GEÄNDERT: Zeige STT-Button nur, wenn SpeechRecognition verfügbar ist
+    if (SpeechRecognition) { 
+        elements.useSTTBtn.classList.add('hidden'); // Versteckt ihn initial
+    } else {
+        elements.useSTTBtn.classList.add('hidden'); // Immer versteckt, wenn nicht unterstützt
+    }
+    elements.showResponseBtn.classList.add('hidden');
+    elements.playAudioBtn.classList.add('hidden');
     
-    hideStatus(elements.globalStatus);
-    hideStatus(elements.audioStatus);
-    hideStatus(elements.recordingStatus);
+    const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
+    elements.userText.innerText = placeholderText;
+    elements.userText.classList.add('placeholder');
+    elements.userText.dataset.isPlaceholder = 'true';
+    
+    currentUserId = currentUserId || generateUserId(); 
+
+    showProgressStatus(0, 'Wählen Sie ein Thema oder starten Sie die Konversation.');
   }
 
-  // Audio Recording Functions
-  async function startRecording() {
+  elements.userText?.addEventListener('focus', function() {
+    if (this.dataset.isPlaceholder === 'true') {
+      this.innerText = '';
+      this.classList.remove('placeholder');
+      this.dataset.isPlaceholder = 'false';
+    }
+  });
+
+  elements.userText?.addEventListener('blur', function() {
+    if (this.innerText.trim() === '') {
+      const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
+      this.innerText = placeholderText;
+      this.classList.add('placeholder');
+      this.dataset.isPlaceholder = 'true';
+    }
+  });
+
+
+  // Event Listeners
+  elements.startBtn?.addEventListener('click', () => {
+    elements.startSection.classList.add('hidden');
+    elements.conversationSection.classList.remove('hidden');
+    
+    const selectedScenario = elements.scenarioSelect?.value || 'Conversation générale';
+    document.getElementById('currentScenarioDisplay').innerText = selectedScenario;
+
+    elements.responseText.innerText = '';
+    elements.audioPlayback.src = '';
+    elements.audioPlayback.classList.add('hidden');
+    elements.userAudio.src = '';
+    elements.userAudioSection.classList.add('hidden');
+    recordedAudioBlob = null;
+    currentResponse = null;
+    audioHasBeenPlayed = false;
+    elements.recordBtn.classList.remove('hidden');
+    elements.stopBtn.classList.add('hidden');
+    if (SpeechRecognition) { // Nur anzeigen, wenn API verfügbar
+        elements.useSTTBtn.classList.add('hidden'); 
+    }
+    elements.showResponseBtn.classList.add('hidden');
+    elements.playAudioBtn.classList.add('hidden');
+    
+    const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
+    elements.userText.innerText = placeholderText;
+    elements.userText.classList.add('placeholder');
+    elements.userText.dataset.isPlaceholder = 'true';
+
+    showProgressStatus(4, 'Bereit für die Konversation');
+    console.log('Conversation started with scenario:', selectedScenario);
+  });
+
+  elements.recordBtn?.addEventListener('click', async () => {
+    hideStatus(elements.globalStatus);
+    hideStatus(elements.audioStatus);
+    showProgressStatus(1, '🔴 Aufnahme läuft...');
+
     try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
       audioChunks = [];
-      showStatus(elements.recordingStatus, '🎙️ Demande d\'accès au microphone...', 'loading');
-      
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 16000
-        }
-      });
-      
-      // Prüfe MediaRecorder Support
-      if (!MediaRecorder.isTypeSupported('audio/webm')) {
-        console.warn('audio/webm not supported, using default');
-      }
-      
-      const options = {};
-      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-        options.mimeType = 'audio/webm;codecs=opus';
-      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-        options.mimeType = 'audio/webm';
-      }
-      
-      mediaRecorder = new MediaRecorder(stream, options);
+      recordedAudioBlob = null;
 
       mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0) {
-          audioChunks.push(event.data);
-        }
+        audioChunks.push(event.data);
       };
 
       mediaRecorder.onstop = () => {
+        recordedAudioBlob = new Blob(audioChunks, { type: 'audio/mp3' }); // GEÄNDERT: Typ auf MP3 setzen
+        const audioUrl = URL.createObjectURL(recordedAudioBlob);
+        elements.userAudio.src = audioUrl;
+        elements.userAudioSection.classList.remove('hidden');
+
         stream.getTracks().forEach(track => track.stop());
-        
-        if (audioChunks.length === 0) {
-          showStatus(elements.recordingStatus, '⚠️ Aucun audio enregistré', 'error');
-          return;
+        showProgressStatus(4, 'Aufnahme beendet. Bereit.');
+        if (SpeechRecognition) { // Zeige STT-Button nur, wenn API verfügbar
+            elements.useSTTBtn.classList.remove('hidden'); 
         }
-        
-        const mimeType = mediaRecorder.mimeType || 'audio/webm';
-        recordedAudioBlob = new Blob(audioChunks, { type: mimeType });
-        
-        // Audio-Preview erstellen
-        const audioURL = URL.createObjectURL(recordedAudioBlob);
-        if (elements.userAudio) {
-          elements.userAudio.src = audioURL;
-          elements.userAudioSection?.classList.remove('hidden');
-        }
-        
-        // STT Button anzeigen
-        elements.useSTTBtn?.classList.remove('hidden');
-        
-        showStatus(elements.recordingStatus, '✅ Enregistrement terminé! Vous pouvez maintenant utiliser la reconnaissance vocale.', 'success');
       };
 
-      mediaRecorder.onerror = (event) => {
-        console.error('MediaRecorder error:', event);
-        showStatus(elements.recordingStatus, '⚠️ Erreur lors de l\'enregistrement', 'error');
-      };
+      mediaRecorder.start();
+      // GEÄNDERT: Starte auch die Spracherkennung, wenn verfügbar
+      if (recognition) {
+        recognition.start();
+        showStatus(elements.recordingStatus, 'Spracherkennung aktiv...', 'info');
+      }
 
-      mediaRecorder.start(100);
-      
-      elements.recordBtn.disabled = true;
-      elements.recordBtn.innerHTML = '🔴 Enregistrement...';
-      elements.recordBtn.classList.add('recording');
-      elements.stopBtn?.classList.remove('hidden');
-      
-      showStatus(elements.recordingStatus, '🎙️ Enregistrement en cours... Parlez maintenant!', 'success');
-      
+      elements.recordBtn.classList.add('hidden');
+      elements.stopBtn.classList.remove('hidden');
+      elements.useSTTBtn.classList.add('hidden'); // Verstecke STT-Button während der Aufnahme
     } catch (err) {
-      console.error('Recording error:', err);
-      showStatus(elements.recordingStatus, '⚠️ Erreur microphone: ' + err.message, 'error');
-    }
-  }
-
-  function stopRecording() {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-      mediaRecorder.stop();
-      elements.recordBtn.disabled = false;
-      elements.recordBtn.innerHTML = '🎙️ Enregistrer';
-      elements.recordBtn.classList.remove('recording');
-      elements.stopBtn?.classList.add('hidden');
-    }
-  }
-
-  // STT Function
-  async function processSTT() {
-    if (!recordedAudioBlob) {
-      showStatus(elements.recordingStatus, '⚠️ Aucun enregistrement disponible', 'error');
-      return;
-    }
-
-    showStatus(elements.recordingStatus, '🔄 Transcription en cours...', 'loading');
-
-    try {
-      const formData = new FormData();
-      formData.append('audio', recordedAudioBlob, 'recording.wav');
-
-      const response = await fetch('/api/transcribe', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        throw new Error(`Transcription failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      // Text in editierbares Feld einfügen
-      if (elements.userText && data.text) {
-        elements.userText.innerHTML = data.text;
-      }
-      
-      currentUserId = data.user_id;
-      
-      showStatus(elements.recordingStatus, '✅ Transcription terminée! Vous pouvez maintenant modifier le texte.', 'success');
-      setTimeout(() => hideStatus(elements.recordingStatus), 3000);
-      
-    } catch (err) {
-      console.error('STT error:', err);
-      showStatus(elements.recordingStatus, '⚠️ Erreur de transcription: ' + err.message, 'error');
-    }
-  }
-
-  // Send Message Function with Progress Workflow
-  async function sendMessage() {
-    const text = elements.userText?.innerText.trim();
-    
-    if (!text || text === 'Tapez votre message ici ou utilisez l\'enregistrement...') {
-      showStatus(elements.globalStatus, '⚠️ Veuillez entrer un message', 'error');
+      console.error('Error accessing microphone:', err);
+      showStatus(elements.globalStatus, '❌ Mikrofonzugriff verweigert oder Fehler.', 'error');
       setTimeout(() => hideStatus(elements.globalStatus), 3000);
+      showProgressStatus(4, 'Bereit für die Konversation');
+    }
+  });
+
+  elements.stopBtn?.addEventListener('click', () => {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+      // GEÄNDERT: Stoppe auch die Spracherkennung, wenn aktiv
+      if (recognition && recognition.recognizing) {
+        recognition.stop();
+        hideStatus(elements.recordingStatus);
+      }
+      elements.stopBtn.classList.add('hidden');
+      elements.recordBtn.classList.remove('hidden');
+      if (SpeechRecognition) { // Zeige STT-Button nur, wenn API verfügbar
+        elements.useSTTBtn.classList.remove('hidden'); 
+      }
+    }
+  });
+
+  // GEÄNDERT: useSTTBtn verwendet jetzt die Web Speech API (SpeechRecognition)
+  elements.useSTTBtn?.addEventListener('click', async () => {
+    if (recognition && recordedAudioBlob) { // Prüfe, ob recognition und Audio verfügbar sind
+      hideStatus(elements.globalStatus);
+      showProgressStatus(3, '⏳ Transkription läuft (Browser STT)...');
+      // Die Transkription wird automatisch über recognition.onresult aktualisiert
+      // Hier muss kein fetch an /api/transcribe mehr erfolgen, da der Browser transkribiert.
+      // Die Audio-Datei wird später beim Senden der Nachricht hochgeladen.
+      showStatus(elements.globalStatus, '✅ Transkription erfolgreich!', 'success');
+      setTimeout(() => hideStatus(elements.globalStatus), 3000);
+      showProgressStatus(4, 'Bereit für die Konversation');
+    } else if (!SpeechRecognition) {
+        showStatus(elements.globalStatus, '⚠️ Spracherkennung wird von diesem Browser nicht unterstützt.', 'warning');
+        setTimeout(() => hideStatus(elements.globalStatus), 3000);
+    } else {
+        showStatus(elements.globalStatus, '⚠️ Keine Audioaufnahme zum Transkribieren.', 'warning');
+        setTimeout(() => hideStatus(elements.globalStatus), 3000);
+    }
+  });
+
+  elements.sendBtn?.addEventListener('click', async () => {
+    hideStatus(elements.globalStatus);
+    hideStatus(elements.audioStatus);
+    showProgressStatus(0, '⏳ Sende Nachricht...');
+
+    let userText = elements.userText.innerText.trim();
+    if (elements.userText.dataset.isPlaceholder === 'true') {
+        userText = '';
+    }
+
+    // GEÄNDERT: Wenn kein Text vorhanden ist, aber eine Audioaufnahme existiert,
+    // und SpeechRecognition verfügbar ist, versuchen wir, die Audioaufnahme zu transkribieren.
+    // Dies ist ein Fallback, falls der Benutzer nicht explizit auf "Use STT" geklickt hat.
+    if (!userText && recordedAudioBlob && SpeechRecognition) {
+      showProgressStatus(3, '⏳ Keine Textnachricht gefunden. Automatische Transkription des Audios läuft...');
+      if (recognition) {
+        recognition.start(); // Startet die Erkennung für das aufgenommene Audio
+        // Warten auf das Ergebnis der Spracherkennung (asynchron)
+        await new Promise(resolve => {
+            recognition.onresult = (event) => {
+                userText = event.results[0][0].transcript;
+                elements.userText.innerText = userText;
+                elements.userText.classList.remove('placeholder');
+                elements.userText.dataset.isPlaceholder = 'false';
+                showStatus(elements.globalStatus, '✅ Audio transkribiert.', 'success');
+                resolve();
+            };
+            recognition.onerror = (event) => {
+                console.error('Auto STT Error:', event.error);
+                showStatus(elements.globalStatus, `⚠️ Auto-Transkriptionsfehler: ${event.error}. Nachricht kann nicht gesendet werden.`, 'error');
+                resolve(); // Trotz Fehler auflösen, um den Prozess nicht zu blockieren
+            };
+        });
+      }
+    }
+
+    if (!userText) {
+      showStatus(elements.globalStatus, '⚠️ Bitte geben Sie Text ein oder nehmen Sie Audio auf, das transkribiert werden kann.', 'warning');
+      setTimeout(() => hideStatus(elements.globalStatus), 3000);
+      showProgressStatus(4, 'Bereit für die Konversation');
       return;
     }
 
-    // Reset state
-    audioHasBeenPlayed = false;
-    isTextCurrentlyVisible = false;
-    currentResponse = null;
-    elements.playAudioBtn?.classList.add('hidden');
-    updateShowResponseButton(); // This will hide the button
-
-    // Step 1: Show processing started
-    showProgressStatus(1, '🤔 L\'assistant réfléchit...');
+    showProgressStatus(2, '📤 Nachricht senden...');
 
     try {
+      // GEÄNDERT: Sende die Audioaufnahme separat an /api/transcribe zum Speichern
+      if (recordedAudioBlob) {
+        const formData = new FormData();
+        formData.append('audio', recordedAudioBlob, 'recording.mp3'); // Dateiname ist jetzt recording.mp3
+        await fetch('/api/transcribe', {
+          method: 'POST',
+          body: formData,
+        }).then(response => {
+            if (!response.ok) {
+                console.error('Fehler beim Speichern der Aufnahme:', response.statusText);
+            }
+        }).catch(error => {
+            console.error('Netzwerkfehler beim Speichern der Aufnahme:', error);
+        });
+      }
+
+      // Sende die Textnachricht an /api/respond
       const response = await fetch('/api/respond', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          text: text,
-          user_id: currentUserId || 'user_' + Date.now()
-        })
+          message: userText,
+          userId: currentUserId,
+          scenario: elements.scenarioSelect?.value || ''
+        }),
       });
 
-      if (!response.ok) {
-        throw new Error(`Response failed: ${response.status}`);
-      }
-
       const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
+      if (response.ok) {
+        currentResponse = data.response;
+        elements.audioPlayback.src = data.audio_url;
+        elements.audioPlayback.classList.remove('hidden');
+        elements.showResponseBtn.classList.remove('hidden');
+        elements.playAudioBtn.classList.remove('hidden');
+        audioHasBeenPlayed = false;
 
-      // Step 2: LLM response received
-      currentResponse = data.response;
-      showProgressStatus(2, '📝 Réponse reçue, génération de l\'audio...');
-
-      // Step 3: Check if audio is available
-      if (data.audio_url) {
-        showProgressStatus(3, '🎵 Audio généré, préparation de la lecture...');
-        
-        // Set up audio
-        if (elements.audioPlayback) {
-          elements.audioPlayback.src = data.audio_url;
-          elements.audioPlayback.classList.remove('hidden');
-          
-          // Wait for audio to be loadable
-          elements.audioPlayback.addEventListener('canplay', function() {
-            // Step 4: Audio ready to play
-            showProgressStatus(4, '🔊 Audio prêt! Cliquez sur "Écouter" pour commencer.');
-            elements.playAudioBtn?.classList.remove('hidden');
-            // DON'T show the response button here - only after audio is played
-          }, { once: true });
-
-          // Track when audio finishes playing
-          elements.audioPlayback.addEventListener('ended', function() {
-            audioHasBeenPlayed = true;
-            showProgressStatus(4, '✅ Lecture terminée! Vous pouvez maintenant voir le texte.');
-            updateShowResponseButton(); // NOW show the button
-          }, { once: true });
-
-          // Handle audio load errors
-          elements.audioPlayback.addEventListener('error', function() {
-            console.warn('Audio load failed, showing text immediately');
-            audioHasBeenPlayed = true;
-            showResponseText();
-            showStatus(elements.audioStatus, '⚠️ Problème audio - texte affiché directement', 'error');
-          }, { once: true });
-        }
-      } else {
-        // No audio available, show text immediately
-        console.warn('No audio URL received, showing text immediately');
-        audioHasBeenPlayed = true;
-        showResponseText();
+        elements.responseText.innerHTML = '<div style="text-align: center; margin-top: 8px; font-weight: 500;">Cliquez sur "Afficher le texte" pour voir la réponse.</div>';
+        elements.responseText.dataset.showingText = 'false';
+        elements.showResponseBtn.innerHTML = '👁️ Afficher le texte';
 
         if (data.tts_error) {
-          showStatus(elements.audioStatus, '⚠️ Audio non disponible: ' + data.tts_error, 'error');
-        }
-      }
-      
-      // Reset user input
-      if (elements.userText) {
-        elements.userText.innerHTML = 'Tapez votre message ici ou utilisez l\'enregistrement...';
-      }
-      
-      // Reset audio recording
-      recordedAudioBlob = null;
-      elements.userAudioSection?.classList.add('hidden');
-      elements.useSTTBtn?.classList.add('hidden');
-      
-    } catch (err) {
-      console.error('Send error:', err);
-      if (elements.responseText) {
-        elements.responseText.innerHTML = `<div class="status-message status-error">⚠️ ${err.message}</div>`;
-      }
-    }
-  }
-
-  // Event Listeners
-  elements.recordBtn?.addEventListener('click', startRecording);
-  elements.stopBtn?.addEventListener('click', stopRecording);
-  elements.useSTTBtn?.addEventListener('click', processSTT);
-  elements.sendBtn?.addEventListener('click', sendMessage);
-
-  elements.startBtn?.addEventListener('click', async () => {
-    const scenario = elements.scenarioSelect?.value;
-    if (!scenario) {
-      showStatus(elements.globalStatus, "⚠️ Veuillez choisir un thème.", 'error');
-      setTimeout(() => hideStatus(elements.globalStatus), 3000);
-      return;
-    }
-
-    elements.startSection?.classList.add('hidden');
-    elements.conversationSection?.classList.remove('hidden');
-
-    if (scenario !== "libre") {
-      showProgressStatus(1, '🤔 L\'assistant prépare la conversation...');
-      
-      const intro = `J'apprends le français au niveau B1/B2. Je voudrais avoir une conversation avec toi sur le thème « ${scenario} ». Corrige-moi si je fais des erreurs et aide-moi à améliorer ma grammaire et mon expression. Commence par me poser une question ou présenter une situation pour démarrer notre conversation.`;
-
-      try {
-        const res = await fetch('/api/respond', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: intro, user_id: 'intro_' + Date.now() })
-        });
-
-        const data = await res.json();
-        currentResponse = data.response;
-        
-        showProgressStatus(2, '📝 Conversation préparée, génération de l\'audio...');
-        
-        if (data.audio_url && elements.audioPlayback) {
-          showProgressStatus(3, '🎵 Audio généré, préparation de la lecture...');
-          
-          elements.audioPlayback.src = data.audio_url;
-          elements.audioPlayback.classList.remove('hidden');
-          
-          elements.audioPlayback.addEventListener('canplay', function() {
-            showProgressStatus(4, '🔊 Audio prêt! Cliquez sur "Écouter" pour commencer.');
-            elements.playAudioBtn?.classList.remove('hidden');
-          }, { once: true });
-
-          elements.audioPlayback.addEventListener('ended', function() {
-            audioHasBeenPlayed = true;
-            showProgressStatus(4, '✅ Lecture terminée! Vous pouvez maintenant voir le texte.');
-            updateShowResponseButton();
-          }, { once: true });
+          showStatus(elements.audioStatus, `TTS-Fehler: ${data.tts_error}. Audio möglicherweise nicht verfügbar.`, 'error');
+          setTimeout(() => hideStatus(elements.audioStatus), 5000);
         } else {
-          audioHasBeenPlayed = true;
-          showResponseText();
+          showStatus(elements.audioStatus, '✅ Antwort erhalten. Audio wird geladen...', 'success');
+          elements.audioPlayback.play().then(() => {
+            audioHasBeenPlayed = true;
+            showStatus(elements.audioStatus, '🎵 Audio wird abgespielt.', 'info');
+          }).catch(err => {
+            console.error('Automatische Audiowiedergabe fehlgeschlagen:', err);
+            showStatus(elements.audioStatus, '⚠️ Automatische Wiedergabe fehlgeschlagen. Bitte manuell abspielen.', 'warning');
+          });
         }
-        
-      } catch (err) {
-        console.error('Error starting conversation:', err);
-        if (elements.responseText) {
-          elements.responseText.innerHTML = `<div class="status-message status-error">⚠️ Erreur: ${err.message}</div>`;
-        }
+        showProgressStatus(4, 'Antwort empfangen');
+      } else {
+        const errorMsg = data.error || 'Unbekannter Fehler';
+        showStatus(elements.globalStatus, `❌ Fehler vom Server: ${errorMsg}`, 'error');
+        elements.responseText.innerText = data.response || "Es gab ein Problem bei der Verarbeitung Ihrer Anfrage.";
+        showProgressStatus(4, 'Fehler bei der Anfrage');
       }
-    } else {
-      if (elements.responseText) {
-        elements.responseText.innerHTML = "🎯 Sujet libre sélectionné. Tapez votre message ou enregistrez-vous!";
+    } catch (error) {
+      console.error('Fetch-Fehler:', error);
+      showStatus(elements.globalStatus, '❌ Netzwerkfehler. Bitte überprüfen Sie Ihre Verbindung.', 'error');
+      elements.responseText.innerText = "Ein Netzwerkfehler ist aufgetreten.";
+      showProgressStatus(4, 'Netzwerkfehler');
+    } finally {
+      if (elements.userText.dataset.isPlaceholder !== 'true' && recordedAudioBlob === null) {
+          elements.userText.innerText = '';
       }
+      recordedAudioBlob = null;
+      elements.userAudio.src = '';
+      elements.userAudioSection.classList.add('hidden');
+      elements.useSTTBtn.classList.add('hidden');
+      setTimeout(() => hideStatus(elements.globalStatus), 5000);
     }
   });
 
   elements.newConvBtn?.addEventListener('click', resetUI);
 
-  // FIXED: Show/Hide Response Button
   elements.showResponseBtn?.addEventListener('click', () => {
-    if (currentResponse && audioHasBeenPlayed) {
-      if (isTextCurrentlyVisible) {
-        // Hide text
-        hideResponseText();
+    if (currentResponse) {
+      const isTextVisible = elements.responseText?.dataset.showingText === 'true';
+      
+      if (isTextVisible) {
+        showProgressStatus(4, '✅ Texte masqué. Cliquez pour réafficher.');
+        elements.showResponseBtn.innerHTML = '👁️ Afficher le texte';
+        elements.responseText.innerHTML = '<div style="text-align: center; margin-top: 8px; font-weight: 500;">Cliquez sur "Afficher le texte" um die Antwort zu sehen.</div>';
+        elements.responseText.dataset.showingText = 'false';
       } else {
-        // Show text
-        showResponseText();
+        if (elements.responseText) {
+          elements.responseText.innerHTML = currentResponse;
+          elements.responseText.dataset.showingText = 'true';
+        }
+        elements.showResponseBtn.innerHTML = '👁️ Masquer le texte';
       }
-    } else if (!audioHasBeenPlayed) {
-      showStatus(elements.globalStatus, '⚠️ Veuillez d\'abord écouter l\'audio', 'error');
-      setTimeout(() => hideStatus(elements.globalStatus), 3000);
+    } else {
+        showStatus(elements.globalStatus, '⚠️ Aucune réponse à afficher pour le moment.', 'error');
+        setTimeout(() => hideStatus(elements.globalStatus), 3000);
     }
   });
 
-  // Play Audio Button
   elements.playAudioBtn?.addEventListener('click', () => {
     if (elements.audioPlayback?.src) {
       elements.audioPlayback.play().catch(err => {
@@ -474,7 +446,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  elements.audioPlayback?.addEventListener('ended', () => {
+    audioHasBeenPlayed = true;
+    showStatus(elements.audioStatus, 'Audio-Wiedergabe beendet.', 'info');
+    setTimeout(() => hideStatus(elements.audioStatus), 2000);
+  });
+
+
   // Initialize
-  resetUI();
-  console.log('FR-AI-Tutor Frontend initialized with FIXED button functionality');
+  resetUI(); 
+  console.log('FR-AI-Tutor Frontend initialized...');
 });
