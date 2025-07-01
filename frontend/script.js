@@ -1,4 +1,4 @@
-// script.js
+// Optimiertes script.js mit verbesserter Mikrofonunterstützung und Real-Time Transkription
 document.addEventListener('DOMContentLoaded', function() {
   const elements = {
     recordBtn: document.getElementById('record'),
@@ -31,32 +31,97 @@ document.addEventListener('DOMContentLoaded', function() {
   let currentUserId = null;
   let currentResponse = null;
   let audioHasBeenPlayed = false;
-  let isTextCurrentlyVisible = false; // HINZUGEFÜGT: Track text visibility
+  let isTextCurrentlyVisible = false;
+  let isRealTimeMode = false; // NEU: Real-Time Modus
 
   const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
 
-  // === Sprach­erkennung vorbereiten ===
+  // === VERBESSERTE Spracherkennung mit Real-Time Support ===
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (SpeechRecognition) {
     recognition = new SpeechRecognition();
     recognition.lang = 'fr-FR';
-    recognition.interimResults = false;
-    recognition.continuous = false;
+    recognition.interimResults = true; // GEÄNDERT: Für Real-Time
+    recognition.continuous = true; // GEÄNDERT: Kontinuierliche Erkennung
+    recognition.maxAlternatives = 3; // HINZUGEFÜGT: Mehrere Alternativen
+
+    let finalTranscript = '';
+    let interimTranscript = '';
 
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      elements.userText.innerText = transcript;
-      elements.userText.classList.remove('placeholder');
-      elements.userText.dataset.isPlaceholder = 'false';
-      showStatus(elements.globalStatus, '✅ Transkription erfolgreich!', 'success');
+      interimTranscript = '';
+      
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          finalTranscript += result[0].transcript + ' ';
+        } else {
+          interimTranscript += result[0].transcript;
+        }
+      }
+
+      // Real-Time Update des UI
+      const displayText = finalTranscript + interimTranscript;
+      if (displayText.trim()) {
+        elements.userText.innerText = displayText;
+        elements.userText.classList.remove('placeholder');
+        elements.userText.dataset.isPlaceholder = 'false';
+        
+        // Status-Update für Real-Time
+        if (isRealTimeMode) {
+          showStatus(elements.recordingStatus, '🎤 Écoute... ' + (interimTranscript ? '(en cours)' : ''), 'success');
+        }
+      }
     };
 
     recognition.onerror = (event) => {
-      showStatus(elements.globalStatus, `⚠️ Fehler: ${event.error}`, 'error');
+      console.error('Speech recognition error:', event.error);
+      let errorMessage = '⚠️ Erreur de reconnaissance vocale';
+      
+      switch(event.error) {
+        case 'not-allowed':
+          errorMessage = '🚫 Accès au microphone refusé. Vérifiez les permissions.';
+          break;
+        case 'no-speech':
+          errorMessage = '🔇 Aucune parole détectée. Parlez plus fort.';
+          break;
+        case 'network':
+          errorMessage = '🌐 Erreur réseau. Vérifiez votre connexion.';
+          break;
+        case 'audio-capture':
+          errorMessage = '🎙️ Impossible d\'accéder au microphone.';
+          break;
+      }
+      
+      showStatus(elements.globalStatus, errorMessage, 'error');
+      
+      // Restart recognition if network error in real-time mode
+      if (event.error === 'network' && isRealTimeMode) {
+        setTimeout(() => {
+          try {
+            recognition.start();
+          } catch (e) {
+            console.warn('Could not restart recognition:', e);
+          }
+        }, 1000);
+      }
     };
 
     recognition.onend = () => {
       hideStatus(elements.recordingStatus);
+      if (isRealTimeMode) {
+        // Auto-restart in real-time mode
+        try {
+          setTimeout(() => recognition.start(), 100);
+        } catch (e) {
+          console.warn('Could not restart recognition:', e);
+          isRealTimeMode = false;
+        }
+      }
+    };
+
+    recognition.onstart = () => {
+      console.log('Speech recognition started');
     };
   } else {
     console.warn('SpeechRecognition API nicht verfügbar.');
@@ -64,7 +129,34 @@ document.addEventListener('DOMContentLoaded', function() {
     showStatus(elements.globalStatus, '⚠️ Spracherkennung nicht unterstützt. Bitte Text manuell eingeben.', 'warning');
   }
 
- // Utility Functions
+  // === VERBESSERTE Mikrofonzugriff-Diagnose ===
+  async function checkMicrophonePermissions() {
+    try {
+      // Prüfe Permissions API Support
+      if ('permissions' in navigator) {
+        const permission = await navigator.permissions.query({name: 'microphone'});
+        console.log('Microphone permission:', permission.state);
+        
+        if (permission.state === 'denied') {
+          showStatus(elements.globalStatus, '🚫 Microphone access denied. Please enable in browser settings.', 'error');
+          return false;
+        }
+      }
+
+      // Prüfe HTTPS
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+        showStatus(elements.globalStatus, '🔒 HTTPS required for microphone access.', 'error');
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Permission check failed:', error);
+      return true; // Fallback: try anyway
+    }
+  }
+
+  // Utility Functions
   function showStatus(element, message, type = 'loading') {
     if (!element) return;
     element.className = `status-message status-${type}`;
@@ -90,11 +182,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (elements.responseText) {
       elements.responseText.innerHTML = progressBarHTML;
-      isTextCurrentlyVisible = false; // Progress bar is NOT the response text
+      isTextCurrentlyVisible = false;
     }
   }
 
-  // HINZUGEFÜGT: Function to show the actual response text
   function showResponseText() {
     if (currentResponse && elements.responseText) {
       elements.responseText.innerHTML = currentResponse;
@@ -103,14 +194,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // HINZUGEFÜGT: Function to hide the response text (show progress instead)
   function hideResponseText() {
     showProgressStatus(4, '✅ Texte masqué. Cliquez pour réafficher.');
     isTextCurrentlyVisible = false;
     updateShowResponseButton();
   }
 
-  // HINZUGEFÜGT: Function to update the show/hide button state
   function updateShowResponseButton() {
     if (!elements.showResponseBtn) return;
     
@@ -127,10 +216,22 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function resetUI() {
+    // Stop any ongoing recognition
+    if (recognition && isRealTimeMode) {
+      try {
+        recognition.stop();
+      } catch (e) {
+        console.warn('Could not stop recognition:', e);
+      }
+    }
+    isRealTimeMode = false;
+
     elements.startSection.classList.remove('hidden');
     elements.conversationSection.classList.add('hidden');
      if (elements.userText) {
-      elements.userText.innerHTML = 'Tapez votre message ici ou utilisez l\'enregistrement...';
+      elements.userText.innerHTML = placeholderText;
+      elements.userText.classList.add('placeholder');
+      elements.userText.dataset.isPlaceholder = 'true';
     }
     if (elements.responseText) {
       elements.responseText.textContent = '...';
@@ -162,38 +263,52 @@ document.addEventListener('DOMContentLoaded', function() {
     recordedAudioBlob = null;
     currentResponse = null;
     audioHasBeenPlayed = false;
-    isTextCurrentlyVisible = false; // Reset visibility state
+    isTextCurrentlyVisible = false;
     
     hideStatus(elements.globalStatus);
     hideStatus(elements.audioStatus);
     hideStatus(elements.recordingStatus);
   }
 
- // Audio Recording Functions
+  // === VERBESSERTE Aufnahmefunktionen ===
   async function startRecording() {
     try {
+      // Prüfe Berechtigungen zuerst
+      const permissionsOk = await checkMicrophonePermissions();
+      if (!permissionsOk) {
+        return;
+      }
+
       audioChunks = [];
       showStatus(elements.recordingStatus, '🎙️ Demande d\'accès au microphone...', 'loading');
       
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      // VERBESSERTE MediaConstraints
+      const constraints = { 
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 16000
+          sampleRate: { ideal: 16000 },
+          channelCount: { ideal: 1 },
+          // Français-optimierte Einstellungen
+          googEchoCancellation: true,
+          googAutoGainControl: true,
+          googNoiseSuppression: true,
+          googHighpassFilter: true
         }
-      });
+      };
       
-      // Prüfe MediaRecorder Support
-      if (!MediaRecorder.isTypeSupported('audio/webm')) {
-        console.warn('audio/webm not supported, using default');
-      }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       
-      const options = {};
+      // Prüfe MediaRecorder Support mit besseren Optionen
+      let options = {};
       if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
         options.mimeType = 'audio/webm;codecs=opus';
+        options.audioBitsPerSecond = 48000; // Bessere Qualität für Französisch
       } else if (MediaRecorder.isTypeSupported('audio/webm')) {
         options.mimeType = 'audio/webm';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        options.mimeType = 'audio/mp4';
       }
       
       mediaRecorder = new MediaRecorder(stream, options);
@@ -225,7 +340,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // STT Button anzeigen
         elements.useSTTBtn?.classList.remove('hidden');
         
-        showStatus(elements.recordingStatus, '✅ Enregistrement terminé! Vous pouvez maintenant utiliser la reconnaissance vocale.', 'success');
+        showStatus(elements.recordingStatus, '✅ Enregistrement terminé! Utilisez la reconnaissance vocale.', 'success');
       };
 
       mediaRecorder.onerror = (event) => {
@@ -233,7 +348,8 @@ document.addEventListener('DOMContentLoaded', function() {
         showStatus(elements.recordingStatus, '⚠️ Erreur lors de l\'enregistrement', 'error');
       };
 
-      mediaRecorder.start(100);
+      // Start mit kleineren Chunks für bessere Performance
+      mediaRecorder.start(250);
       
       elements.recordBtn.disabled = true;
       elements.recordBtn.innerHTML = '🔴 Enregistrement...';
@@ -244,7 +360,19 @@ document.addEventListener('DOMContentLoaded', function() {
       
     } catch (err) {
       console.error('Recording error:', err);
-      showStatus(elements.recordingStatus, '⚠️ Erreur microphone: ' + err.message, 'error');
+      let errorMessage = '⚠️ Erreur microphone: ';
+      
+      if (err.name === 'NotAllowedError') {
+        errorMessage += 'Accès refusé. Autorisez le microphone dans les paramètres du navigateur.';
+      } else if (err.name === 'NotFoundError') {
+        errorMessage += 'Aucun microphone trouvé.';
+      } else if (err.name === 'NotReadableError') {
+        errorMessage += 'Microphone utilisé par une autre application.';
+      } else {
+        errorMessage += err.message;
+      }
+      
+      showStatus(elements.recordingStatus, errorMessage, 'error');
     }
   }
 
@@ -258,7 +386,67 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // KORRIGIERT: STT Function - sendet jetzt die Aufnahme an den Server
+  // === NEUe Real-Time Transkriptionsfunktion ===
+  async function startRealTimeSpeech() {
+    try {
+      const permissionsOk = await checkMicrophonePermissions();
+      if (!permissionsOk) return;
+
+      if (!recognition) {
+        showStatus(elements.globalStatus, '⚠️ Reconnaissance vocale non supportée', 'error');
+        return;
+      }
+
+      isRealTimeMode = true;
+      
+      // Clear previous text
+      elements.userText.innerText = '';
+      elements.userText.classList.remove('placeholder');
+      elements.userText.dataset.isPlaceholder = 'false';
+      
+      showStatus(elements.recordingStatus, '🎤 Reconnaissance vocale en temps réel activée. Parlez!', 'success');
+      
+      // Start continuous recognition
+      recognition.start();
+      
+      // Update UI
+      elements.recordBtn.innerHTML = '🔴 Écoute en cours...';
+      elements.recordBtn.disabled = true;
+      elements.recordBtn.classList.add('recording');
+      
+      // Add stop button for real-time mode
+      if (elements.stopBtn) {
+        elements.stopBtn.classList.remove('hidden');
+        elements.stopBtn.innerHTML = '⏹️ Arrêter l\'écoute';
+      }
+      
+    } catch (err) {
+      console.error('Real-time speech error:', err);
+      showStatus(elements.recordingStatus, '⚠️ Erreur reconnaissance vocale: ' + err.message, 'error');
+      isRealTimeMode = false;
+    }
+  }
+
+  function stopRealTimeSpeech() {
+    if (recognition && isRealTimeMode) {
+      try {
+        recognition.stop();
+      } catch (e) {
+        console.warn('Could not stop recognition:', e);
+      }
+    }
+    
+    isRealTimeMode = false;
+    elements.recordBtn.disabled = false;
+    elements.recordBtn.innerHTML = '🎙️ Enregistrer';
+    elements.recordBtn.classList.remove('recording');
+    elements.stopBtn?.classList.add('hidden');
+    
+    showStatus(elements.recordingStatus, '✅ Reconnaissance vocale arrêtée', 'success');
+    setTimeout(() => hideStatus(elements.recordingStatus), 2000);
+  }
+
+  // VERBESSERTE STT-Funktion (Legacy-Support)
   async function processSTT() {
     if (!recordedAudioBlob) {
       showStatus(elements.recordingStatus, '⚠️ Aucun enregistrement disponible', 'error');
@@ -269,10 +457,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     try {
       const formData = new FormData();
-      // KORRIGIERT: Verwende recordedAudioBlob statt eines nicht existierenden Files
-      formData.append('audio', recordedAudioBlob, 'recording.mp3');
+      formData.append('audio', recordedAudioBlob, 'recording.webm');
       
-      // KORRIGIERT: Falls currentUserId existiert, sende es mit
       if (currentUserId) {
         formData.append('user_id', currentUserId);
       }
@@ -292,17 +478,14 @@ document.addEventListener('DOMContentLoaded', function() {
         throw new Error(data.error);
       }
 
-      // Erfolgsmeldung - auch wenn keine Transkription zurückkommt
-      showStatus(elements.recordingStatus, '✅ Audio envoyé au serveur! Utilisez la reconnaissance vocale du navigateur.', 'success');
+      showStatus(elements.recordingStatus, '✅ Audio envoyé! Démarrage de la reconnaissance vocale...', 'success');
       
-      // Setze userId wenn vom Server zurückgegeben
       if (data.user_id) {
         currentUserId = data.user_id;
       }
       
-      // Starte Browser-basierte Spracherkennung
+      // Start browser-based speech recognition with the recorded audio context
       if (recognition) {
-        showStatus(elements.recordingStatus, '🎤 Démarrage de la reconnaissance vocale...', 'loading');
         recognition.start();
       }
       
@@ -314,14 +497,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // Send Message Function with Progress Workflow
+  // Send Message Function (unchanged)
   async function sendMessage() {
     const text = elements.userText?.innerText.trim();
     
-    if (!text || text === 'Tapez votre message ici ou utilisez l\'enregistrement...') {
+    if (!text || text === placeholderText) {
       showStatus(elements.globalStatus, '⚠️ Veuillez entrer un message', 'error');
       setTimeout(() => hideStatus(elements.globalStatus), 3000);
       return;
+    }
+
+    // Stop real-time mode when sending
+    if (isRealTimeMode) {
+      stopRealTimeSpeech();
     }
 
     // Reset state
@@ -329,9 +517,8 @@ document.addEventListener('DOMContentLoaded', function() {
     isTextCurrentlyVisible = false;
     currentResponse = null;
     elements.playAudioBtn?.classList.add('hidden');
-    updateShowResponseButton(); // This will hide the button
+    updateShowResponseButton();
 
-    // Step 1: Show processing started
     showProgressStatus(1, '🤔 L\'assistant réfléchit...');
 
     try {
@@ -340,7 +527,8 @@ document.addEventListener('DOMContentLoaded', function() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: text,
-          user_id: currentUserId || 'user_' + Date.now()
+          user_id: currentUserId || 'user_' + Date.now(),
+          scenario: elements.scenarioSelect?.value
         })
       });
 
@@ -354,35 +542,27 @@ document.addEventListener('DOMContentLoaded', function() {
         throw new Error(data.error);
       }
 
-      // Step 2: LLM response received
       currentResponse = data.response;
       showProgressStatus(2, '📝 Réponse reçue, génération de l\'audio...');
 
-      // Step 3: Check if audio is available
       if (data.audio_url) {
         showProgressStatus(3, '🎵 Audio généré, préparation de la lecture...');
         
-        // Set up audio
         if (elements.audioPlayback) {
           elements.audioPlayback.src = data.audio_url;
           elements.audioPlayback.classList.remove('hidden');
           
-          // Wait for audio to be loadable
           elements.audioPlayback.addEventListener('canplay', function() {
-            // Step 4: Audio ready to play
             showProgressStatus(4, '🔊 Audio prêt! Cliquez sur "Écouter" pour commencer.');
             elements.playAudioBtn?.classList.remove('hidden');
-            // DON'T show the response button here - only after audio is played
           }, { once: true });
 
-          // KORRIGIERT: Track when audio finishes playing
           elements.audioPlayback.addEventListener('ended', function() {
             audioHasBeenPlayed = true;
             showProgressStatus(4, '✅ Lecture terminée! Vous pouvez maintenant voir le texte.');
-            updateShowResponseButton(); // NOW show the button
+            updateShowResponseButton();
           }, { once: true });
 
-          // Handle audio load errors
           elements.audioPlayback.addEventListener('error', function() {
             console.warn('Audio load failed, showing text immediately');
             audioHasBeenPlayed = true;
@@ -391,7 +571,6 @@ document.addEventListener('DOMContentLoaded', function() {
           }, { once: true });
         }
       } else {
-        // No audio available, show text immediately
         console.warn('No audio URL received, showing text immediately');
         audioHasBeenPlayed = true;
         showResponseText();
@@ -403,10 +582,11 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // Reset user input
       if (elements.userText) {
-        elements.userText.innerHTML = 'Tapez votre message ici ou utilisez l\'enregistrement...';
+        elements.userText.innerHTML = placeholderText;
+        elements.userText.classList.add('placeholder');
+        elements.userText.dataset.isPlaceholder = 'true';
       }
       
-      // Reset audio recording
       recordedAudioBlob = null;
       elements.userAudioSection?.classList.add('hidden');
       elements.useSTTBtn?.classList.add('hidden');
@@ -419,9 +599,30 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // Event Listeners
-  elements.recordBtn?.addEventListener('click', startRecording);
-  elements.stopBtn?.addEventListener('click', stopRecording);
+  // === Event Listeners ===
+  
+  // GEÄNDERT: Record button starts real-time mode by default
+  elements.recordBtn?.addEventListener('click', () => {
+    if (isRealTimeMode) {
+      stopRealTimeSpeech();
+    } else {
+      // Option for users: hold Shift for traditional recording
+      if (event.shiftKey) {
+        startRecording();
+      } else {
+        startRealTimeSpeech();
+      }
+    }
+  });
+
+  elements.stopBtn?.addEventListener('click', () => {
+    if (isRealTimeMode) {
+      stopRealTimeSpeech();
+    } else {
+      stopRecording();
+    }
+  });
+
   elements.useSTTBtn?.addEventListener('click', processSTT);
   elements.sendBtn?.addEventListener('click', sendMessage);
 
@@ -445,7 +646,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const res = await fetch('/api/respond', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: intro, user_id: 'intro_' + Date.now() })
+          body: JSON.stringify({ 
+            text: intro, 
+            user_id: 'intro_' + Date.now(),
+            scenario: scenario
+          })
         });
 
         const data = await res.json();
@@ -482,21 +687,18 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } else {
       if (elements.responseText) {
-        elements.responseText.innerHTML = "🎯 Sujet libre sélectionné. Tapez votre message ou enregistrez-vous!";
+        elements.responseText.innerHTML = "🎯 Sujet libre sélectionné. Tapez votre message ou utilisez la reconnaissance vocale en temps réel!";
       }
     }
   });
 
   elements.newConvBtn?.addEventListener('click', resetUI);
 
-  // KORRIGIERT: Show/Hide Response Button
   elements.showResponseBtn?.addEventListener('click', () => {
     if (currentResponse && audioHasBeenPlayed) {
       if (isTextCurrentlyVisible) {
-        // Hide text
         hideResponseText();
       } else {
-        // Show text
         showResponseText();
       }
     } else if (!audioHasBeenPlayed) {
@@ -505,7 +707,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  // Play Audio Button
   elements.playAudioBtn?.addEventListener('click', () => {
     if (elements.audioPlayback?.src) {
       elements.audioPlayback.play().catch(err => {
@@ -515,7 +716,61 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  // HINZUGEFÜGT: Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    // Ctrl+Enter or Cmd+Enter to send message
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      sendMessage();
+    }
+    
+    // Space bar to toggle real-time speech (when not typing)
+    if (e.code === 'Space' && e.target === document.body) {
+      e.preventDefault();
+      if (isRealTimeMode) {
+        stopRealTimeSpeech();
+      } else {
+        startRealTimeSpeech();
+      }
+    }
+  });
+
+  // HINZUGEFÜGT: Editable text handling
+  if (elements.userText) {
+    elements.userText.addEventListener('focus', function() {
+      if (this.dataset.isPlaceholder === 'true') {
+        this.innerText = '';
+        this.classList.remove('placeholder');
+        this.dataset.isPlaceholder = 'false';
+      }
+    });
+
+    elements.userText.addEventListener('blur', function() {
+      if (!this.innerText.trim()) {
+        this.innerHTML = placeholderText;
+        this.classList.add('placeholder');
+        this.dataset.isPlaceholder = 'true';
+      }
+    });
+
+    elements.userText.addEventListener('paste', function(e) {
+      e.preventDefault();
+      const text = (e.originalEvent || e).clipboardData.getData('text/plain');
+      document.execCommand('insertText', false, text);
+      this.classList.remove('placeholder');
+      this.dataset.isPlaceholder = 'false';
+    });
+  }
+
   // Initialize
   resetUI();
-  console.log('FR-AI-Tutor Frontend initialized with FIXED button functionality');
+  
+  // Check microphone support on load
+  checkMicrophonePermissions().then(result => {
+    if (result) {
+      console.log('Microphone permissions OK');
+    }
+  });
+  
+  console.log('FR-AI-Tutor Frontend initialized with Real-Time Speech Recognition');
 });
