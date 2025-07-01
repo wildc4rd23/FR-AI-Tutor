@@ -1,5 +1,5 @@
 # backend/app.py
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, abort
 from flask_cors import CORS
 import os
 import requests
@@ -63,7 +63,7 @@ def index():
 @app.route('/<path:path>')
 def static_files(path):
     # Spezielle Behandlung für Audio-Dateien
-    if path.startswith('intro_') and path.endswith('.mp3'):
+    if path.startswith('temp_') and path.endswith('.mp3'):
         return serve_temp_audio(path)
     return send_from_directory(app.static_folder, path)
 
@@ -72,14 +72,23 @@ def static_files(path):
 def serve_temp_audio(filepath):
     """Serviert temporäre Audio-Dateien"""
     try:
-        # Basis-Pfad für temp-Dateien
-        temp_audio_base = app.static_folder
+        # Basis-Pfad für temp-Dateien - KORRIGIERT
+        # Wir arbeiten vom aktuellen Verzeichnis aus, nicht vom static_folder
+        temp_audio_base = os.getcwd()
         full_path = os.path.join(temp_audio_base, filepath)
+        
+        logger.info(f"Suche Audio-Datei: {full_path}")
         
         # Sicherheitscheck: Datei muss existieren und im erlaubten Bereich sein
         if not os.path.exists(full_path):
             logger.error(f"Audio-Datei nicht gefunden: {full_path}")
-            abort(404)
+            # Versuche auch im Backend-Verzeichnis
+            backend_path = os.path.join(os.path.dirname(__file__), filepath)
+            logger.info(f"Versuche Backend-Pfad: {backend_path}")
+            if os.path.exists(backend_path):
+                full_path = backend_path
+            else:
+                abort(404)
         
         # Verzeichnis und Dateiname extrahieren
         directory = os.path.dirname(full_path)
@@ -161,12 +170,13 @@ def respond():
             
             if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
                 # KORRIGIERTE URL-Generierung
-                # Relativer Pfad vom static_folder aus
-                relative_path = os.path.relpath(output_path, app.static_folder)
+                # Relativer Pfad vom aktuellen Arbeitsverzeichnis aus
+                relative_path = os.path.relpath(output_path, os.getcwd())
                 audio_url = f"/temp_audio/{relative_path.replace(os.sep, '/')}"
                 logger.info(f"TTS erfolgreich für User {user_id} mit {ACTIVE_TTS_PROVIDER}")
                 logger.info(f"Audio URL: {audio_url}")
                 logger.info(f"Vollständiger Pfad: {output_path}")
+                logger.info(f"Relativer Pfad: {relative_path}")
             else:
                 tts_error = "TTS-Ausgabe ist leer oder konnte nicht gespeichert werden."
 
