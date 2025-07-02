@@ -1,5 +1,4 @@
-
-// Optimiertes script.js mit verbesserter Mikrofonunterstützung und Real-Time Transkription
+// Optimiertes script.js mit verbesserter Real-Time Transkription
 document.addEventListener('DOMContentLoaded', function() {
   const elements = {
     recordBtn: document.getElementById('record'),
@@ -34,124 +33,145 @@ document.addEventListener('DOMContentLoaded', function() {
   let audioHasBeenPlayed = false;
   let isTextCurrentlyVisible = false;
   let isRealTimeMode = false;
-  let recognitionActive = false; // Verhindert mehrfache Starts
-  let recognitionTimeout; 
+  let recognitionActive = false;
+  let recognitionTimeout;
+  let finalTranscript = ''; // Moved to global scope
+  let isRecognitionRestarting = false;
 
   const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
 
-  // === VERBESSERTE Spracherkennung mit Real-Time Support ===
+  // === VERBESSERTE Spracherkennung mit stabilerer Real-Time Implementation ===
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (SpeechRecognition) {
     recognition = new SpeechRecognition();
     recognition.lang = 'fr-FR';
     recognition.interimResults = true;
-    recognition.continuous = false; // GEÄNDERT: Auf false für stabilere Erkennung
-    recognition.maxAlternatives = 1; // GEÄNDERT: Reduziert für Performance
-
-    let finalTranscript = '';
-    let recognitionTimeout;
+    recognition.continuous = true; // GEÄNDERT: Auf true für kontinuierliche Erkennung
+    recognition.maxAlternatives = 1;
 
     recognition.onresult = (event) => {
-      console.log('Speech recognition result received');
+      console.log('Speech recognition result received, results count:', event.results.length);
       let interimTranscript = '';
-      finalTranscript = '';
+      let newFinalTranscript = '';
       
+      // Sammle alle finalen und interim Ergebnisse
       for (let i = 0; i < event.results.length; i++) {
         const result = event.results[i];
         const transcript = result[0].transcript;
         
         if (result.isFinal) {
-          finalTranscript += transcript + ' ';
-          console.log('Final transcript:', transcript);
+          newFinalTranscript += transcript + ' ';
+          console.log('Final transcript added:', transcript);
         } else {
           interimTranscript += transcript;
-          console.log('Interim transcript:', transcript);
         }
       }
 
-      // Real-Time Update des UI - KORRIGIERT
+      // Aktualisiere finalTranscript nur bei neuen finalen Ergebnissen
+      if (newFinalTranscript.trim()) {
+        finalTranscript += newFinalTranscript;
+        console.log('Updated final transcript:', finalTranscript);
+      }
+
+      // Real-Time Update des UI
       const displayText = (finalTranscript + interimTranscript).trim();
-      if (displayText && elements.userText) {
-        elements.userText.textContent = displayText; // GEÄNDERT: textContent statt innerText
+      if (elements.userText) {
+        elements.userText.textContent = displayText;
         elements.userText.classList.remove('placeholder');
         elements.userText.dataset.isPlaceholder = 'false';
         
-        // Status-Update für Real-Time
-        if (isRealTimeMode) {
-          const statusText = interimTranscript ? 
-            `🎤 Écoute... "${interimTranscript}"` : 
-            `🎤 Résultat: "${finalTranscript.trim()}"`;
-          showStatus(elements.recordingStatus, statusText, 'success');
+        // Cursor an das Ende setzen
+        if (document.activeElement === elements.userText) {
+          const range = document.createRange();
+          const sel = window.getSelection();
+          range.selectNodeContents(elements.userText);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
         }
       }
 
-      // Auto-restart für kontinuierliche Erkennung
-      if (isRealTimeMode && !interimTranscript) {
-        clearTimeout(recognitionTimeout);
-        recognitionTimeout = setTimeout(() => {
-          if (isRealTimeMode && !recognitionActive) {
-            console.log('Auto-restarting recognition');
-            startRecognition();
-          }
-        }, 1000);
+      // Status-Update für Real-Time
+      if (isRealTimeMode) {
+        const statusText = interimTranscript ? 
+          `🎤 Écoute... "${interimTranscript}"` : 
+          (newFinalTranscript ? `🎤 Transcrit: "${newFinalTranscript.trim()}"` : '🎤 En écoute...');
+        showStatus(elements.recordingStatus, statusText, 'success');
       }
     };
 
     recognition.onerror = (event) => {
       console.error('Speech recognition error:', event.error);
-      recognitionActive = false;
       
       let errorMessage = '⚠️ Erreur de reconnaissance vocale';
+      let shouldRestart = false;
       
       switch(event.error) {
         case 'not-allowed':
           errorMessage = '🚫 Accès au microphone refusé. Vérifiez les permissions.';
-          isRealTimeMode = false; // Stop real-time mode
+          isRealTimeMode = false;
           break;
         case 'no-speech':
-          errorMessage = '🔇 Aucune parole détectée.';
-          // Auto-restart für no-speech in real-time mode
+          // In Real-Time Mode ist no-speech normal
           if (isRealTimeMode) {
-            setTimeout(() => startRecognition(), 1000);
-            return; // Don't show error for no-speech in real-time
+            console.log('No speech detected, continuing...');
+            shouldRestart = true;
+            return; // Keinen Fehler anzeigen
+          } else {
+            errorMessage = '🔇 Aucune parole détectée.';
           }
           break;
         case 'network':
           errorMessage = '🌐 Erreur réseau. Vérifiez votre connexion.';
+          shouldRestart = isRealTimeMode;
           break;
         case 'audio-capture':
           errorMessage = '🎙️ Impossible d\'accéder au microphone.';
           isRealTimeMode = false;
           break;
         case 'aborted':
-          // Normal when stopping recognition
-          if (!isRealTimeMode) return;
+          // Normal beim Stoppen
+          console.log('Recognition aborted');
+          return;
+        case 'service-not-allowed':
+          errorMessage = '🚫 Service de reconnaissance vocale non autorisé.';
+          isRealTimeMode = false;
           break;
       }
       
-      showStatus(elements.globalStatus, errorMessage, 'error');
+      recognitionActive = false;
+      
+      if (!shouldRestart) {
+        showStatus(elements.globalStatus, errorMessage, 'error');
+        if (!isRealTimeMode) {
+          resetRecordButton();
+        }
+      }
       
       // Auto-restart für bestimmte Fehler in real-time mode
-      if (event.error === 'network' && isRealTimeMode) {
+      if (shouldRestart && isRealTimeMode && !isRecognitionRestarting) {
+        console.log('Scheduling recognition restart after error:', event.error);
         setTimeout(() => {
-          if (isRealTimeMode) startRecognition();
-        }, 2000);
+          if (isRealTimeMode && !isRecognitionRestarting) {
+            startRecognition();
+          }
+        }, 1000);
       }
     };
 
     recognition.onend = () => {
-      console.log('Speech recognition ended');
+      console.log('Speech recognition ended, isRealTimeMode:', isRealTimeMode, 'isRecognitionRestarting:', isRecognitionRestarting);
       recognitionActive = false;
       
-      if (isRealTimeMode) {
-        // Auto-restart in real-time mode nach kurzer Pause
+      if (isRealTimeMode && !isRecognitionRestarting) {
+        // Auto-restart in real-time mode
+        console.log('Auto-restarting recognition in real-time mode');
         setTimeout(() => {
-          if (isRealTimeMode) {
-            console.log('Restarting recognition in real-time mode');
+          if (isRealTimeMode && !isRecognitionRestarting) {
             startRecognition();
           }
-        }, 500);
-      } else {
+        }, 100); // Kürzere Pause für flüssigere Erkennung
+      } else if (!isRealTimeMode) {
         hideStatus(elements.recordingStatus);
         resetRecordButton();
       }
@@ -160,29 +180,52 @@ document.addEventListener('DOMContentLoaded', function() {
     recognition.onstart = () => {
       console.log('Speech recognition started');
       recognitionActive = true;
+      isRecognitionRestarting = false;
     };
 
-    // Hilfsfunktion für sauberen Recognition-Start
+    // Verbesserte Hilfsfunktion für sauberen Recognition-Start
     function startRecognition() {
+      if (isRecognitionRestarting) {
+        console.log('Recognition restart already in progress');
+        return;
+      }
+
       if (recognitionActive) {
         console.log('Recognition already active, stopping first');
+        isRecognitionRestarting = true;
         try {
           recognition.stop();
         } catch (e) {
           console.warn('Could not stop recognition:', e);
         }
-        // Wait a bit before restarting
-        setTimeout(() => startRecognition(), 200);
+        
+        // Warte auf onend Event, dann starte neu
+        setTimeout(() => {
+          if (isRealTimeMode) {
+            startRecognition();
+          }
+        }, 300);
         return;
       }
 
       try {
         console.log('Starting speech recognition');
+        isRecognitionRestarting = false;
         recognition.start();
       } catch (e) {
         console.error('Could not start recognition:', e);
         recognitionActive = false;
+        isRecognitionRestarting = false;
         showStatus(elements.recordingStatus, '⚠️ Impossible de démarrer la reconnaissance vocale', 'error');
+        
+        // Fallback: Versuche es in 2 Sekunden nochmal
+        if (isRealTimeMode) {
+          setTimeout(() => {
+            if (isRealTimeMode && !recognitionActive) {
+              startRecognition();
+            }
+          }, 2000);
+        }
       }
     }
 
@@ -209,7 +252,6 @@ document.addEventListener('DOMContentLoaded', function() {
           }
         } catch (permError) {
           console.warn('Permission query failed:', permError);
-          // Continue anyway
         }
       }
 
@@ -221,13 +263,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
       // Test actual microphone access
       try {
-        const testStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const testStream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
         testStream.getTracks().forEach(track => track.stop());
         console.log('Microphone access test successful');
         return true;
       } catch (mediaError) {
         console.error('Microphone access test failed:', mediaError);
-        showStatus(elements.globalStatus, `🎙️ Impossible d'accéder au microphone: ${mediaError.message}`, 'error');
+        let errorMsg = '🎙️ Impossible d\'accéder au microphone';
+        
+        if (mediaError.name === 'NotAllowedError') {
+          errorMsg += ': Permission refusée';
+        } else if (mediaError.name === 'NotFoundError') {
+          errorMsg += ': Aucun microphone trouvé';
+        } else {
+          errorMsg += ': ' + mediaError.message;
+        }
+        
+        showStatus(elements.globalStatus, errorMsg, 'error');
         return false;
       }
 
@@ -251,14 +309,16 @@ document.addEventListener('DOMContentLoaded', function() {
     element.classList.add('hidden');
   }
 
-  // NEUE Funktion: Reset Record Button
+  // Reset Record Button
   function resetRecordButton() {
     if (elements.recordBtn) {
       elements.recordBtn.disabled = false;
       elements.recordBtn.innerHTML = '🎙️ Reconnaissance vocale';
       elements.recordBtn.classList.remove('recording');
     }
-    elements.stopBtn?.classList.add('hidden');
+    if (elements.stopBtn) {
+      elements.stopBtn.classList.add('hidden');
+    }
   }
 
   // Progress Bar Function
@@ -311,7 +371,9 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Resetting UI...');
     
     // Stop any ongoing recognition
-    if (recognition && (isRealTimeMode || recognitionActive)) {
+    if (recognition && isRealTimeMode) {
+      isRealTimeMode = false;
+      isRecognitionRestarting = true;
       try {
         recognition.stop();
       } catch (e) {
@@ -319,7 +381,6 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
     
-    isRealTimeMode = false;
     recognitionActive = false;
     clearTimeout(recognitionTimeout);
 
@@ -348,7 +409,6 @@ document.addEventListener('DOMContentLoaded', function() {
     elements.playAudioBtn?.classList.add('hidden');
     elements.showResponseBtn?.classList.add('hidden');
     
-    // Reset buttons
     resetRecordButton();
     elements.useSTTBtn?.classList.add('hidden');
     
@@ -357,13 +417,14 @@ document.addEventListener('DOMContentLoaded', function() {
     currentResponse = null;
     audioHasBeenPlayed = false;
     isTextCurrentlyVisible = false;
+    finalTranscript = '';
     
     hideStatus(elements.globalStatus);
     hideStatus(elements.audioStatus);
     hideStatus(elements.recordingStatus);
   }
 
-  // === KORRIGIERTE Real-Time Transkriptionsfunktion ===
+  // === VERBESSERTE Real-Time Transkriptionsfunktion ===
   async function startRealTimeSpeech() {
     console.log('Starting real-time speech...');
     
@@ -379,14 +440,10 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
 
-      if (recognitionActive) {
-        console.log('Recognition already active, stopping first');
-        recognition.stop();
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-
-      isRealTimeMode = true;
+      // Reset transcript
       finalTranscript = '';
+      isRealTimeMode = true;
+      isRecognitionRestarting = false;
       
       // Clear previous text
       if (elements.userText) {
@@ -407,7 +464,6 @@ document.addEventListener('DOMContentLoaded', function() {
         elements.recordBtn.classList.add('recording');
       }
       
-      // Show stop button
       if (elements.stopBtn) {
         elements.stopBtn.classList.remove('hidden');
         elements.stopBtn.innerHTML = '⏹️ Arrêter';
@@ -424,7 +480,10 @@ document.addEventListener('DOMContentLoaded', function() {
   function stopRealTimeSpeech() {
     console.log('Stopping real-time speech...');
     
-    if (recognition && (isRealTimeMode || recognitionActive)) {
+    isRealTimeMode = false;
+    isRecognitionRestarting = true;
+    
+    if (recognition && recognitionActive) {
       try {
         recognition.stop();
       } catch (e) {
@@ -432,7 +491,6 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
     
-    isRealTimeMode = false;
     recognitionActive = false;
     clearTimeout(recognitionTimeout);
     
@@ -528,7 +586,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Send Message Function
   async function sendMessage() {
-    const text = elements.userText?.textContent?.trim();
+    let text = '';
+    
+    // Hole Text aus dem Element
+    if (elements.userText) {
+      text = elements.userText.textContent?.trim() || '';
+    }
     
     if (!text || text === placeholderText) {
       showStatus(elements.globalStatus, '⚠️ Veuillez entrer un message', 'error');
@@ -619,6 +682,7 @@ document.addEventListener('DOMContentLoaded', function() {
       recordedAudioBlob = null;
       elements.userAudioSection?.classList.add('hidden');
       elements.useSTTBtn?.classList.add('hidden');
+      finalTranscript = ''; // Reset transcript
       
     } catch (err) {
       console.error('Send error:', err);
@@ -663,8 +727,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     elements.startSection?.classList.add('hidden');
     elements.conversationSection?.classList.remove('hidden');
+    
     // Setzt den Anzeigetext für das aktuelle Szenario
-    document.getElementById('currentScenarioDisplay').innerText = scenario === "libre" ? "Votre sujet libre" : scenario;
+    const currentScenarioDisplay = document.getElementById('currentScenarioDisplay');
+    if (currentScenarioDisplay) {
+      currentScenarioDisplay.innerText = scenario === "libre" ? "Votre sujet libre" : scenario;
+    }
 
     if (scenario !== "libre") {
       showProgressStatus(1, '🤔 L\'assistant prépare la conversation...');
