@@ -1,3 +1,4 @@
+
 // Optimiertes script.js mit verbesserter Mikrofonunterstützung und Real-Time Transkription
 document.addEventListener('DOMContentLoaded', function() {
   const elements = {
@@ -32,7 +33,8 @@ document.addEventListener('DOMContentLoaded', function() {
   let currentResponse = null;
   let audioHasBeenPlayed = false;
   let isTextCurrentlyVisible = false;
-  let isRealTimeMode = false; // NEU: Real-Time Modus
+  let isRealTimeMode = false;
+  let recognitionActive = false; // Verhindert mehrfache Starts
 
   const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
 
@@ -41,118 +43,196 @@ document.addEventListener('DOMContentLoaded', function() {
   if (SpeechRecognition) {
     recognition = new SpeechRecognition();
     recognition.lang = 'fr-FR';
-    recognition.interimResults = true; // GEÄNDERT: Für Real-Time
-    recognition.continuous = true; // GEÄNDERT: Kontinuierliche Erkennung
-    recognition.maxAlternatives = 3; // HINZUGEFÜGT: Mehrere Alternativen
+    recognition.interimResults = true;
+    recognition.continuous = false; // GEÄNDERT: Auf false für stabilere Erkennung
+    recognition.maxAlternatives = 1; // GEÄNDERT: Reduziert für Performance
 
     let finalTranscript = '';
-    let interimTranscript = '';
+    let recognitionTimeout;
 
     recognition.onresult = (event) => {
-      interimTranscript = '';
+      console.log('Speech recognition result received');
+      let interimTranscript = '';
+      finalTranscript = '';
       
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      for (let i = 0; i < event.results.length; i++) {
         const result = event.results[i];
+        const transcript = result[0].transcript;
+        
         if (result.isFinal) {
-          finalTranscript += result[0].transcript + ' ';
+          finalTranscript += transcript + ' ';
+          console.log('Final transcript:', transcript);
         } else {
-          interimTranscript += result[0].transcript;
+          interimTranscript += transcript;
+          console.log('Interim transcript:', transcript);
         }
       }
 
-      // Real-Time Update des UI
-      const displayText = finalTranscript + interimTranscript;
-      if (displayText.trim()) {
-        elements.userText.innerText = displayText;
+      // Real-Time Update des UI - KORRIGIERT
+      const displayText = (finalTranscript + interimTranscript).trim();
+      if (displayText && elements.userText) {
+        elements.userText.textContent = displayText; // GEÄNDERT: textContent statt innerText
         elements.userText.classList.remove('placeholder');
         elements.userText.dataset.isPlaceholder = 'false';
         
         // Status-Update für Real-Time
         if (isRealTimeMode) {
-          showStatus(elements.recordingStatus, '🎤 Écoute... ' + (interimTranscript ? '(en cours)' : ''), 'success');
+          const statusText = interimTranscript ? 
+            `🎤 Écoute... "${interimTranscript}"` : 
+            `🎤 Résultat: "${finalTranscript.trim()}"`;
+          showStatus(elements.recordingStatus, statusText, 'success');
         }
+      }
+
+      // Auto-restart für kontinuierliche Erkennung
+      if (isRealTimeMode && !interimTranscript) {
+        clearTimeout(recognitionTimeout);
+        recognitionTimeout = setTimeout(() => {
+          if (isRealTimeMode && !recognitionActive) {
+            console.log('Auto-restarting recognition');
+            startRecognition();
+          }
+        }, 1000);
       }
     };
 
     recognition.onerror = (event) => {
       console.error('Speech recognition error:', event.error);
+      recognitionActive = false;
+      
       let errorMessage = '⚠️ Erreur de reconnaissance vocale';
       
       switch(event.error) {
         case 'not-allowed':
           errorMessage = '🚫 Accès au microphone refusé. Vérifiez les permissions.';
+          isRealTimeMode = false; // Stop real-time mode
           break;
         case 'no-speech':
-          errorMessage = '🔇 Aucune parole détectée. Parlez plus fort.';
+          errorMessage = '🔇 Aucune parole détectée.';
+          // Auto-restart für no-speech in real-time mode
+          if (isRealTimeMode) {
+            setTimeout(() => startRecognition(), 1000);
+            return; // Don't show error for no-speech in real-time
+          }
           break;
         case 'network':
           errorMessage = '🌐 Erreur réseau. Vérifiez votre connexion.';
           break;
         case 'audio-capture':
           errorMessage = '🎙️ Impossible d\'accéder au microphone.';
+          isRealTimeMode = false;
+          break;
+        case 'aborted':
+          // Normal when stopping recognition
+          if (!isRealTimeMode) return;
           break;
       }
       
       showStatus(elements.globalStatus, errorMessage, 'error');
       
-      // Restart recognition if network error in real-time mode
+      // Auto-restart für bestimmte Fehler in real-time mode
       if (event.error === 'network' && isRealTimeMode) {
         setTimeout(() => {
-          try {
-            recognition.start();
-          } catch (e) {
-            console.warn('Could not restart recognition:', e);
-          }
-        }, 1000);
+          if (isRealTimeMode) startRecognition();
+        }, 2000);
       }
     };
 
     recognition.onend = () => {
-      hideStatus(elements.recordingStatus);
+      console.log('Speech recognition ended');
+      recognitionActive = false;
+      
       if (isRealTimeMode) {
-        // Auto-restart in real-time mode
-        try {
-          setTimeout(() => recognition.start(), 100);
-        } catch (e) {
-          console.warn('Could not restart recognition:', e);
-          isRealTimeMode = false;
-        }
+        // Auto-restart in real-time mode nach kurzer Pause
+        setTimeout(() => {
+          if (isRealTimeMode) {
+            console.log('Restarting recognition in real-time mode');
+            startRecognition();
+          }
+        }, 500);
+      } else {
+        hideStatus(elements.recordingStatus);
+        resetRecordButton();
       }
     };
 
     recognition.onstart = () => {
       console.log('Speech recognition started');
+      recognitionActive = true;
     };
+
+    // Hilfsfunktion für sauberen Recognition-Start
+    function startRecognition() {
+      if (recognitionActive) {
+        console.log('Recognition already active, stopping first');
+        try {
+          recognition.stop();
+        } catch (e) {
+          console.warn('Could not stop recognition:', e);
+        }
+        // Wait a bit before restarting
+        setTimeout(() => startRecognition(), 200);
+        return;
+      }
+
+      try {
+        console.log('Starting speech recognition');
+        recognition.start();
+      } catch (e) {
+        console.error('Could not start recognition:', e);
+        recognitionActive = false;
+        showStatus(elements.recordingStatus, '⚠️ Impossible de démarrer la reconnaissance vocale', 'error');
+      }
+    }
+
   } else {
     console.warn('SpeechRecognition API nicht verfügbar.');
     if (elements.useSTTBtn) elements.useSTTBtn.classList.add('hidden');
-    showStatus(elements.globalStatus, '⚠️ Spracherkennung nicht unterstützt. Bitte Text manuell eingeben.', 'warning');
+    showStatus(elements.globalStatus, '⚠️ Reconnaissance vocale non supportée dans ce navigateur.', 'warning');
   }
 
   // === VERBESSERTE Mikrofonzugriff-Diagnose ===
   async function checkMicrophonePermissions() {
     try {
+      console.log('Checking microphone permissions...');
+      
       // Prüfe Permissions API Support
       if ('permissions' in navigator) {
-        const permission = await navigator.permissions.query({name: 'microphone'});
-        console.log('Microphone permission:', permission.state);
-        
-        if (permission.state === 'denied') {
-          showStatus(elements.globalStatus, '🚫 Microphone access denied. Please enable in browser settings.', 'error');
-          return false;
+        try {
+          const permission = await navigator.permissions.query({name: 'microphone'});
+          console.log('Microphone permission state:', permission.state);
+          
+          if (permission.state === 'denied') {
+            showStatus(elements.globalStatus, '🚫 Accès microphone refusé. Activez-le dans les paramètres du navigateur.', 'error');
+            return false;
+          }
+        } catch (permError) {
+          console.warn('Permission query failed:', permError);
+          // Continue anyway
         }
       }
 
-      // Prüfe HTTPS
-      if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-        showStatus(elements.globalStatus, '🔒 HTTPS required for microphone access.', 'error');
+      // Prüfe HTTPS (außer localhost)
+      if (location.protocol !== 'https:' && !location.hostname.includes('localhost') && location.hostname !== '127.0.0.1') {
+        showStatus(elements.globalStatus, '🔒 HTTPS requis pour l\'accès microphone.', 'error');
         return false;
       }
 
-      return true;
+      // Test actual microphone access
+      try {
+        const testStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        testStream.getTracks().forEach(track => track.stop());
+        console.log('Microphone access test successful');
+        return true;
+      } catch (mediaError) {
+        console.error('Microphone access test failed:', mediaError);
+        showStatus(elements.globalStatus, `🎙️ Impossible d'accéder au microphone: ${mediaError.message}`, 'error');
+        return false;
+      }
+
     } catch (error) {
       console.error('Permission check failed:', error);
-      return true; // Fallback: try anyway
+      return false;
     }
   }
 
@@ -162,11 +242,22 @@ document.addEventListener('DOMContentLoaded', function() {
     element.className = `status-message status-${type}`;
     element.innerHTML = message;
     element.classList.remove('hidden');
+    console.log(`Status [${type}]:`, message);
   }
 
   function hideStatus(element) {
     if (!element) return;
     element.classList.add('hidden');
+  }
+
+  // NEUE Funktion: Reset Record Button
+  function resetRecordButton() {
+    if (elements.recordBtn) {
+      elements.recordBtn.disabled = false;
+      elements.recordBtn.innerHTML = '🎙️ Reconnaissance vocale';
+      elements.recordBtn.classList.remove('recording');
+    }
+    elements.stopBtn?.classList.add('hidden');
   }
 
   // Progress Bar Function
@@ -216,20 +307,26 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function resetUI() {
+    console.log('Resetting UI...');
+    
     // Stop any ongoing recognition
-    if (recognition && isRealTimeMode) {
+    if (recognition && (isRealTimeMode || recognitionActive)) {
       try {
         recognition.stop();
       } catch (e) {
         console.warn('Could not stop recognition:', e);
       }
     }
+    
     isRealTimeMode = false;
+    recognitionActive = false;
+    clearTimeout(recognitionTimeout);
 
-    elements.startSection.classList.remove('hidden');
-    elements.conversationSection.classList.add('hidden');
-     if (elements.userText) {
-      elements.userText.innerHTML = placeholderText;
+    elements.startSection?.classList.remove('hidden');
+    elements.conversationSection?.classList.add('hidden');
+    
+    if (elements.userText) {
+      elements.userText.textContent = placeholderText;
       elements.userText.classList.add('placeholder');
       elements.userText.dataset.isPlaceholder = 'true';
     }
@@ -251,12 +348,7 @@ document.addEventListener('DOMContentLoaded', function() {
     elements.showResponseBtn?.classList.add('hidden');
     
     // Reset buttons
-    if (elements.recordBtn) {
-      elements.recordBtn.disabled = false;
-      elements.recordBtn.innerHTML = '🎙️ Enregistrer';
-      elements.recordBtn.classList.remove('recording');
-    }
-    elements.stopBtn?.classList.add('hidden');
+    resetRecordButton();
     elements.useSTTBtn?.classList.add('hidden');
     
     currentUserId = null;
@@ -270,41 +362,111 @@ document.addEventListener('DOMContentLoaded', function() {
     hideStatus(elements.recordingStatus);
   }
 
-  // === VERBESSERTE Aufnahmefunktionen ===
-  async function startRecording() {
+  // === KORRIGIERTE Real-Time Transkriptionsfunktion ===
+  async function startRealTimeSpeech() {
+    console.log('Starting real-time speech...');
+    
     try {
-      // Prüfe Berechtigungen zuerst
       const permissionsOk = await checkMicrophonePermissions();
       if (!permissionsOk) {
+        console.error('Microphone permissions not granted');
         return;
       }
+
+      if (!recognition) {
+        showStatus(elements.globalStatus, '⚠️ Reconnaissance vocale non supportée dans ce navigateur', 'error');
+        return;
+      }
+
+      if (recognitionActive) {
+        console.log('Recognition already active, stopping first');
+        recognition.stop();
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      isRealTimeMode = true;
+      finalTranscript = '';
+      
+      // Clear previous text
+      if (elements.userText) {
+        elements.userText.textContent = '';
+        elements.userText.classList.remove('placeholder');
+        elements.userText.dataset.isPlaceholder = 'false';
+      }
+      
+      showStatus(elements.recordingStatus, '🎤 Reconnaissance vocale activée. Parlez maintenant!', 'success');
+      
+      // Start recognition
+      startRecognition();
+      
+      // Update UI
+      if (elements.recordBtn) {
+        elements.recordBtn.innerHTML = '🔴 Écoute en cours...';
+        elements.recordBtn.disabled = true;
+        elements.recordBtn.classList.add('recording');
+      }
+      
+      // Show stop button
+      if (elements.stopBtn) {
+        elements.stopBtn.classList.remove('hidden');
+        elements.stopBtn.innerHTML = '⏹️ Arrêter';
+      }
+      
+    } catch (err) {
+      console.error('Real-time speech error:', err);
+      showStatus(elements.recordingStatus, '⚠️ Erreur reconnaissance vocale: ' + err.message, 'error');
+      isRealTimeMode = false;
+      resetRecordButton();
+    }
+  }
+
+  function stopRealTimeSpeech() {
+    console.log('Stopping real-time speech...');
+    
+    if (recognition && (isRealTimeMode || recognitionActive)) {
+      try {
+        recognition.stop();
+      } catch (e) {
+        console.warn('Could not stop recognition:', e);
+      }
+    }
+    
+    isRealTimeMode = false;
+    recognitionActive = false;
+    clearTimeout(recognitionTimeout);
+    
+    resetRecordButton();
+    
+    showStatus(elements.recordingStatus, '✅ Reconnaissance vocale arrêtée', 'success');
+    setTimeout(() => hideStatus(elements.recordingStatus), 2000);
+  }
+
+  // === LEGACY Recording Functions (für Shift+Click) ===
+  async function startRecording() {
+    console.log('Starting traditional recording...');
+    
+    try {
+      const permissionsOk = await checkMicrophonePermissions();
+      if (!permissionsOk) return;
 
       audioChunks = [];
       showStatus(elements.recordingStatus, '🎙️ Demande d\'accès au microphone...', 'loading');
       
-      // VERBESSERTE MediaConstraints
       const constraints = { 
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
           sampleRate: { ideal: 16000 },
-          channelCount: { ideal: 1 },
-          // Français-optimierte Einstellungen
-          googEchoCancellation: true,
-          googAutoGainControl: true,
-          googNoiseSuppression: true,
-          googHighpassFilter: true
+          channelCount: { ideal: 1 }
         }
       };
       
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       
-      // Prüfe MediaRecorder Support mit besseren Optionen
       let options = {};
       if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
         options.mimeType = 'audio/webm;codecs=opus';
-        options.audioBitsPerSecond = 48000; // Bessere Qualität für Französisch
       } else if (MediaRecorder.isTypeSupported('audio/webm')) {
         options.mimeType = 'audio/webm';
       } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
@@ -330,25 +492,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const mimeType = mediaRecorder.mimeType || 'audio/webm';
         recordedAudioBlob = new Blob(audioChunks, { type: mimeType });
         
-        // Audio-Preview erstellen
         const audioURL = URL.createObjectURL(recordedAudioBlob);
         if (elements.userAudio) {
           elements.userAudio.src = audioURL;
           elements.userAudioSection?.classList.remove('hidden');
         }
         
-        // STT Button anzeigen
         elements.useSTTBtn?.classList.remove('hidden');
-        
-        showStatus(elements.recordingStatus, '✅ Enregistrement terminé! Utilisez la reconnaissance vocale.', 'success');
+        showStatus(elements.recordingStatus, '✅ Enregistrement terminé!', 'success');
       };
 
-      mediaRecorder.onerror = (event) => {
-        console.error('MediaRecorder error:', event);
-        showStatus(elements.recordingStatus, '⚠️ Erreur lors de l\'enregistrement', 'error');
-      };
-
-      // Start mit kleineren Chunks für bessere Performance
       mediaRecorder.start(250);
       
       elements.recordBtn.disabled = true;
@@ -356,150 +509,25 @@ document.addEventListener('DOMContentLoaded', function() {
       elements.recordBtn.classList.add('recording');
       elements.stopBtn?.classList.remove('hidden');
       
-      showStatus(elements.recordingStatus, '🎙️ Enregistrement en cours... Parlez maintenant!', 'success');
+      showStatus(elements.recordingStatus, '🎙️ Enregistrement en cours...', 'success');
       
     } catch (err) {
       console.error('Recording error:', err);
-      let errorMessage = '⚠️ Erreur microphone: ';
-      
-      if (err.name === 'NotAllowedError') {
-        errorMessage += 'Accès refusé. Autorisez le microphone dans les paramètres du navigateur.';
-      } else if (err.name === 'NotFoundError') {
-        errorMessage += 'Aucun microphone trouvé.';
-      } else if (err.name === 'NotReadableError') {
-        errorMessage += 'Microphone utilisé par une autre application.';
-      } else {
-        errorMessage += err.message;
-      }
-      
-      showStatus(elements.recordingStatus, errorMessage, 'error');
+      showStatus(elements.recordingStatus, `⚠️ Erreur microphone: ${err.message}`, 'error');
+      resetRecordButton();
     }
   }
 
   function stopRecording() {
     if (mediaRecorder && mediaRecorder.state === "recording") {
       mediaRecorder.stop();
-      elements.recordBtn.disabled = false;
-      elements.recordBtn.innerHTML = '🎙️ Enregistrer';
-      elements.recordBtn.classList.remove('recording');
-      elements.stopBtn?.classList.add('hidden');
+      resetRecordButton();
     }
   }
 
-  // === NEUe Real-Time Transkriptionsfunktion ===
-  async function startRealTimeSpeech() {
-    try {
-      const permissionsOk = await checkMicrophonePermissions();
-      if (!permissionsOk) return;
-
-      if (!recognition) {
-        showStatus(elements.globalStatus, '⚠️ Reconnaissance vocale non supportée', 'error');
-        return;
-      }
-
-      isRealTimeMode = true;
-      
-      // Clear previous text
-      elements.userText.innerText = '';
-      elements.userText.classList.remove('placeholder');
-      elements.userText.dataset.isPlaceholder = 'false';
-      
-      showStatus(elements.recordingStatus, '🎤 Reconnaissance vocale en temps réel activée. Parlez!', 'success');
-      
-      // Start continuous recognition
-      recognition.start();
-      
-      // Update UI
-      elements.recordBtn.innerHTML = '🔴 Écoute en cours...';
-      elements.recordBtn.disabled = true;
-      elements.recordBtn.classList.add('recording');
-      
-      // Add stop button for real-time mode
-      if (elements.stopBtn) {
-        elements.stopBtn.classList.remove('hidden');
-        elements.stopBtn.innerHTML = '⏹️ Arrêter l\'écoute';
-      }
-      
-    } catch (err) {
-      console.error('Real-time speech error:', err);
-      showStatus(elements.recordingStatus, '⚠️ Erreur reconnaissance vocale: ' + err.message, 'error');
-      isRealTimeMode = false;
-    }
-  }
-
-  function stopRealTimeSpeech() {
-    if (recognition && isRealTimeMode) {
-      try {
-        recognition.stop();
-      } catch (e) {
-        console.warn('Could not stop recognition:', e);
-      }
-    }
-    
-    isRealTimeMode = false;
-    elements.recordBtn.disabled = false;
-    elements.recordBtn.innerHTML = '🎙️ Enregistrer';
-    elements.recordBtn.classList.remove('recording');
-    elements.stopBtn?.classList.add('hidden');
-    
-    showStatus(elements.recordingStatus, '✅ Reconnaissance vocale arrêtée', 'success');
-    setTimeout(() => hideStatus(elements.recordingStatus), 2000);
-  }
-
-  // VERBESSERTE STT-Funktion (Legacy-Support)
-  async function processSTT() {
-    if (!recordedAudioBlob) {
-      showStatus(elements.recordingStatus, '⚠️ Aucun enregistrement disponible', 'error');
-      return;
-    }
-
-    showStatus(elements.recordingStatus, '🔄 Envoi de l\'audio au serveur...', 'loading');
-
-    try {
-      const formData = new FormData();
-      formData.append('audio', recordedAudioBlob, 'recording.webm');
-      
-      if (currentUserId) {
-        formData.append('user_id', currentUserId);
-      }
-
-      const response = await fetch('/api/transcribe', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        throw new Error(`Transcription failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      showStatus(elements.recordingStatus, '✅ Audio envoyé! Démarrage de la reconnaissance vocale...', 'success');
-      
-      if (data.user_id) {
-        currentUserId = data.user_id;
-      }
-      
-      // Start browser-based speech recognition with the recorded audio context
-      if (recognition) {
-        recognition.start();
-      }
-      
-      setTimeout(() => hideStatus(elements.recordingStatus), 3000);
-      
-    } catch (err) {
-      console.error('STT error:', err);
-      showStatus(elements.recordingStatus, '⚠️ Erreur de transcription: ' + err.message, 'error');
-    }
-  }
-
-  // Send Message Function (unchanged)
+  // Send Message Function
   async function sendMessage() {
-    const text = elements.userText?.innerText.trim();
+    const text = elements.userText?.textContent?.trim();
     
     if (!text || text === placeholderText) {
       showStatus(elements.globalStatus, '⚠️ Veuillez entrer un message', 'error');
@@ -582,7 +610,7 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // Reset user input
       if (elements.userText) {
-        elements.userText.innerHTML = placeholderText;
+        elements.userText.textContent = placeholderText;
         elements.userText.classList.add('placeholder');
         elements.userText.dataset.isPlaceholder = 'true';
       }
@@ -601,12 +629,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // === Event Listeners ===
   
-  // GEÄNDERT: Record button starts real-time mode by default
-  elements.recordBtn?.addEventListener('click', () => {
+  // Record button: Real-time by default, traditional recording with Shift
+  elements.recordBtn?.addEventListener('click', (event) => {
     if (isRealTimeMode) {
       stopRealTimeSpeech();
     } else {
-      // Option for users: hold Shift for traditional recording
       if (event.shiftKey) {
         startRecording();
       } else {
@@ -623,7 +650,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  elements.useSTTBtn?.addEventListener('click', processSTT);
   elements.sendBtn?.addEventListener('click', sendMessage);
 
   elements.startBtn?.addEventListener('click', async () => {
@@ -687,7 +713,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } else {
       if (elements.responseText) {
-        elements.responseText.innerHTML = "🎯 Sujet libre sélectionné. Tapez votre message ou utilisez la reconnaissance vocale en temps réel!";
+        elements.responseText.innerHTML = "🎯 Sujet libre sélectionné. Cliquez sur 'Reconnaissance vocale' pour commencer!";
       }
     }
   });
@@ -716,16 +742,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  // HINZUGEFÜGT: Keyboard shortcuts
+  // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
-    // Ctrl+Enter or Cmd+Enter to send message
+    // Ctrl+Enter to send message
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       sendMessage();
     }
     
-    // Space bar to toggle real-time speech (when not typing)
-    if (e.code === 'Space' && e.target === document.body) {
+    // Space bar to toggle real-time speech (when not in input field)
+    if (e.code === 'Space' && e.target === document.body && elements.conversationSection && !elements.conversationSection.classList.contains('hidden')) {
       e.preventDefault();
       if (isRealTimeMode) {
         stopRealTimeSpeech();
@@ -735,19 +761,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  // HINZUGEFÜGT: Editable text handling
+  // Improved editable text handling
   if (elements.userText) {
     elements.userText.addEventListener('focus', function() {
       if (this.dataset.isPlaceholder === 'true') {
-        this.innerText = '';
+        this.textContent = '';
         this.classList.remove('placeholder');
         this.dataset.isPlaceholder = 'false';
       }
     });
 
     elements.userText.addEventListener('blur', function() {
-      if (!this.innerText.trim()) {
-        this.innerHTML = placeholderText;
+      if (!this.textContent.trim()) {
+        this.textContent = placeholderText;
         this.classList.add('placeholder');
         this.dataset.isPlaceholder = 'true';
       }
@@ -756,9 +782,28 @@ document.addEventListener('DOMContentLoaded', function() {
     elements.userText.addEventListener('paste', function(e) {
       e.preventDefault();
       const text = (e.originalEvent || e).clipboardData.getData('text/plain');
-      document.execCommand('insertText', false, text);
+      
+      // Insert text at cursor position
+      const selection = window.getSelection();
+      if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(document.createTextNode(text));
+        range.collapse(false);
+      } else {
+        this.textContent = text;
+      }
+      
       this.classList.remove('placeholder');
       this.dataset.isPlaceholder = 'false';
+    });
+
+    // Prevent line breaks in contenteditable
+    elements.userText.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
     });
   }
 
@@ -768,9 +813,12 @@ document.addEventListener('DOMContentLoaded', function() {
   // Check microphone support on load
   checkMicrophonePermissions().then(result => {
     if (result) {
-      console.log('Microphone permissions OK');
+      console.log('✅ Microphone permissions OK');
+      showStatus(elements.globalStatus, '✅ Microphone prêt pour la reconnaissance vocale', 'success');
+      setTimeout(() => hideStatus(elements.globalStatus), 3000);
+    } else {
+      console.log('❌ Microphone permissions failed');
     }
   });
   
-  console.log('FR-AI-Tutor Frontend initialized with Real-Time Speech Recognition');
-});
+  console.log('🚀 FR-AI-Tutor Frontend initialize
