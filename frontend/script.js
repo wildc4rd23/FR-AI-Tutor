@@ -985,7 +985,7 @@ document.addEventListener('DOMContentLoaded', function() {
         startRealTimeSpeech();
       }
     }
-
+});
 
  
   
