@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let isTextCurrentlyVisible = false;
   let isRealTimeMode = false;
   let recognitionActive = false; // Verhindert mehrfache Starts
+  let recognitionTimeout; 
 
   const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
 
