@@ -33,10 +33,10 @@ document.addEventListener('DOMContentLoaded', function() {
   let currentResponse = null;
   let audioHasBeenPlayed = false;
   let isTextCurrentlyVisible = false;
-  let isRealTimeMode = false;
-  let recognitionActive = false;
-  let recognitionTimeout;
-  let finalTranscript = ''; // Moved to global scope
+  let isRealTimeMode = false; // Steuert den Modus: true für Live-STT, false für traditionelle Aufnahme
+  let recognitionActive = false; // Verhindert mehrfache Starts der Spracherkennung
+  let recognitionTimeout; 
+  let finalTranscript = ''; // Speichert den finalen, bestätigten Text
   let isRecognitionRestarting = false;
 
   const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (SpeechRecognition) {
     recognition = new SpeechRecognition();
     recognition.lang = 'fr-FR';
-    recognition.interimResults = true;
+    recognition.interimResults = true; // für Echtzeit-Updates
     recognition.continuous = true; // GEÄNDERT: Auf true für kontinuierliche Erkennung
     recognition.maxAlternatives = 1;
 
@@ -383,7 +383,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     recognitionActive = false;
-    clearTimeout(recognitionTimeout);
+    if (recognitionTimeout) { // Null-Check
+        clearTimeout(recognitionTimeout);
+    }
 
     elements.startSection?.classList.remove('hidden');
     elements.conversationSection?.classList.add('hidden');
@@ -548,7 +550,9 @@ function stopRealTimeSpeech() {
         }
     }
     recognitionActive = false;
-    clearTimeout(recognitionTimeout);
+    if (recognitionTimeout) { // Null-Check
+        clearTimeout(recognitionTimeout);
+    }
     
     // === 2. AUDIO RECORDING STOPPEN ===
     if (mediaRecorder && mediaRecorder.state === "recording") {
