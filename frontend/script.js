@@ -821,4 +821,5 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   
-  console.log('🚀 FR-AI-Tutor Frontend initialize
+  console.log('🚀 FR-AI-Tutor Frontend initialized with Real-Time Speech Recognition');
+});
