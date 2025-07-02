@@ -917,4 +917,3 @@ document.addEventListener('DOMContentLoaded', function() {
   
   console.log('🚀 FR-AI-Tutor Frontend initialisiert mit Echtzeit-Spracherkennung');
 });
-�
