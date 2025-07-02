@@ -81,6 +81,58 @@ def serve_temp_audio(filename):
         logger.error(f"Fehler beim Servieren der Audio-Datei {filename}: {str(e)}")
         abort(500)
 
+# === Route audio löschen ===
+
+@app.route('/api/delete-audio', methods=['POST'])
+def delete_audio():
+    """Löscht die aufgenommene Audio-Datei nach erfolgreichem Senden"""
+    request_data = request.get_json()
+    if not request_data:
+        return jsonify({'error': 'Keine JSON-Daten empfangen'}), 400
+        
+    user_id = request_data.get('userId') or request_data.get('user_id')
+    
+    if not user_id:
+        return jsonify({'error': 'User ID fehlt'}), 400
+    
+    try:
+        temp_path_absolute, _ = get_user_temp_dir(user_id, base_dir=TEMP_AUDIO_DIR_ROOT)
+        audio_path = os.path.join(temp_path_absolute, "recording.mp3")
+        
+        # Auch andere mögliche Dateiformate löschen
+        possible_files = [
+            "recording.mp3",
+            "recording.webm", 
+            "recording.wav",
+            "recording.m4a"
+        ]
+        
+        deleted_files = []
+        for filename in possible_files:
+            file_path = os.path.join(temp_path_absolute, filename)
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                    deleted_files.append(filename)
+                    logger.info(f"Audio-Datei gelöscht: {file_path}")
+                except OSError as e:
+                    logger.warning(f"Konnte Datei nicht löschen {file_path}: {str(e)}")
+        
+        if deleted_files:
+            return jsonify({
+                'message': f'Audio-Dateien gelöscht: {", ".join(deleted_files)}',
+                'deleted_files': deleted_files
+            })
+        else:
+            return jsonify({
+                'message': 'Keine Audio-Dateien zum Löschen gefunden',
+                'deleted_files': []
+            })
+            
+    except Exception as e:
+        logger.error(f"Fehler beim Löschen der Audio-Datei für User {user_id}: {str(e)}")
+        return jsonify({'error': f'Fehler beim Löschen: {str(e)}'}), 500
+
 
 # === Transkription (Vosk für später) ===
 @app.route('/api/transcribe', methods=['POST'])
