@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let audioChunks = [];
   let recognition;
   let recordedAudioBlob = null;
+  let currentAudioStream = null;
   let currentUserId = null;
   let currentResponse = null;
   let audioHasBeenPlayed = false;
@@ -424,185 +425,407 @@ document.addEventListener('DOMContentLoaded', function() {
     hideStatus(elements.recordingStatus);
   }
 
-  // === VERBESSERTE Real-Time Transkriptionsfunktion ===
-  async function startRealTimeSpeech() {
-    console.log('Starting real-time speech...');
+ async function startRealTimeSpeech() {
+    console.log('Starting real-time speech with audio recording...');
     
     try {
-      const permissionsOk = await checkMicrophonePermissions();
-      if (!permissionsOk) {
-        console.error('Microphone permissions not granted');
-        return;
-      }
+        const permissionsOk = await checkMicrophonePermissions();
+        if (!permissionsOk) {
+            console.error('Microphone permissions not granted');
+            return;
+        }
 
-      if (!recognition) {
-        showStatus(elements.globalStatus, '⚠️ Reconnaissance vocale non supportée dans ce navigateur', 'error');
-        return;
-      }
+        if (!recognition) {
+            showStatus(elements.globalStatus, '⚠️ Reconnaissance vocale non supportée dans ce navigateur', 'error');
+            return;
+        }
 
-      // Reset transcript
-      finalTranscript = '';
-      isRealTimeMode = true;
-      isRecognitionRestarting = false;
-      
-      // Clear previous text
-      if (elements.userText) {
-        elements.userText.textContent = '';
-        elements.userText.classList.remove('placeholder');
-        elements.userText.dataset.isPlaceholder = 'false';
-      }
-      
-      showStatus(elements.recordingStatus, '🎤 Reconnaissance vocale activée. Parlez maintenant!', 'success');
-      
-      // Start recognition
-      startRecognition();
-      
-      // Update UI
-      if (elements.recordBtn) {
-        elements.recordBtn.innerHTML = '🔴 Écoute en cours...';
-        elements.recordBtn.disabled = true;
-        elements.recordBtn.classList.add('recording');
-      }
-      
-      if (elements.stopBtn) {
-        elements.stopBtn.classList.remove('hidden');
-        elements.stopBtn.innerHTML = '⏹️ Arrêter';
-      }
-      
+        // === 1. AUDIO RECORDING STARTEN ===
+        audioChunks = [];
+        recordedAudioBlob = null;
+        
+        const constraints = { 
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                sampleRate: { ideal: 16000 },
+                channelCount: { ideal: 1 }
+            }
+        };
+        
+        // Stream für sowohl Recording als auch Speech Recognition
+        currentAudioStream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        // MediaRecorder für Audio-Aufnahme
+        let options = {};
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+            options.mimeType = 'audio/webm;codecs=opus';
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+            options.mimeType = 'audio/webm';
+        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+            options.mimeType = 'audio/mp4';
+        }
+        
+        mediaRecorder = new MediaRecorder(currentAudioStream, options);
+        
+        mediaRecorder.ondataavailable = event => {
+            if (event.data.size > 0) {
+                audioChunks.push(event.data);
+            }
+        };
+        
+        mediaRecorder.onstop = () => {
+            if (audioChunks.length > 0) {
+                const mimeType = mediaRecorder.mimeType || 'audio/webm';
+                recordedAudioBlob = new Blob(audioChunks, { type: mimeType });
+                
+                // Audio zur Kontrolle bereitstellen
+                const audioURL = URL.createObjectURL(recordedAudioBlob);
+                if (elements.userAudio) {
+                    elements.userAudio.src = audioURL;
+                    elements.userAudioSection?.classList.remove('hidden');
+                }
+                
+                console.log('Audio recording completed, blob size:', recordedAudioBlob.size);
+            }
+        };
+        
+        // === 2. AUDIO RECORDING STARTEN ===
+        mediaRecorder.start(250);
+        console.log('Audio recording started');
+
+        // === 3. SPEECH RECOGNITION STARTEN ===
+        finalTranscript = '';
+        isRealTimeMode = true;
+        isRecognitionRestarting = false;
+        
+        // Clear previous text
+        if (elements.userText) {
+            elements.userText.textContent = '';
+            elements.userText.classList.remove('placeholder');
+            elements.userText.dataset.isPlaceholder = 'false';
+        }
+        
+        showStatus(elements.recordingStatus, '🎤 Aufnahme + Erkennung aktiv. Sprechen Sie jetzt!', 'success');
+        
+        // Start recognition
+        startRecognition();
+        
+        // Update UI
+        if (elements.recordBtn) {
+            elements.recordBtn.innerHTML = '🔴 Aufnahme + Erkennung läuft...';
+            elements.recordBtn.disabled = true;
+            elements.recordBtn.classList.add('recording');
+        }
+        
+        if (elements.stopBtn) {
+            elements.stopBtn.classList.remove('hidden');
+            elements.stopBtn.innerHTML = '⏹️ Stoppen';
+        }
+        
     } catch (err) {
-      console.error('Real-time speech error:', err);
-      showStatus(elements.recordingStatus, '⚠️ Erreur reconnaissance vocale: ' + err.message, 'error');
-      isRealTimeMode = false;
-      resetRecordButton();
+        console.error('Real-time speech + recording error:', err);
+        showStatus(elements.recordingStatus, '⚠️ Fehler bei Aufnahme/Erkennung: ' + err.message, 'error');
+        isRealTimeMode = false;
+        resetRecordButton();
+        cleanupAudioStream();
     }
-  }
+}
 
-  function stopRealTimeSpeech() {
-    console.log('Stopping real-time speech...');
+function stopRealTimeSpeech() {
+    console.log('Stopping real-time speech + recording...');
     
     isRealTimeMode = false;
     isRecognitionRestarting = true;
     
+    // === 1. SPEECH RECOGNITION STOPPEN ===
     if (recognition && recognitionActive) {
-      try {
-        recognition.stop();
-      } catch (e) {
-        console.warn('Could not stop recognition:', e);
-      }
+        try {
+            recognition.stop();
+        } catch (e) {
+            console.warn('Could not stop recognition:', e);
+        }
     }
-    
     recognitionActive = false;
     clearTimeout(recognitionTimeout);
     
+    // === 2. AUDIO RECORDING STOPPEN ===
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+        console.log('Audio recording stopped');
+    }
+    
+    // Stream cleanup
+    cleanupAudioStream();
+    
     resetRecordButton();
     
-    showStatus(elements.recordingStatus, '✅ Reconnaissance vocale arrêtée', 'success');
+    showStatus(elements.recordingStatus, '✅ Aufnahme + Erkennung gestoppt', 'success');
     setTimeout(() => hideStatus(elements.recordingStatus), 2000);
-  }
+}
 
-  // === LEGACY Recording Functions (für Shift+Click) ===
-  async function startRecording() {
-    console.log('Starting traditional recording...');
+function cleanupAudioStream() {
+    if (currentAudioStream) {
+        currentAudioStream.getTracks().forEach(track => track.stop());
+        currentAudioStream = null;
+    }
+}
+
+// === VERBESSERTE Speech Recognition mit Audio Recording ===
+function setupSpeechRecognition() {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        console.warn('Speech recognition not supported');
+        return;
+    }
     
-    try {
-      const permissionsOk = await checkMicrophonePermissions();
-      if (!permissionsOk) return;
-
-      audioChunks = [];
-      showStatus(elements.recordingStatus, '🎙️ Demande d\'accès au microphone...', 'loading');
-      
-      const constraints = { 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: { ideal: 16000 },
-          channelCount: { ideal: 1 }
-        }
-      };
-      
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      let options = {};
-      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-        options.mimeType = 'audio/webm;codecs=opus';
-      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-        options.mimeType = 'audio/webm';
-      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-        options.mimeType = 'audio/mp4';
-      }
-      
-      mediaRecorder = new MediaRecorder(stream, options);
-
-      mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0) {
-          audioChunks.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = () => {
-        stream.getTracks().forEach(track => track.stop());
+    recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'fr-FR';
+    
+    recognition.onstart = function() {
+        console.log('Speech recognition started');
+        recognitionActive = true;
+    };
+    
+    recognition.onresult = function(event) {
+        let interimTranscript = '';
+        let finalTranscriptPart = '';
         
-        if (audioChunks.length === 0) {
-          showStatus(elements.recordingStatus, '⚠️ Aucun audio enregistré', 'error');
-          return;
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            
+            if (event.results[i].isFinal) {
+                finalTranscriptPart += transcript;
+            } else {
+                interimTranscript += transcript;
+            }
         }
         
-        const mimeType = mediaRecorder.mimeType || 'audio/webm';
-        recordedAudioBlob = new Blob(audioChunks, { type: mimeType });
-        
-        const audioURL = URL.createObjectURL(recordedAudioBlob);
-        if (elements.userAudio) {
-          elements.userAudio.src = audioURL;
-          elements.userAudioSection?.classList.remove('hidden');
+        // Update final transcript
+        if (finalTranscriptPart) {
+            finalTranscript += finalTranscriptPart;
         }
         
-        elements.useSTTBtn?.classList.remove('hidden');
-        showStatus(elements.recordingStatus, '✅ Enregistrement terminé!', 'success');
-      };
+        // Display current transcript
+        const currentText = finalTranscript + interimTranscript;
+        if (elements.userText && currentText.trim()) {
+            elements.userText.textContent = currentText;
+            elements.userText.classList.remove('placeholder');
+            elements.userText.dataset.isPlaceholder = 'false';
+        }
+    };
+    
+    recognition.onerror = function(event) {
+        console.error('Speech recognition error:', event.error);
+        
+        if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+            showStatus(elements.recordingStatus, '⚠️ Mikrofon-Zugriff verweigert', 'error');
+            stopRealTimeSpeech();
+        } else if (event.error === 'no-speech') {
+            console.log('No speech detected, restarting...');
+            if (isRealTimeMode && !isRecognitionRestarting) {
+                setTimeout(() => startRecognition(), 100);
+            }
+        }
+    };
+    
+    recognition.onend = function() {
+        console.log('Speech recognition ended, isRealTimeMode:', isRealTimeMode, 'isRecognitionRestarting:', isRecognitionRestarting);
+        recognitionActive = false;
+        
+        // Restart recognition if still in real-time mode
+        if (isRealTimeMode && !isRecognitionRestarting) {
+            setTimeout(() => startRecognition(), 100);
+        }
+    };
+}
 
-      mediaRecorder.start(250);
-      
-      elements.recordBtn.disabled = true;
-      elements.recordBtn.innerHTML = '🔴 Enregistrement...';
-      elements.recordBtn.classList.add('recording');
-      elements.stopBtn?.classList.remove('hidden');
-      
-      showStatus(elements.recordingStatus, '🎙️ Enregistrement en cours...', 'success');
-      
-    } catch (err) {
-      console.error('Recording error:', err);
-      showStatus(elements.recordingStatus, `⚠️ Erreur microphone: ${err.message}`, 'error');
-      resetRecordButton();
-    }
-  }
-
-  function stopRecording() {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-      mediaRecorder.stop();
-      resetRecordButton();
-    }
-  }
-
-  // Send Message Function
-  async function sendMessage() {
+ // === VERBESSERTE sendMessage Funktion ===
+async function sendMessage() {
     let text = '';
     
-    // Hole Text aus dem Element
+    // Get text from the element
     if (elements.userText) {
-      text = elements.userText.textContent?.trim() || '';
+        text = elements.userText.textContent?.trim() || '';
     }
     
     if (!text || text === placeholderText) {
-      showStatus(elements.globalStatus, '⚠️ Veuillez entrer un message', 'error');
-      setTimeout(() => hideStatus(elements.globalStatus), 3000);
-      return;
+        showStatus(elements.globalStatus, '⚠️ Veuillez entrer un message', 'error');
+        setTimeout(() => hideStatus(elements.globalStatus), 3000);
+        return;
     }
 
-    // Stop real-time mode when sending
+    // === 1. AUDIO RECORDING STOPPEN (falls aktiv) ===
     if (isRealTimeMode) {
-      stopRealTimeSpeech();
+        stopRealTimeSpeech();
+        
+        // Warten bis Audio-Aufnahme vollständig gestoppt ist
+        await new Promise(resolve => setTimeout(resolve, 500));
     }
+    
+    if (!recordedAudioBlob) {
+        console.error('Kein aufgenommenes Audio verfügbar');
+        showStatus(elements.globalStatus, '⚠️ Kein Audio aufgenommen', 'error');
+        return;
+    }
+
+    console.log('Sending message with audio:', text);
+    
+    try {
+        showStatus(elements.globalStatus, '💾 Audio wird gespeichert...', 'loading');
+        
+        // === 2. AUDIO AN BACKEND SENDEN (für Speicherung) ===
+        const formData = new FormData();
+        formData.append('audio', recordedAudioBlob, 'recording.webm');
+        formData.append('user_id', userId);
+        
+        const transcribeResponse = await fetch('/api/transcribe', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!transcribeResponse.ok) {
+            throw new Error(`Transcribe error! status: ${transcribeResponse.status}`);
+        }
+        
+        const transcribeData = await transcribeResponse.json();
+        console.log('Audio saved:', transcribeData);
+
+// === 3. TEXT AN LLM SENDEN ===
+        showStatus(elements.globalStatus, '💭 Nachricht wird verarbeitet...', 'loading');
+        
+        const response = await fetch('/api/respond', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                message: text,
+                userId: userId,
+                scenario: currentScenario
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // === 4. ERFOLG: ANTWORT VERARBEITEN ===
+        if (data.response) {
+              // Improved editable text handling
+          if (elements.userText) {
+            elements.userText.addEventListener('focus', function() {
+              if (this.dataset.isPlaceholder === 'true') {
+                this.textContent = '';
+                this.classList.remove('placeholder');
+                this.dataset.isPlaceholder = 'false';
+              }
+            });
+
+            elements.userText.addEventListener('blur', function() {
+              if (!this.textContent.trim()) {
+                this.textContent = placeholderText;
+                this.classList.add('placeholder');
+                this.dataset.isPlaceholder = 'true';
+              }
+            });
+
+            elements.userText.addEventListener('paste', function(e) {
+              e.preventDefault();
+              const text = (e.originalEvent || e).clipboardData.getData('text/plain');
+              
+              // Insert text at cursor position
+              const selection = window.getSelection();
+              if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                range.deleteContents();
+                range.insertNode(document.createTextNode(text));
+                range.collapse(false);
+              } else {
+                this.textContent = text;
+              }
+              
+              this.classList.remove('placeholder');
+              this.dataset.isPlaceholder = 'false';
+            });
+
+            // Prevent line breaks in contenteditable
+            elements.userText.addEventListener('keydown', function(e) {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+              }
+            });
+          }
+            
+            if (data.audio_url) {
+                const audio = new Audio(data.audio_url);
+                audio.play().catch(e => console.error('Error playing audio:', e));
+
+            }
+            
+            // === 5. AUDIO DATEI LÖSCHEN (nach erfolgreichem Senden) ===
+            try {
+                await deleteRecordedAudio();
+            } catch (deleteError) {
+                console.warn('Could not delete audio file:', deleteError);
+            }
+            
+            // Clear input
+            if (elements.userText) {
+                elements.userText.textContent = placeholderText;
+                elements.userText.classList.add('placeholder');
+                elements.userText.dataset.isPlaceholder = 'true';
+            }
+            
+            // Hide audio section
+            if (elements.userAudioSection) {
+                elements.userAudioSection.classList.add('hidden');
+            }
+            
+            // Reset audio blob
+            recordedAudioBlob = null;
+            
+            showStatus(elements.globalStatus, '✅ Nachricht erfolgreich gesendet', 'success');
+            setTimeout(() => hideStatus(elements.globalStatus), 2000);
+        }
+        
+    } catch (error) {
+        console.error('Error sending message:', error);
+        showStatus(elements.globalStatus, '⚠️ Fehler beim Senden: ' + error.message, 'error');
+        setTimeout(() => hideStatus(elements.globalStatus), 5000);
+    }
+}
+
+// === AUDIO DATEI LÖSCHEN ===
+async function deleteRecordedAudio() {
+    if (!userId) return;
+    
+    try {
+        const response = await fetch('/api/delete-audio', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: userId
+            })
+        });
+        
+        if (response.ok) {
+            console.log('Audio file deleted successfully');
+        } else {
+            console.warn('Could not delete audio file');
+        }
+    } catch (error) {
+        console.error('Error deleting audio file:', error);
+    }
+}
+//------------
 
     // Reset state
     audioHasBeenPlayed = false;
@@ -830,67 +1053,9 @@ document.addEventListener('DOMContentLoaded', function() {
         startRealTimeSpeech();
       }
     }
-  });
 
-  // Improved editable text handling
-  if (elements.userText) {
-    elements.userText.addEventListener('focus', function() {
-      if (this.dataset.isPlaceholder === 'true') {
-        this.textContent = '';
-        this.classList.remove('placeholder');
-        this.dataset.isPlaceholder = 'false';
-      }
-    });
 
-    elements.userText.addEventListener('blur', function() {
-      if (!this.textContent.trim()) {
-        this.textContent = placeholderText;
-        this.classList.add('placeholder');
-        this.dataset.isPlaceholder = 'true';
-      }
-    });
-
-    elements.userText.addEventListener('paste', function(e) {
-      e.preventDefault();
-      const text = (e.originalEvent || e).clipboardData.getData('text/plain');
-      
-      // Insert text at cursor position
-      const selection = window.getSelection();
-      if (selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        range.deleteContents();
-        range.insertNode(document.createTextNode(text));
-        range.collapse(false);
-      } else {
-        this.textContent = text;
-      }
-      
-      this.classList.remove('placeholder');
-      this.dataset.isPlaceholder = 'false';
-    });
-
-    // Prevent line breaks in contenteditable
-    elements.userText.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    });
-  }
-
-  // Initialize
-  resetUI();
-  
-  // Check microphone support on load
-  checkMicrophonePermissions().then(result => {
-    if (result) {
-      console.log('✅ Microphone permissions OK');
-      showStatus(elements.globalStatus, '✅ Microphone prêt pour la reconnaissance vocale', 'success');
-      setTimeout(() => hideStatus(elements.globalStatus), 3000);
-    } else {
-      console.log('❌ Microphone permissions failed');
-    }
-  });
+ 
   
   console.log('🚀 FR-AI-Tutor Frontend initialized with Real-Time Speech Recognition');
 });
