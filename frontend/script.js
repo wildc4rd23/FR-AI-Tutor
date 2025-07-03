@@ -199,7 +199,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   } else {
     console.warn('SpeechRecognition API nicht verfügbar.');
-    if (elements.useSTTBtn) elements.useSTTBtn.classList.add('hidden');
+    // elements.useSTTBtn ist nicht mehr in der elements-Liste, daher auskommentiert
+    // if (elements.useSTTBtn) elements.useSTTBtn.classList.add('hidden');
     showStatus(elements.globalStatus, '⚠️ Reconnaissance vocale non supportée dans ce navigateur.', 'warning');
   }
 
@@ -374,7 +375,7 @@ function resetUI() {
     elements.showResponseBtn?.classList.add('hidden');
     
     resetRecordButton();
-    elements.useSTTBtn?.classList.add('hidden');
+    // elements.useSTTBtn?.classList.add('hidden'); // useSTTBtn ist nicht mehr in elements
     
     currentUserId = null;
     recordedAudioBlob = null;
@@ -455,14 +456,16 @@ function resetUI() {
             console.log('Created blob:', recordedAudioBlob.size, 'bytes');
             // Audio an das Backend senden zum Speichern über die /api/transcribe Route
             showStatus(elements.recordingStatus, '💾 Sauvegarde de l\'audio...', 'loading');
-            const uploadResult = await uploadRecordedAudio(recordedAudioBlob, mimeType); // Pass blob and mimeType to upload function
+            const uploadResult = await uploadRecordedAudio(recordedAudioBlob, mimeType);
             if (uploadResult && uploadResult.audio_path) {
                 showStatus(elements.recordingStatus, '✅ Audio sauvegardé', 'success');
-            // Setze die src des userAudio-Elements auf den vom Backend zurückgegebenen Pfad
-
-                if (elements.userAudio) {
+                // Sicherstellen, dass Elemente gültig sind, bevor versucht wird, sie zu manipulieren
+                if (elements.userAudio && elements.userAudioSection) {
                     elements.userAudio.src = uploadResult.audio_path;
-                    elements.userAudioSection?.classList.remove('hidden');
+                    elements.userAudioSection.classList.remove('hidden'); // Macht den Audio-Player sichtbar
+                    console.log('User audio player set and section shown. Src:', elements.userAudio.src);
+                } else {
+                    console.error('userAudio oder userAudioSection Element nicht gefunden!');
                 }
 
             } else {
@@ -545,20 +548,20 @@ function resetUI() {
     // Wenn die Aufnahme gestoppt wurde, stelle sicher, dass der finale Text im userText-Feld ist
 
     if (elements.userText) {
+        const finalContent = finalTranscript.trim();
+        elements.userText.textContent = finalContent;
+        console.log('Final User Text set:', elements.userText.textContent); // Bestätigen des Inhalts
 
-        elements.userText.textContent = finalTranscript.trim();
-
-        if (!elements.userText.textContent) { // Wenn userText immer noch leer ist
-
-            elements.userText.textContent = placeholderText;
-            elements.userText.classList.add('placeholder');
-            elements.userText.dataset.isPlaceholder = 'true';
-        } else {
-
+        if (finalContent) {
             elements.userText.classList.remove('placeholder');
             elements.userText.dataset.isPlaceholder = 'false';
+        } else {
+            elements.userText.textContent = placeholderText; // Nur Platzhalter setzen, wenn wirklich leer
+            elements.userText.classList.add('placeholder');
+            elements.userText.dataset.isPlaceholder = 'true';
         }
-
+    } else {
+        console.error('userText Element nicht gefunden!');
     }
 
 // Sende den transkribierten Text an das Backend
