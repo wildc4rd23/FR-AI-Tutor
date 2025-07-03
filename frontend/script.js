@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let currentResponse = null;
   let audioHasBeenPlayed = false;
   let isTextCurrentlyVisible = false;
-  let isRealTimeMode = false;
+  let isRealTimeMode = true; // immer RT 
   let recognitionActive = false;
   let recognitionTimeout;
   let finalTranscript = '';
@@ -53,9 +53,7 @@ document.addEventListener('DOMContentLoaded', function() {
     recognition.maxAlternatives = 1;
 
     recognition.onresult = (event) => {
-      console.log('Speech recognition result received, results count:', event.results.length);
-      console.log('Current isRealTimeMode:', isRealTimeMode);
-      console.log('Current finalTranscript before processing:', finalTranscript);
+      console.log('Speech recognition result received');
       let interimTranscript = '';
       let newFinalTranscript = '';
       
@@ -77,27 +75,17 @@ document.addEventListener('DOMContentLoaded', function() {
       }
 
       const displayText = (finalTranscript + interimTranscript).trim();
-      if (elements.userText) {
+      if (elements.userText && displayText) {
         elements.userText.textContent = displayText;
         elements.userText.classList.remove('placeholder');
         elements.userText.dataset.isPlaceholder = 'false';
-        
-        if (document.activeElement === elements.userText) {
-          const range = document.createRange();
-          const sel = window.getSelection();
-          range.selectNodeContents(elements.userText);
-          range.collapse(false);
-          sel.removeAllRanges();
-          sel.addRange(range);
-        }
       }
 
-      if (isRealTimeMode) {
-        const statusText = interimTranscript ? 
-          `🎤 Écoute... "${interimTranscript}"` : 
-          (newFinalTranscript ? `🎤 Transcrit: "${newFinalTranscript.trim()}"` : '🎤 En écoute...');
-        showStatus(elements.recordingStatus, statusText, 'success');
-      }
+      // Status Update
+      const statusText = interimTranscript ? 
+        `🎤 Écoute... "${interimTranscript}"` : 
+        (newFinalTranscript ? `🎤 Transcrit: "${newFinalTranscript.trim()}"` : '🎤 En écoute...');
+      showStatus(elements.recordingStatus, statusText, 'success');
     };
 
     recognition.onerror = (event) => {
@@ -108,48 +96,34 @@ document.addEventListener('DOMContentLoaded', function() {
       
       switch(event.error) {
         case 'not-allowed':
-          errorMessage = '🚫 Accès au microphone refusé. Vérifiez les permissions.';
-          isRealTimeMode = false;
+          errorMessage = '🚫 Accès au microphone refusé';
+          recognitionActive = false;
           break;
         case 'no-speech':
-          if (isRealTimeMode) {
-            console.log('No speech detected in real-time mode, will restart...');
-            shouldRestart = true;
-            errorMessage = null; // Keine Fehlermeldung anzeigen
-          } else {
-            errorMessage = '🔇 Aucune parole détectée.';
-          }
+          console.log('No speech detected, will restart...');
+          shouldRestart = true;
+          errorMessage = null;
           break;
         case 'network':
-          errorMessage = '🌐 Erreur réseau. Vérifiez votre connexion.';
-          shouldRestart = isRealTimeMode;
-          break;
-        case 'audio-capture':
-          errorMessage = '🎙️ Impossible d\'accéder au microphone.';
-          isRealTimeMode = false;
+          errorMessage = '🌐 Erreur réseau';
+          shouldRestart = true;
           break;
         case 'aborted':
-          console.log('Recognition aborted');
           return;
-        case 'service-not-allowed':
-          errorMessage = '🚫 Service de reconnaissance vocale non autorisé.';
-          isRealTimeMode = false;
+        default:
+          shouldRestart = true;
           break;
       }
       
       recognitionActive = false;
       
-      if (!shouldRestart) {
+      if (errorMessage) {
         showStatus(elements.globalStatus, errorMessage, 'error');
-        if (!isRealTimeMode) {
-          resetRecordButton();
-        }
       }
       
-      if (shouldRestart && isRealTimeMode && !isRecognitionRestarting) {
-        console.log('Scheduling recognition restart after error:', event.error);
+      if (shouldRestart && !isRecognitionRestarting) {
         setTimeout(() => {
-          if (isRealTimeMode && !isRecognitionRestarting) {
+          if (!isRecognitionRestarting) {
             startRecognition();
           }
         }, 1000);
@@ -157,19 +131,15 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     recognition.onend = () => {
-      console.log('Speech recognition ended, isRealTimeMode:', isRealTimeMode, 'isRecognitionRestarting:', isRecognitionRestarting);
+      console.log('Speech recognition ended');
       recognitionActive = false;
       
-      if (isRealTimeMode && !isRecognitionRestarting) {
-        console.log('Auto-restarting recognition in real-time mode');
+      if (!isRecognitionRestarting) {
         setTimeout(() => {
-          if (isRealTimeMode && !isRecognitionRestarting && !recognitionActive) {
+          if (!isRecognitionRestarting && !recognitionActive) {
             startRecognition();
           }
-        }, 500); // Längere Pause zwischen Restarts
-      } else if (!isRealTimeMode) {
-        hideStatus(elements.recordingStatus);
-        resetRecordButton();
+        }, 500);
       }
     };
 
@@ -361,20 +331,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  function resetUI() {
-    console.log('Resetting UI...');
-    
-    if (recognition && isRealTimeMode) {
-      isRealTimeMode = false;
-      isRecognitionRestarting = true;
-      try {
-        recognition.stop();
-      } catch (e) {
-        console.warn('Could not stop recognition:', e);
-      }
+function resetUI() {
+  console.log('Resetting UI...');
+  
+  if (recognition) {
+    isRecognitionRestarting = true;
+    try {
+      recognition.stop();
+    } catch (e) {
+      console.warn('Could not stop recognition:', e);
     }
-    
-    recognitionActive = false;
+  }
+  
+  recognitionActive = false;
+  isRecognitionRestarting = false;
     if (recognitionTimeout) {
       clearTimeout(recognitionTimeout);
     }
@@ -419,138 +389,123 @@ document.addEventListener('DOMContentLoaded', function() {
     hideStatus(elements.recordingStatus);
   }
 
-  async function startRealTimeSpeech() {
-    console.log('Starting real-time speech with audio recording...');
-    
-    try {
-      const permissionsOk = await checkMicrophonePermissions();
-      if (!permissionsOk) {
-        console.error('Microphone permissions not granted');
-        return;
-      }
-
-      if (!recognition) {
-        showStatus(elements.globalStatus, '⚠️ Reconnaissance vocale non supportée dans ce navigateur', 'error');
-        return;
-      }
-
-      audioChunks = [];
-      recordedAudioBlob = null;
+    async function startRealTimeSpeech() {
+      console.log('Starting real-time speech with recording...');
       
-      const constraints = { 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: { ideal: 16000 },
-          channelCount: { ideal: 1 }
-        }
-      };
-      
-      currentAudioStream = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      let options = {};
-      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-        options.mimeType = 'audio/webm;codecs=opus';
-      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-        options.mimeType = 'audio/webm';
-      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-        options.mimeType = 'audio/mp4';
-      }
-      
-      mediaRecorder = new MediaRecorder(currentAudioStream, options);
-      
-      mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0) {
-          audioChunks.push(event.data);
-        }
-      };
-      
-      mediaRecorder.onstop = () => {
-        if (audioChunks.length > 0) {
-          const mimeType = mediaRecorder.mimeType || 'audio/webm';
-          recordedAudioBlob = new Blob(audioChunks, { type: mimeType });
-          
-          const audioURL = URL.createObjectURL(recordedAudioBlob);
-          if (elements.userAudio) {
-            elements.userAudio.src = audioURL;
-            elements.userAudioSection?.classList.remove('hidden');
-          }
-          
-          console.log('Audio recording completed, blob size:', recordedAudioBlob.size);
-        }
-      };
-      
-      mediaRecorder.start(250);
-      console.log('Audio recording started');
-
-      finalTranscript = '';
-      isRealTimeMode = true;
-      isRecognitionRestarting = false;
-      
-      if (elements.userText) {
-        elements.userText.textContent = '';
-        elements.userText.classList.remove('placeholder');
-        elements.userText.dataset.isPlaceholder = 'false';
-      }
-      
-      showStatus(elements.recordingStatus, '🎤 Enregistrement + reconnaissance actifs. Parlez maintenant!', 'success');
-      
-      
-      if (elements.recordBtn) {
-        elements.recordBtn.innerHTML = '🔴 Enregistrement + reconnaissance...';
-        elements.recordBtn.disabled = true;
-        elements.recordBtn.classList.add('recording');
-      }
-
-      // Recognition erst nach UI-Update starten
-      setTimeout(() => {
-        startRecognition();
-      }, 100);
-      
-      if (elements.stopBtn) {
-        elements.stopBtn.classList.remove('hidden');
-        elements.stopBtn.innerHTML = '⏹️ Arrêter';
-      }
-      
-    } catch (err) {
-      console.error('Real-time speech + recording error:', err);
-      showStatus(elements.recordingStatus, '⚠️ Fehler bei Aufnahme/Erkennung: ' + err.message, 'error');
-      isRealTimeMode = false;
-      resetRecordButton();
-      cleanupAudioStream();
-    }
-  }
-
-  function stopRealTimeSpeech() {
-    console.log('Stopping real-time speech + recording...');
-    
-    isRealTimeMode = false;
-    isRecognitionRestarting = true;
-    
-    if (recognition && recognitionActive) {
       try {
-        recognition.stop();
-      } catch (e) {
-        console.warn('Could not stop recognition:', e);
+        const permissionsOk = await checkMicrophonePermissions();
+        if (!permissionsOk || !recognition) {
+          showStatus(elements.globalStatus, '⚠️ Microphone ou reconnaissance vocale non disponible', 'error');
+          return;
+        }
+
+        // Reset transcript
+        finalTranscript = '';
+        audioChunks = [];
+        recordedAudioBlob = null;
+        
+        // Clear user text
+        if (elements.userText) {
+          elements.userText.textContent = '';
+          elements.userText.classList.remove('placeholder');
+          elements.userText.dataset.isPlaceholder = 'false';
+        }
+        
+        // Start audio recording
+        const constraints = { 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          }
+        };
+        
+        currentAudioStream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        let options = {};
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          options.mimeType = 'audio/webm;codecs=opus';
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+          options.mimeType = 'audio/webm';
+        }
+        
+        mediaRecorder = new MediaRecorder(currentAudioStream, options);
+        
+        mediaRecorder.ondataavailable = event => {
+          if (event.data.size > 0) {
+            audioChunks.push(event.data);
+          }
+        };
+        
+        mediaRecorder.onstop = async () => {
+          if (audioChunks.length > 0) {
+            const mimeType = mediaRecorder.mimeType || 'audio/webm';
+            recordedAudioBlob = new Blob(audioChunks, { type: mimeType });
+            
+            // Automatically upload audio to backend
+            await uploadRecordedAudio();
+            
+            const audioURL = URL.createObjectURL(recordedAudioBlob);
+            if (elements.userAudio) {
+              elements.userAudio.src = audioURL;
+              elements.userAudioSection?.classList.remove('hidden');
+            }
+            
+            console.log('Audio recording completed and uploaded, blob size:', recordedAudioBlob.size);
+          }
+        };
+        
+        mediaRecorder.start(250);
+        
+        // Start speech recognition
+        isRecognitionRestarting = false;
+        startRecognition();
+        
+        // Update UI
+        if (elements.recordBtn) {
+          elements.recordBtn.innerHTML = '🔴 Arrêter l\'enregistrement';
+          elements.recordBtn.classList.add('recording');
+        }
+        
+        if (elements.stopBtn) {
+          elements.stopBtn.classList.remove('hidden');
+          elements.stopBtn.innerHTML = '⏹️ Arrêter';
+        }
+        
+        showStatus(elements.recordingStatus, '🎤 Enregistrement + reconnaissance actifs', 'success');
+        
+      } catch (err) {
+        console.error('Real-time speech error:', err);
+        showStatus(elements.recordingStatus, '⚠️ Erreur: ' + err.message, 'error');
+        resetRecordButton();
+        cleanupAudioStream();
       }
     }
-    recognitionActive = false;
-    if (recognitionTimeout) {
-      clearTimeout(recognitionTimeout);
+
+    function stopRealTimeSpeech() {
+      console.log('Stopping real-time speech...');
+      
+      isRecognitionRestarting = true;
+      
+      if (recognition && recognitionActive) {
+        try {
+          recognition.stop();
+        } catch (e) {
+          console.warn('Could not stop recognition:', e);
+        }
+      }
+      recognitionActive = false;
+      
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+      }
+      
+      cleanupAudioStream();
+      resetRecordButton();
+      
+      showStatus(elements.recordingStatus, '✅ Enregistrement terminé', 'success');
+      setTimeout(() => hideStatus(elements.recordingStatus), 2000);
     }
-    
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-      mediaRecorder.stop();
-      console.log('Audio recording stopped');
-    }
-    
-    cleanupAudioStream();
-    resetRecordButton();
-    
-    showStatus(elements.recordingStatus, '✅ Aufnahme + Erkennung gestoppt', 'success');
-    setTimeout(() => hideStatus(elements.recordingStatus), 2000);
-  }
 
   function cleanupAudioStream() {
     if (currentAudioStream) {
@@ -559,199 +514,113 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // Traditional recording functions (with Shift+Click)
-  async function startRecording() {
-    try {
-      const permissionsOk = await checkMicrophonePermissions();
-      if (!permissionsOk) return;
 
-      audioChunks = [];
+async function uploadRecordedAudio() {
+  if (!recordedAudioBlob) return;
+  
+  try {
+    showStatus(elements.globalStatus, '💾 Sauvegarde de l\'audio...', 'loading');
+    
+    const formData = new FormData();
+    formData.append('audio', recordedAudioBlob, 'recording.webm');
+    formData.append('user_id', userId);
+    
+    const response = await fetch('/api/transcribe', {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Audio uploaded successfully:', data);
+    
+    showStatus(elements.globalStatus, '✅ Audio sauvegardé', 'success');
+    setTimeout(() => hideStatus(elements.globalStatus), 2000);
+    
+  } catch (error) {
+    console.error('Error uploading audio:', error);
+    showStatus(elements.globalStatus, '⚠️ Erreur sauvegarde: ' + error.message, 'error');
+  }
+}
+
+
+
+  // === Vereinfachte sendMessage Funktion ===
+async function sendMessage() {
+  let text = '';
+  
+  if (elements.userText) {
+    text = elements.userText.textContent?.trim() || '';
+  }
+  
+  if (!text || text === placeholderText) {
+    showStatus(elements.globalStatus, '⚠️ Veuillez entrer un message', 'error');
+    return;
+  }
+
+  console.log('Sending message:', text);
+  
+  try {
+    showStatus(elements.globalStatus, '💭 Traitement du message...', 'loading');
+    
+    const response = await fetch('/api/respond', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: text,
+        userId: userId,
+        scenario: currentScenario
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data.response) {
+      currentResponse = data.response;
+      
+      if (data.audio_url) {
+        const audio = new Audio(data.audio_url);
+        audio.play().catch(e => console.error('Error playing audio:', e));
+      }
+      
+      // Reset UI
+      if (elements.userText) {
+        elements.userText.textContent = placeholderText;
+        elements.userText.classList.add('placeholder');
+        elements.userText.dataset.isPlaceholder = 'true';
+      }
+      
+      if (elements.userAudioSection) {
+        elements.userAudioSection.classList.add('hidden');
+      }
+      
+      // Clean up
+      try {
+        await deleteRecordedAudio();
+      } catch (deleteError) {
+        console.warn('Could not delete audio file:', deleteError);
+      }
+      
       recordedAudioBlob = null;
       
-      const constraints = { 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        }
-      };
-      
-      currentAudioStream = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      let options = {};
-      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-        options.mimeType = 'audio/webm;codecs=opus';
-      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-        options.mimeType = 'audio/webm';
-      }
-      
-      mediaRecorder = new MediaRecorder(currentAudioStream, options);
-      
-      mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0) {
-          audioChunks.push(event.data);
-        }
-      };
-      
-        mediaRecorder.onstop = () => {
-          if (audioChunks.length > 0) {
-            const mimeType = mediaRecorder.mimeType || 'audio/webm';
-            recordedAudioBlob = new Blob(audioChunks, { type: mimeType });
-            
-            const audioURL = URL.createObjectURL(recordedAudioBlob);
-            if (elements.userAudio) {
-              elements.userAudio.src = audioURL;
-              elements.userAudioSection?.classList.remove('hidden');
-            }
-            
-            console.log('Audio recording completed, blob size:', recordedAudioBlob.size);
-            
-            // Wenn Real-Time-Modus, zeige die finale Transkription an
-            if (isRealTimeMode && finalTranscript.trim()) {
-              console.log('Final transcript in real-time mode:', finalTranscript);
-            }
-          }
-        };
-      
-      mediaRecorder.start();
-      
-      if (elements.recordBtn) {
-        elements.recordBtn.innerHTML = '🔴 Aufnahme läuft...';
-        elements.recordBtn.disabled = true;
-        elements.recordBtn.classList.add('recording');
-      }
-      
-      if (elements.stopBtn) {
-        elements.stopBtn.classList.remove('hidden');
-        elements.stopBtn.innerHTML = '⏹️ Stoppen';
-      }
-      
-      showStatus(elements.recordingStatus, '🎤 Aufnahme läuft...', 'success');
-      
-    } catch (err) {
-      console.error('Recording error:', err);
-      showStatus(elements.recordingStatus, '⚠️ Aufnahme-Fehler: ' + err.message, 'error');
-      resetRecordButton();
+      showStatus(elements.globalStatus, '✅ Message envoyé', 'success');
+      setTimeout(() => hideStatus(elements.globalStatus), 2000);
     }
+    
+  } catch (error) {
+    console.error('Error sending message:', error);
+    showStatus(elements.globalStatus, '⚠️ Erreur: ' + error.message, 'error');
   }
-
-  function stopRecording() {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-      mediaRecorder.stop();
-    }
-    
-    cleanupAudioStream();
-    resetRecordButton();
-    
-    showStatus(elements.recordingStatus, '✅ Aufnahme gestoppt', 'success');
-    setTimeout(() => hideStatus(elements.recordingStatus), 2000);
-  }
-
-  // === VERBESSERTE sendMessage Funktion ===
-  async function sendMessage() {
-    let text = '';
-    
-    if (elements.userText) {
-      text = elements.userText.textContent?.trim() || '';
-    }
-    
-    if (!text || text === placeholderText) {
-      showStatus(elements.globalStatus, '⚠️ Veuillez entrer un message', 'error');
-      setTimeout(() => hideStatus(elements.globalStatus), 3000);
-      return;
-    }
-
-    if (isRealTimeMode) {
-      stopRealTimeSpeech();
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-    
-    if (!recordedAudioBlob) {
-      console.error('Kein aufgenommenes Audio verfügbar');
-      showStatus(elements.globalStatus, '⚠️ Kein Audio aufgenommen', 'error');
-      return;
-    }
-
-    console.log('Sending message with audio:', text);
-    
-    try {
-      showStatus(elements.globalStatus, '💾 Audio wird gespeichert...', 'loading');
-      
-      const formData = new FormData();
-      formData.append('audio', recordedAudioBlob, 'recording.webm');
-      formData.append('user_id', userId);
-      
-      const transcribeResponse = await fetch('/api/transcribe', {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (!transcribeResponse.ok) {
-        throw new Error(`Transcribe error! status: ${transcribeResponse.status}`);
-      }
-      
-      const transcribeData = await transcribeResponse.json();
-      console.log('Audio saved:', transcribeData);
-
-      showStatus(elements.globalStatus, '💭 Nachricht wird verarbeitet...', 'loading');
-      
-      const response = await fetch('/api/respond', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: text,
-          userId: userId,
-          scenario: currentScenario
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.response) {
-        currentResponse = data.response;
-        
-        // Update UI elements
-        setupEditableText();
-        
-        if (data.audio_url) {
-          const audio = new Audio(data.audio_url);
-          audio.play().catch(e => console.error('Error playing audio:', e));
-        }
-        
-        try {
-          await deleteRecordedAudio();
-        } catch (deleteError) {
-          console.warn('Could not delete audio file:', deleteError);
-        }
-        
-        if (elements.userText) {
-          elements.userText.textContent = placeholderText;
-          elements.userText.classList.add('placeholder');
-          elements.userText.dataset.isPlaceholder = 'true';
-        }
-        
-        if (elements.userAudioSection) {
-          elements.userAudioSection.classList.add('hidden');
-        }
-        
-        recordedAudioBlob = null;
-        
-        showStatus(elements.globalStatus, '✅ Nachricht erfolgreich gesendet', 'success');
-        setTimeout(() => hideStatus(elements.globalStatus), 2000);
-      }
-      
-    } catch (error) {
-      console.error('Error sending message:', error);
-      showStatus(elements.globalStatus, '⚠️ Fehler beim Senden: ' + error.message, 'error');
-      setTimeout(() => hideStatus(elements.globalStatus), 5000);
-    }
-  }
+}
 
   function setupEditableText() {
     if (elements.userText) {
@@ -866,27 +735,19 @@ document.addEventListener('DOMContentLoaded', function() {
   // === Event Listeners ===
   
   // Record button: Real-time by default, traditional recording with Shift
-  elements.recordBtn?.addEventListener('click', (event) => {
-    if (isRealTimeMode) {
-      stopRealTimeSpeech();
-    } else {
-      if (event.shiftKey) {
-        startRecording();
+    elements.recordBtn?.addEventListener('click', (event) => {
+      if (elements.recordBtn.classList.contains('recording')) {
+        stopRealTimeSpeech();
       } else {
         startRealTimeSpeech();
       }
-    }
-  });
+    });
 
-  elements.stopBtn?.addEventListener('click', () => {
-    if (isRealTimeMode) {
+    elements.stopBtn?.addEventListener('click', () => {
       stopRealTimeSpeech();
-    } else {
-      stopRecording();
-    }
-  });
+    });
 
-  elements.sendBtn?.addEventListener('click', sendMessage);
+    elements.sendBtn?.addEventListener('click', sendMessage);
 
   elements.startBtn?.addEventListener('click', async () => {
     const scenario = elements.scenarioSelect?.value;
