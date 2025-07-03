@@ -3,7 +3,6 @@ document.addEventListener('DOMContentLoaded', function() {
   const elements = {
     recordBtn: document.getElementById('record'),
     stopBtn: document.getElementById('stop'),
-    useSTTBtn: document.getElementById('useSTT'),
     sendBtn: document.getElementById('sendMessage'),
     startBtn: document.getElementById('startConversation'),
     newConvBtn: document.getElementById('newConversation'),
@@ -36,7 +35,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let isRealTimeMode = true; // immer RT 
   let recognitionActive = false;
   let recognitionTimeout;
-  let finalTranscript = '';
+  let finalTranscript = ''; //speichert den kumulativen finalen Transkript
   let isRecognitionRestarting = false;
   let userId = 'user_' + Date.now(); // Generate unique user ID
   let currentScenario = 'libre'; // Default scenario
@@ -49,7 +48,7 @@ document.addEventListener('DOMContentLoaded', function() {
     recognition = new SpeechRecognition();
     recognition.lang = 'fr-FR';
     recognition.interimResults = true;
-    recognition.continuous = true;
+    recognition.continuous = true; //wichtig für kontinuierliche Erkennung
     recognition.maxAlternatives = 1;
 
     recognition.onresult = (event) => {
@@ -73,7 +72,7 @@ document.addEventListener('DOMContentLoaded', function() {
         finalTranscript += newFinalTranscript;
         console.log('Updated final transcript:', finalTranscript);
       }
-
+      // Zeigt den aktuellen Stand des Transkripts an (final + interim)
       const displayText = (finalTranscript + interimTranscript).trim();
       if (elements.userText && displayText) {
         elements.userText.textContent = displayText;
@@ -94,7 +93,7 @@ document.addEventListener('DOMContentLoaded', function() {
       let errorMessage = '⚠️ Erreur de reconnaissance vocale';
       let shouldRestart = false;
       
-      switch(event.error) {
+      switch (event.error) {
         case 'not-allowed':
           errorMessage = '🚫 Accès au microphone refusé';
           recognitionActive = false;
@@ -382,7 +381,7 @@ function resetUI() {
     currentResponse = null;
     audioHasBeenPlayed = false;
     isTextCurrentlyVisible = false;
-    finalTranscript = '';
+    finalTranscript = ''; //setzt kumulativen Transcript zurück
     
     hideStatus(elements.globalStatus);
     hideStatus(elements.audioStatus);
@@ -399,7 +398,7 @@ function resetUI() {
           return;
         }
 
-        // Reset transcript
+        // Reset transcript vor Start
         finalTranscript = '';
         recordedAudioBlob = null;
         
@@ -448,23 +447,36 @@ function resetUI() {
         mediaRecorder.onstop = async () => {
           console.log('MediaRecorder stopped, total chunks:', audioChunks.length);
           if (audioChunks.length > 0) {
+
+            // WICHTIG: Erhalte den MIME-Typ vom MediaRecorder, nicht statisch "audio/webm"
             const mimeType = mediaRecorder.mimeType || 'audio/webm';
-            recordedAudioBlob = new Blob(audioChunks, { type: mimeType });
+            recordedAudioBlob = new Blob(audioChunks, {type: mimeType});
+
             console.log('Created blob:', recordedAudioBlob.size, 'bytes');
-            
-            // Automatically upload audio to backend
-            await uploadRecordedAudio();
-            
-            const audioURL = URL.createObjectURL(recordedAudioBlob);
-            if (elements.userAudio) {
-              elements.userAudio.src = audioURL;
-              elements.userAudioSection?.classList.remove('hidden');
+            // Audio an das Backend senden zum Speichern über die /api/transcribe Route
+            showStatus(elements.audioStatus, '💾 Sauvegarde de l\'audio...', 'loading');
+            const uploadResult = await uploadRecordedAudio(recordedAudioBlob, mimeType); // Pass blob and mimeType to upload function
+            if (uploadResult && uploadResult.audio_path) {
+                showStatus(elements.audioStatus, '✅ Audio sauvegardé', 'success');
+            // Setze die src des userAudio-Elements auf den vom Backend zurückgegebenen Pfad
+
+                if (elements.userAudio) {
+                    elements.userAudio.src = uploadResult.audio_path;
+                    elements.userAudioSection?.classList.remove('hidden');
+                }
+
+            } else {
+                showStatus(elements.audioStatus, '⚠️ Échec de la sauvegarde audio', 'error');
             }
-            
+
             console.log('Audio recording completed and uploaded, blob size:', recordedAudioBlob.size);
-          } else {
+
+            } else {
+
             console.error('No audio chunks recorded!');
-          }
+            showStatus(elements.audioStatus, '⚠️ Aucun audio enregistré', 'error');
+
+            }
         };
         
         // Warten bis MediaRecorder ready ist
@@ -530,9 +542,16 @@ function resetUI() {
       
       cleanupAudioStream();
       resetRecordButton();
-      
+      // Wenn die Aufnahme gestoppt wurde, triggere das Senden des Textes
+
+        if (finalTranscript.trim()) {
+            elements.userText.textContent = finalTranscript.trim(); // Stelle sicher, dass der finale Text im userText-Feld ist
+            sendMessageToBackend(finalTranscript.trim()); // Sende den transkribierten Text an das Backend
+        } else {
+            showStatus(elements.globalStatus, 'Aucune parole détectée.', 'warning');
+        }
       showStatus(elements.recordingStatus, '✅ Enregistrement terminé', 'success');
-      setTimeout(() => hideStatus(elements.recordingStatus), 2000);
+      
     }
 
   function cleanupAudioStream() {
@@ -543,239 +562,117 @@ function resetUI() {
   }
 
 
-async function uploadRecordedAudio() {
-  if (!recordedAudioBlob) return;
-  
-  try {
-    showStatus(elements.globalStatus, '💾 Sauvegarde de l\'audio...', 'loading');
-    
-    const formData = new FormData();
-    formData.append('audio', recordedAudioBlob, 'recording.webm');
-    formData.append('user_id', userId);
-    
-    const response = await fetch('/api/transcribe', {
-      method: 'POST',
-      body: formData
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Upload failed: ${response.status}`);
+
+// === Backend Communication ===
+
+async function sendMessageToBackend(message) {
+
+    if (!message.trim()) {
+        showStatus(elements.globalStatus, 'Veuillez entrer un message.', 'warning');
+        return;
     }
-    
-    const data = await response.json();
-    console.log('Audio uploaded successfully:', data);
-    
-    showStatus(elements.globalStatus, '✅ Audio sauvegardé', 'success');
-    setTimeout(() => hideStatus(elements.globalStatus), 2000);
-    
-  } catch (error) {
-    console.error('Error uploading audio:', error);
-    showStatus(elements.globalStatus, '⚠️ Erreur sauvegarde: ' + error.message, 'error');
-  }
-}
+    showProgressStatus(1, '🚀 Envoi du message...');
 
+    elements.sendBtn.disabled = true;
+    elements.recordBtn.disabled = true;
 
+    try {
+        const response = await fetch('/api/respond', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json',},
+            body: JSON.stringify({
+            message: message,
+            userId: userId, // Verwenden Sie userId, nicht user_id
+            scenario: currentScenario
+            }),
 
-  // === Vereinfachte sendMessage Funktion ===
-async function sendMessage() {
-  let text = '';
-  
-  if (elements.userText) {
-    text = elements.userText.textContent?.trim() || '';
-  }
-  
-  if (!text || text === placeholderText) {
-    showStatus(elements.globalStatus, '⚠️ Veuillez entrer un message', 'error');
-    return;
-  }
+        });
 
-  console.log('Sending message:', text);
-  
-  try {
-    showStatus(elements.globalStatus, '💭 Traitement du message...', 'loading');
-    
-    const response = await fetch('/api/respond', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        message: text,
-        userId: userId,
-        scenario: currentScenario
-      })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    if (data.response) {
-      currentResponse = data.response;
-      
-      if (data.audio_url) {
-        const audio = new Audio(data.audio_url);
-        audio.play().catch(e => console.error('Error playing audio:', e));
-      }
-      
-      // Reset UI
-      if (elements.userText) {
-        elements.userText.textContent = placeholderText;
-        elements.userText.classList.add('placeholder');
-        elements.userText.dataset.isPlaceholder = 'true';
-      }
-      
-      if (elements.userAudioSection) {
-        elements.userAudioSection.classList.add('hidden');
-      }
-      
-      // Clean up
-      try {
-        await deleteRecordedAudio();
-      } catch (deleteError) {
-        console.warn('Could not delete audio file:', deleteError);
-      }
-      
-      recordedAudioBlob = null;
-      
-      showStatus(elements.globalStatus, '✅ Message envoyé', 'success');
-      setTimeout(() => hideStatus(elements.globalStatus), 2000);
-    }
-    
-  } catch (error) {
-    console.error('Error sending message:', error);
-    showStatus(elements.globalStatus, '⚠️ Erreur: ' + error.message, 'error');
-  }
-}
-
-  function setupEditableText() {
-    if (elements.userText) {
-      elements.userText.addEventListener('focus', function() {
-        if (this.dataset.isPlaceholder === 'true') {
-          this.textContent = '';
-          this.classList.remove('placeholder');
-          this.dataset.isPlaceholder = 'false';
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
-      });
 
-      elements.userText.addEventListener('blur', function() {
-        if (!this.textContent.trim()) {
-          this.textContent = placeholderText;
-          this.classList.add('placeholder');
-          this.dataset.isPlaceholder = 'true';
-        }
-      });
+        const data = await response.json();
+        console.log('Backend response:', data);
+        currentResponse = data.response; // Angepasst an 'response' aus app.py
+        showResponseText(); // Show the text first
+    
+        if (data.audio_url) { // Angepasst an 'audio_url' aus app.py
 
-      elements.userText.addEventListener('paste', function(e) {
-        e.preventDefault();
-        const text = (e.originalEvent || e).clipboardData.getData('text/plain');
-        
-        const selection = window.getSelection();
-        if (selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0);
-          range.deleteContents();
-          range.insertNode(document.createTextNode(text));
-          range.collapse(false);
+            elements.audioPlayback.src = data.audio_url;
+            elements.audioPlayback.classList.remove('hidden');
+            elements.playAudioBtn.classList.remove('hidden');
+            audioHasBeenPlayed = false; // Reset for new response
+            updateShowResponseButton();
+            showProgressStatus(3, '🔊 Audio prêt.');
+
         } else {
-          this.textContent = text;
+
+            showStatus(elements.audioStatus, '⚠️ Aucun audio de réponse reçu.', 'warning');
+            elements.playAudioBtn.classList.add('hidden');
+            showProgressStatus(4, '✅ Réponse textuelle prête.');
         }
-        
-        this.classList.remove('placeholder');
-        this.dataset.isPlaceholder = 'false';
-      });
 
-      elements.userText.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          sendMessage();
+        showStatus(elements.globalStatus, '✅ Réponse reçue', 'success');
+
+    } catch (error) {
+
+        console.error('Error sending message to backend:', error);
+        showStatus(elements.globalStatus, `❌ Erreur: ${error.message}`, 'error');
+        elements.responseText.textContent = 'Une erreur est survenue lors de la communication avec le serveur.';
+        isTextCurrentlyVisible = true;
+        updateShowResponseButton();
+
+    } finally {
+
+        elements.sendBtn.disabled = false;
+        elements.recordBtn.disabled = false;
+    }
+
+}
+
+    // === Audio Upload Function (Updated) ===
+
+    async function uploadRecordedAudio(audioBlob, mimeType) {
+        if (!audioBlob) {
+            console.warn('No audio blob to upload.');
+        return null;
         }
-      });
-    }
-  }
 
-  async function deleteRecordedAudio() {
-    if (!userId) return;
-    
-    try {
-      const response = await fetch('/api/delete-audio', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: userId
-        })
-      });
-      
-      if (response.ok) {
-        console.log('Audio file deleted successfully');
-      } else {
-        console.warn('Could not delete audio file');
-      }
-    } catch (error) {
-      console.error('Error deleting audio file:', error);
-    }
-  }
+        const formData = new FormData();
+        // Verwenden Sie den korrekten Dateinamen mit der ermittelten Erweiterung
+        // Der Backend-Teil os.path.splitext(original_filename)[1] erwartet eine Erweiterung
 
-  // Use STT button functionality
-  elements.useSTTBtn?.addEventListener('click', async () => {
-    if (!recordedAudioBlob) {
-      showStatus(elements.globalStatus, '⚠️ Aucun audio enregistré', 'error');
-      return;
-    }
+        const fileExtension = mimeType.split('/')[1].split(';')[0]; // z.B. 'webm' aus 'audio/webm;codecs=opus'
+        formData.append('audio', audioBlob, `recording.${fileExtension}`); // 'audio' ist der Key, den das Backend erwartet
+        formData.append('user_id', userId);
+        console.log(`Uploading audio blob of type ${mimeType} with size ${audioBlob.size} bytes as recording.${fileExtension} to /api/transcribe`);
 
-    try {
-      showStatus(elements.globalStatus, '🔄 Transcription en cours...', 'loading');
-      
-      const formData = new FormData();
-      formData.append('audio', recordedAudioBlob, 'recording.webm');
-      formData.append('user_id', userId);
-      
-      const response = await fetch('/api/transcribe', {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Transcription failed: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.transcription && elements.userText) {
-        elements.userText.textContent = data.transcription;
-        elements.userText.classList.remove('placeholder');
-        elements.userText.dataset.isPlaceholder = 'false';
-        showStatus(elements.globalStatus, '✅ Transcription terminée', 'success');
-        setTimeout(() => hideStatus(elements.globalStatus), 2000);
-      } else {
-        throw new Error('Aucune transcription reçue');
-      }
-      
-    } catch (error) {
-      console.error('Transcription error:', error);
-      showStatus(elements.globalStatus, '⚠️ Erreur de transcription: ' + error.message, 'error');
+        try {
+
+            const response = await fetch('/api/transcribe', { // Wieder auf /api/transcribe gerichtet
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log('Audio uploaded successfully:', data);
+            return data; // Enthält audio_path
+
+        } catch (error) {
+
+            console.error('Error uploading audio:', error);
+            return null;
+
+        }
+
     }
-  });
 
   // === Event Listeners ===
-  
-  // Record button: Real-time by default, traditional recording with Shift
-    elements.recordBtn?.addEventListener('click', (event) => {
-      if (elements.recordBtn.classList.contains('recording')) {
-        stopRealTimeSpeech();
-      } else {
-        startRealTimeSpeech();
-      }
-    });
-
-    elements.stopBtn?.addEventListener('click', () => {
-      stopRealTimeSpeech();
-    });
-
-    elements.sendBtn?.addEventListener('click', sendMessage);
 
   elements.startBtn?.addEventListener('click', async () => {
     const scenario = elements.scenarioSelect?.value;
@@ -787,7 +684,7 @@ async function sendMessage() {
 
     elements.startSection?.classList.add('hidden');
     elements.conversationSection?.classList.remove('hidden');
-    
+    currentUserId = userId; // Set current user ID
     // Setzt den Anzeigetext für das aktuelle Szenario
     const currentScenarioDisplay = document.getElementById('currentScenarioDisplay');
     if (currentScenarioDisplay) {
@@ -804,12 +701,15 @@ async function sendMessage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
-            text: intro, 
-            user_id: 'intro_' + Date.now(),
+            message: intro, // Hier 'message' verwenden, wie es der Backend-Endpunkt erwartet
+            userId: userId, // Hier 'userId' verwenden
             scenario: scenario
           })
         });
 
+        if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+        }
         const data = await res.json();
         currentResponse = data.response;
         
@@ -817,10 +717,8 @@ async function sendMessage() {
         
         if (data.audio_url && elements.audioPlayback) {
           showProgressStatus(3, '🎵 Audio généré, préparation de la lecture...');
-          
           elements.audioPlayback.src = data.audio_url;
           elements.audioPlayback.classList.remove('hidden');
-          
           elements.audioPlayback.addEventListener('canplay', function() {
             showProgressStatus(4, '🔊 Audio prêt! Cliquez sur "Écouter" pour commencer.');
             elements.playAudioBtn?.classList.remove('hidden');
@@ -847,10 +745,66 @@ async function sendMessage() {
         elements.responseText.innerHTML = "🎯 Sujet libre sélectionné. Cliquez sur 'Reconnaissance vocale' pour commencer!";
       }
     }
+    // Start speech recognition and recording automatically after scenario setup
+    await startRealTimeSpeech();
   });
 
-  elements.newConvBtn?.addEventListener('click', resetUI);
+  elements.newConvBtn?.addEventListener('click', () => {resetUI();});
+// Anpassen des Record-Buttons, um Start/Stop der Echtzeit-Spracherkennung zu steuern
 
+elements.recordBtn?.addEventListener('click', () => {
+
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        stopRealTimeSpeech();
+    } else {
+        startRealTimeSpeech();
+    }
+
+});
+
+elements.stopBtn?.addEventListener('click', () => {
+
+    stopRealTimeSpeech();
+
+});
+
+elements.sendBtn?.addEventListener('click', () => {
+
+    // Wenn der Benutzer auf "Senden" klickt, senden wir den aktuellen finalTranscript an das Backend
+
+    if (finalTranscript.trim()) {
+
+        sendMessageToBackend(finalTranscript.trim());
+
+    } else if (elements.userText.textContent.trim() && elements.userText.dataset.isPlaceholder !== 'true') {
+
+        // Fallback: Wenn kein finalTranscript, aber Text im Feld ist (z.B. manuell eingegeben)
+
+        sendMessageToBackend(elements.userText.textContent.trim());
+
+    } else {
+
+    showStatus(elements.globalStatus, 'Veuillez d\'abord enregistrer ou taper un message.', 'warning');
+
+    }
+
+});
+
+elements.playAudioBtn?.addEventListener('click', () => {
+
+    if (elements.audioPlayback && elements.audioPlayback.src) {
+
+        elements.audioPlayback.play().catch(err => {
+            console.error('Audio play failed:', err);
+            showStatus(elements.audioStatus, '⚠️ Impossible de lire l\'audio', 'error');
+        });
+
+        audioHasBeenPlayed = true;
+        updateShowResponseButton();
+
+    }
+
+});
   elements.showResponseBtn?.addEventListener('click', () => {
     if (currentResponse && audioHasBeenPlayed) {
       if (isTextCurrentlyVisible) {
@@ -868,35 +822,47 @@ async function sendMessage() {
     }
   });
 
-  elements.playAudioBtn?.addEventListener('click', () => {
-    if (elements.audioPlayback?.src) {
-      elements.audioPlayback.play().catch(err => {
-        console.error('Audio play failed:', err);
-        showStatus(elements.audioStatus, '⚠️ Impossible de lire l\'audio', 'error');
-      });
-    }
-  });
+    elements.scenarioSelect?.addEventListener('change', (event) => {
+        currentScenario = event.target.value;
+        console.log('Scenario changed to:', currentScenario);
+    });
 
   // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     // Ctrl+Enter to send message
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
-      sendMessage();
+      
+        if (finalTranscript.trim()) {
+            sendMessageToBackend(finalTranscript.trim());
+        } else if (elements.userText.textContent.trim() && elements.userText.dataset.isPlaceholder !== 'true') {
+            sendMessageToBackend(elements.userText.textContent.trim());
+        } else {
+            showStatus(elements.globalStatus, 'Veuillez d\'abord enregistrer ou taper un message.', 'warning');
+        }
     }
     
     // Space bar to toggle real-time speech (when not in input field)
+    // Deaktiviert, da startRealTimeSpeech() jetzt beim Start der Konversation aufgerufen wird
+    // und der Record-Button die Funktionalität übernimmt.
+
+    /*
     if (e.code === 'Space' && e.target === document.body && elements.conversationSection && !elements.conversationSection.classList.contains('hidden')) {
       e.preventDefault();
-      if (isRealTimeMode) {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+
         stopRealTimeSpeech();
       } else {
         startRealTimeSpeech();
+
       }
-    }
+
+    }        */
 });
 
  
   
+// Initial UI setup
+  resetUI();
   console.log('🚀 FR-AI-Tutor Frontend initialized with Real-Time Speech Recognition');
 });

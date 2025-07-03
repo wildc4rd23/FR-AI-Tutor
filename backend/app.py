@@ -4,6 +4,7 @@ from flask_cors import CORS
 import os
 import requests
 import logging
+import uuid # Import für eindeutige Dateinamen
 
 # =========================================================
 # TTS KONFIGURATION: Wählen Sie hier Ihren aktiven TTS-Anbieter
@@ -97,7 +98,6 @@ def delete_audio():
     
     try:
         temp_path_absolute, _ = get_user_temp_dir(user_id, base_dir=TEMP_AUDIO_DIR_ROOT)
-        audio_path = os.path.join(temp_path_absolute, "recording.mp3")
         
         # Auch andere mögliche Dateiformate löschen
         possible_files = [
@@ -134,50 +134,55 @@ def delete_audio():
         return jsonify({'error': f'Fehler beim Löschen: {str(e)}'}), 500
 
 
-# === Transkription (Vosk für später) ===
+# === Transkription (Vosk für später) - Angepasst für Dateispeicherung ===
 @app.route('/api/transcribe', methods=['POST'])
 def transcribe():
     if 'audio' not in request.files:
         return jsonify({'error': 'Keine Audiodatei empfangen'}), 400
 
-    # KORRIGIERT: Hole user_id aus Form-Daten falls vorhanden
     user_id = request.form.get('user_id')
-    
+    audio_file = request.files['audio']
+
     temp_path_for_stt, user_id = get_user_temp_dir(user_id, base_dir=TEMP_AUDIO_DIR_ROOT)
-    # Debug: Check if user_id is being duplicated
-    logger.info(f"Original user_id: {request.form.get('user_id')}, processed: {user_id}")
-    audio_path = os.path.join(temp_path_for_stt, "recording.mp3") # Speichert die Benutzeraufnahme als 'recording.mp3'
+    
+    # Dateierweiterung aus dem Original-Dateinamen extrahieren
+    # Das Frontend sendet jetzt den korrekten Dateinamen, z.B. "recording.webm"
+    original_filename = audio_file.filename
+    file_extension = os.path.splitext(original_filename)[1] # Z.B. .webm
+
+    # Generiere einen eindeutigen Dateinamen, um Konflikte zu vermeiden
+    audio_filename = f"recording_{uuid.uuid4()}{file_extension}"
+    audio_path_absolute = os.path.join(temp_path_for_stt, audio_filename)
 
     try:
-        # KORRIGIERT: Speichere die empfangene Audio-Datei
-        audio_file = request.files['audio']
-        audio_file.save(audio_path)
-        logger.info(f"Benutzeraufnahme für User {user_id} als {audio_path} gespeichert.")
+        audio_file.save(audio_path_absolute)
+        logger.info(f"Benutzeraufnahme für User {user_id} als {audio_path_absolute} gespeichert.")
         
-        # Prüfe ob Datei korrekt gespeichert wurde
-        if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
-            logger.info(f"Aufnahme erfolgreich gespeichert: {audio_path} ({os.path.getsize(audio_path)} bytes)")
+        if os.path.exists(audio_path_absolute) and os.path.getsize(audio_path_absolute) > 0:
+            logger.info(f"Aufnahme erfolgreich gespeichert: {audio_path_absolute} ({os.path.getsize(audio_path_absolute)} bytes)")
         else:
-            logger.error(f"Aufnahme nicht korrekt gespeichert: {audio_path}")
+            logger.error(f"Aufnahme nicht korrekt gespeichert: {audio_path_absolute}")
             return jsonify({'error': 'Fehler beim Speichern der Audiodatei'}), 500
         
         # VOSK STT Integration (für späteren Einsatz)
         # from vosk_stt import transcribe_audio # Import hier, wenn Vosk verwendet wird
         # try:
-        #     # transcript = transcribe_audio(audio_path) # Funktion von vosk_stt.py
+        #     # transcript = transcribe_audio(audio_path_absolute) # Funktion von vosk_stt.py
         #     transcript = "Dies ist eine Transkription von Vosk (noch nicht aktiv)." # Dummy, bis Vosk implementiert ist
         #     logger.info(f"Audio für User {user_id} transkribiert: {transcript[:50]}...")
-        #     return jsonify({'transcript': transcript})
+        #     return jsonify({'transcript': transcript, 'audio_path': f"/temp_audio/{os.path.relpath(audio_path_absolute, start=TEMP_AUDIO_DIR_ROOT).replace(os.sep, '/')}"})
         # except Exception as e:
         #     logger.error(f"Fehler bei Vosk-Transkription für User {user_id}: {str(e)}")
-        #     return jsonify({'error': f'Fehler bei Transkription: {str(e)}'}), 500
+        #     return jsonify({'error': f'Fehler bei Transkription: {str(e)}', 'audio_path': f"/temp_audio/{os.path.relpath(audio_path_absolute, start=TEMP_AUDIO_DIR_ROOT).replace(os.sep, '/')}"}), 500
         
         # Wenn Vosk nicht verwendet wird, einfach eine Erfolgsmeldung zurückgeben.
         # Die Transkription wird im Frontend durchgeführt.
+        # WICHTIG: Den Pfad zur gespeicherten Datei zurückgeben
+        relative_audio_path = os.path.relpath(audio_path_absolute, start=TEMP_AUDIO_DIR_ROOT).replace(os.sep, '/')
         return jsonify({
             'message': 'Audio erfolgreich gespeichert.',
             'user_id': user_id,
-            'audio_path': audio_path
+            'audio_path': f"/temp_audio/{relative_audio_path}" # Korrekter Pfad für Frontend-Wiedergabe
         })
 
     except Exception as e:
