@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let userId = Date.now().toString(); // Generate unique user ID
   let currentScenario = 'libre'; // Default scenario
 
-  const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
+  const placeholderText = "Tapez votre message hier oder verwenden Sie die Aufnahme...";
 
   // === VERBESSERTE Spracherkennung mit stabilerer Real-Time Implementation ===
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -199,8 +199,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   } else {
     console.warn('SpeechRecognition API nicht verfügbar.');
-    // elements.useSTTBtn ist nicht mehr in der elements-Liste, daher auskommentiert
-    // if (elements.useSTTBtn) elements.useSTTBtn.classList.add('hidden');
     showStatus(elements.globalStatus, '⚠️ Reconnaissance vocale non supportée dans ce navigateur.', 'warning');
   }
 
@@ -311,7 +309,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function hideResponseText() {
-    showProgressStatus(4, '✅ Texte masqué. Cliquez pour réafficher.');
+    showProgressStatus(4, '✅ Text ausgeblendet. Klicken Sie zum erneuten Anzeigen.');
     isTextCurrentlyVisible = false;
     updateShowResponseButton();
   }
@@ -322,9 +320,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (audioHasBeenPlayed && currentResponse) {
       elements.showResponseBtn.classList.remove('hidden');
       if (isTextCurrentlyVisible) {
-        elements.showResponseBtn.innerHTML = '🙈 Masquer la réponse';
+        elements.showResponseBtn.innerHTML = '🙈 Antwort ausblenden';
       } else {
-        elements.showResponseBtn.innerHTML = '👁️ Afficher la réponse';
+        elements.showResponseBtn.innerHTML = '👁️ Antwort anzeigen';
       }
     } else {
       elements.showResponseBtn.classList.add('hidden');
@@ -375,7 +373,6 @@ function resetUI() {
     elements.showResponseBtn?.classList.add('hidden');
     
     resetRecordButton();
-    // elements.useSTTBtn?.classList.add('hidden'); // useSTTBtn ist nicht mehr in elements
     
     currentUserId = null;
     recordedAudioBlob = null;
@@ -395,7 +392,7 @@ function resetUI() {
       try {
         const permissionsOk = await checkMicrophonePermissions();
         if (!permissionsOk || !recognition) {
-          showStatus(elements.globalStatus, '⚠️ Microphone ou reconnaissance vocale non disponible', 'error');
+          showStatus(elements.globalStatus, '⚠️ Mikrofon oder Spracherkennung nicht verfügbar', 'error');
           return;
         }
 
@@ -455,13 +452,14 @@ function resetUI() {
 
             console.log('Created blob:', recordedAudioBlob.size, 'bytes');
             // Audio an das Backend senden zum Speichern über die /api/transcribe Route
-            showStatus(elements.recordingStatus, '💾 Sauvegarde de l\'audio...', 'loading');
+            showStatus(elements.recordingStatus, '💾 Audio wird gespeichert...', 'loading');
             const uploadResult = await uploadRecordedAudio(recordedAudioBlob, mimeType);
             if (uploadResult && uploadResult.audio_path) {
-                showStatus(elements.recordingStatus, '✅ Audio sauvegardé', 'success');
+                showStatus(elements.recordingStatus, '✅ Audio gespeichert', 'success');
                 // Sicherstellen, dass Elemente gültig sind, bevor versucht wird, sie zu manipulieren
                 if (elements.userAudio && elements.userAudioSection) {
                     elements.userAudio.src = uploadResult.audio_path;
+                    elements.userAudio.load(); // Explizites Laden hinzufügen
                     elements.userAudioSection.classList.remove('hidden'); // Macht den Audio-Player sichtbar
                     console.log('User audio player set and section shown. Src:', elements.userAudio.src);
                 } else {
@@ -469,7 +467,7 @@ function resetUI() {
                 }
 
             } else {
-                showStatus(elements.recordingStatus, '⚠️ Échec de la sauvegarde audio', 'error');
+                showStatus(elements.recordingStatus, '⚠️ Fehler beim Speichern des Audios', 'error');
             }
 
             console.log('Audio recording completed and uploaded, blob size:', recordedAudioBlob.size);
@@ -477,7 +475,7 @@ function resetUI() {
             } else {
 
             console.error('No audio chunks recorded!');
-            showStatus(elements.recordingStatus, '⚠️ Aucun audio enregistré', 'error');
+            showStatus(elements.recordingStatus, '⚠️ Kein Audio aufgenommen', 'error');
 
             }
         };
@@ -496,20 +494,20 @@ function resetUI() {
         
         // Update UI
         if (elements.recordBtn) {
-          elements.recordBtn.innerHTML = '🔴 Arrêter l\'enregistrement';
+          elements.recordBtn.innerHTML = '🔴 Aufnahme stoppen';
           elements.recordBtn.classList.add('recording');
         }
         
         if (elements.stopBtn) {
           elements.stopBtn.classList.remove('hidden');
-          elements.stopBtn.innerHTML = '⏹️ Arrêter';
+          elements.stopBtn.innerHTML = '⏹️ Stoppen';
         }
         
-        showStatus(elements.recordingStatus, '🎤 Enregistrement + reconnaissance actifs', 'success');
+        showStatus(elements.recordingStatus, '🎤 Aufnahme + Erkennung aktiv', 'success');
         
       } catch (err) {
         console.error('Real-time speech error:', err);
-        showStatus(elements.recordingStatus, '⚠️ Erreur: ' + err.message, 'error');
+        showStatus(elements.recordingStatus, '⚠️ Fehler: ' + err.message, 'error');
         resetRecordButton();
         cleanupAudioStream();
       }
@@ -550,7 +548,7 @@ function resetUI() {
     if (elements.userText) {
         const finalContent = finalTranscript.trim();
         elements.userText.textContent = finalContent;
-        console.log('Final User Text set:', elements.userText.textContent); // Bestätigen des Inhalts
+        console.log('Final User Text gesetzt:', elements.userText.textContent); // Bestätigen des Inhalts
 
         if (finalContent) {
             elements.userText.classList.remove('placeholder');
@@ -569,9 +567,9 @@ function resetUI() {
 if (finalTranscript.trim()) {
     sendMessageToBackend(finalTranscript.trim());
 } else {
-    showStatus(elements.recordingStatus, 'Aucune parole détectée.', 'warning'); // Geändert zu recordingStatus
+    showStatus(elements.recordingStatus, 'Keine Sprache erkannt.', 'warning');
 }
-showStatus(elements.recordingStatus, '✅ Enregistrement terminé', 'success');
+showStatus(elements.recordingStatus, '✅ Aufnahme beendet', 'success');
 }
 
   function cleanupAudioStream() {
@@ -588,10 +586,10 @@ showStatus(elements.recordingStatus, '✅ Enregistrement terminé', 'success');
 async function sendMessageToBackend(message) {
 
     if (!message.trim()) {
-        showStatus(elements.globalStatus, 'Veuillez entrer un message.', 'warning');
+        showStatus(elements.globalStatus, 'Bitte geben Sie eine Nachricht ein.', 'warning');
         return;
     }
-    showProgressStatus(1, '🚀 Envoi du message...');
+    showProgressStatus(1, '🚀 Nachricht wird gesendet...');
 
     elements.sendBtn.disabled = true;
     elements.recordBtn.disabled = true;
@@ -624,22 +622,22 @@ async function sendMessageToBackend(message) {
             elements.playAudioBtn.classList.remove('hidden');
             audioHasBeenPlayed = false; // Reset for new response
             updateShowResponseButton();
-            showProgressStatus(3, '🔊 Audio prêt.');
+            showProgressStatus(3, '🔊 Audio bereit.');
 
         } else {
 
-            showStatus(elements.audioStatus, '⚠️ Aucun audio de réponse reçu.', 'warning');
+            showStatus(elements.audioStatus, '⚠️ Keine Audioantwort erhalten.', 'warning');
             elements.playAudioBtn.classList.add('hidden');
-            showProgressStatus(4, '✅ Réponse textuelle prête.');
+            showProgressStatus(4, '✅ Textantwort bereit.');
         }
 
-        showStatus(elements.globalStatus, '✅ Réponse reçue', 'success');
+        showStatus(elements.globalStatus, '✅ Antwort erhalten', 'success');
 
     } catch (error) {
 
         console.error('Error sending message to backend:', error);
-        showStatus(elements.globalStatus, `❌ Erreur: ${error.message}`, 'error');
-        elements.responseText.textContent = 'Une erreur est survenue lors de la communication avec le serveur.';
+        showStatus(elements.globalStatus, `❌ Fehler: ${error.message}`, 'error');
+        elements.responseText.textContent = 'Beim Kommunizieren mit dem Server ist ein Fehler aufgetreten.';
         isTextCurrentlyVisible = true;
         updateShowResponseButton();
 
@@ -697,7 +695,7 @@ async function sendMessageToBackend(message) {
   elements.startBtn?.addEventListener('click', async () => {
     const scenario = elements.scenarioSelect?.value;
     if (!scenario) {
-      showStatus(elements.globalStatus, "⚠️ Veuillez choisir un thème.", 'error');
+      showStatus(elements.globalStatus, "⚠️ Bitte wählen Sie ein Thema aus.", 'error');
       setTimeout(() => hideStatus(elements.globalStatus), 3000);
       return;
     }
@@ -708,13 +706,13 @@ async function sendMessageToBackend(message) {
     // Setzt den Anzeigetext für das aktuelle Szenario
     const currentScenarioDisplay = document.getElementById('currentScenarioDisplay');
     if (currentScenarioDisplay) {
-      currentScenarioDisplay.innerText = scenario === "libre" ? "Votre sujet libre" : scenario;
+      currentScenarioDisplay.innerText = scenario === "libre" ? "Ihr freies Thema" : scenario;
     }
 
     if (scenario !== "libre") {
-      showProgressStatus(1, '🤔 L\'assistant prépare la conversation...');
+      showProgressStatus(1, '🤔 Der Assistent bereitet das Gespräch vor...');
       
-      const intro = `J'apprends le français au niveau B1/B2. Je voudrais avoir une conversation avec toi sur le thème « ${scenario} ». Corrige-moi si je fais des erreurs et aide-moi à améliorer ma grammaire et mon expression. Commence par me poser une question ou présenter une situation pour démarrer notre conversation.`;
+      const intro = `Ich lerne Französisch auf Niveau B1/B2. Ich möchte ein Gespräch mit dir über das Thema « ${scenario} » führen. Korrigiere mich, wenn ich Fehler mache und hilf mir, meine Grammatik und meinen Ausdruck zu verbessern. Beginne, indem du mir eine Frage stellst oder eine Situation präsentierst, um unser Gespräch zu beginnen.`;
 
       try {
         const res = await fetch('/api/respond', {
@@ -733,20 +731,20 @@ async function sendMessageToBackend(message) {
         const data = await res.json();
         currentResponse = data.response;
         
-        showProgressStatus(2, '📝 Conversation préparée, génération de l\'audio...');
+        showProgressStatus(2, '📝 Gespräch vorbereitet, Audio wird generiert...');
         
         if (data.audio_url) {
-          showProgressStatus(3, '🎵 Audio généré, préparation de la lecture...');
+          showProgressStatus(3, '🎵 Audio generiert, Wiedergabe wird vorbereitet...');
           elements.audioPlayback.src = data.audio_url;
           elements.audioPlayback.classList.remove('hidden');
           elements.audioPlayback.addEventListener('canplay', function() {
-            showProgressStatus(4, '🔊 Audio prêt! Cliquez sur "Écouter" pour commencer.');
+            showProgressStatus(4, '🔊 Audio bereit! Klicken Sie auf "Anhören", um zu beginnen.');
             elements.playAudioBtn?.classList.remove('hidden');
           }, { once: true });
 
           elements.audioPlayback.addEventListener('ended', function() {
             audioHasBeenPlayed = true;
-            showProgressStatus(4, '✅ Lecture terminée! Vous pouvez maintenant voir le texte.');
+            showProgressStatus(4, '✅ Wiedergabe beendet! Sie können den Text jetzt sehen.');
             updateShowResponseButton();
           }, { once: true });
         } else {
@@ -757,12 +755,12 @@ async function sendMessageToBackend(message) {
       } catch (err) {
         console.error('Error starting conversation:', err);
         if (elements.responseText) {
-          elements.responseText.innerHTML = `<div class="status-message status-error">⚠️ Erreur: ${err.message}</div>`;
+          elements.responseText.innerHTML = `<div class="status-message status-error">⚠️ Fehler: ${err.message}</div>`;
         }
       }
     } else {
       if (elements.responseText) {
-        elements.responseText.innerHTML = "🎯 Sujet libre sélectionné. Cliquez sur 'Reconnaissance vocale' pour commencer!";
+        elements.responseText.innerHTML = "🎯 Freies Thema ausgewählt. Klicken Sie auf 'Spracherkennung', um zu beginnen!";
       }
     }
   });
@@ -802,7 +800,7 @@ elements.sendBtn?.addEventListener('click', () => {
 
     } else {
 
-    showStatus(elements.globalStatus, 'Veuillez d\'abord enregistrer ou taper un message.', 'warning');
+    showStatus(elements.globalStatus, 'Bitte nehmen Sie zuerst eine Nachricht auf oder tippen Sie sie ein.', 'warning');
 
     }
 
@@ -814,7 +812,7 @@ elements.playAudioBtn?.addEventListener('click', () => {
 
         elements.audioPlayback.play().catch(err => {
             console.error('Audio play failed:', err);
-            showStatus(elements.audioStatus, '⚠️ Impossible de lire l\'audio', 'error');
+            showStatus(elements.audioStatus, '⚠️ Wiedergabe des Audios nicht möglich', 'error');
         });
 
         audioHasBeenPlayed = true;
@@ -835,7 +833,7 @@ elements.playAudioBtn?.addEventListener('click', () => {
         elements.showResponseBtn?.classList.add('hidden');
     }
     else if (!audioHasBeenPlayed) {
-      showStatus(elements.globalStatus, '⚠️ Veuillez d\'abord écouter l\'audio', 'error');
+      showStatus(elements.globalStatus, '⚠️ Bitte hören Sie sich zuerst das Audio an', 'error');
       setTimeout(() => hideStatus(elements.globalStatus), 3000);
     }
   });
@@ -856,7 +854,7 @@ elements.playAudioBtn?.addEventListener('click', () => {
         } else if (elements.userText.textContent.trim() && elements.userText.dataset.isPlaceholder !== 'true') {
             sendMessageToBackend(elements.userText.textContent.trim());
         } else {
-            showStatus(elements.globalStatus, 'Veuillez d\'abord enregistrer ou taper un message.', 'warning');
+            showStatus(elements.globalStatus, 'Bitte nehmen Sie zuerst eine Nachricht auf oder tippen Sie sie ein.', 'warning');
         }
     }
     
