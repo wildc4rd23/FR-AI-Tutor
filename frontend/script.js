@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let recognitionTimeout;
   let finalTranscript = ''; //speichert den kumulativen finalen Transkript
   let isRecognitionRestarting = false;
-  let userId = 'user_' + Date.now(); // Generate unique user ID
+  let userId = Date.now().toString(); // Generate unique user ID
   let currentScenario = 'libre'; // Default scenario
 
   const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
@@ -454,10 +454,10 @@ function resetUI() {
 
             console.log('Created blob:', recordedAudioBlob.size, 'bytes');
             // Audio an das Backend senden zum Speichern über die /api/transcribe Route
-            showStatus(elements.audioStatus, '💾 Sauvegarde de l\'audio...', 'loading');
+            showStatus(elements.recordingStatus, '💾 Sauvegarde de l\'audio...', 'loading');
             const uploadResult = await uploadRecordedAudio(recordedAudioBlob, mimeType); // Pass blob and mimeType to upload function
             if (uploadResult && uploadResult.audio_path) {
-                showStatus(elements.audioStatus, '✅ Audio sauvegardé', 'success');
+                showStatus(elements.recordingStatus, '✅ Audio sauvegardé', 'success');
             // Setze die src des userAudio-Elements auf den vom Backend zurückgegebenen Pfad
 
                 if (elements.userAudio) {
@@ -466,7 +466,7 @@ function resetUI() {
                 }
 
             } else {
-                showStatus(elements.audioStatus, '⚠️ Échec de la sauvegarde audio', 'error');
+                showStatus(elements.recordingStatus, '⚠️ Échec de la sauvegarde audio', 'error');
             }
 
             console.log('Audio recording completed and uploaded, blob size:', recordedAudioBlob.size);
@@ -474,7 +474,7 @@ function resetUI() {
             } else {
 
             console.error('No audio chunks recorded!');
-            showStatus(elements.audioStatus, '⚠️ Aucun audio enregistré', 'error');
+            showStatus(elements.recordingStatus, '⚠️ Aucun audio enregistré', 'error');
 
             }
         };
@@ -542,17 +542,34 @@ function resetUI() {
       
       cleanupAudioStream();
       resetRecordButton();
-      // Wenn die Aufnahme gestoppt wurde, triggere das Senden des Textes
+    // Wenn die Aufnahme gestoppt wurde, stelle sicher, dass der finale Text im userText-Feld ist
 
-        if (finalTranscript.trim()) {
-            elements.userText.textContent = finalTranscript.trim(); // Stelle sicher, dass der finale Text im userText-Feld ist
-            sendMessageToBackend(finalTranscript.trim()); // Sende den transkribierten Text an das Backend
+    if (elements.userText) {
+
+        elements.userText.textContent = finalTranscript.trim();
+
+        if (!elements.userText.textContent) { // Wenn userText immer noch leer ist
+
+            elements.userText.textContent = placeholderText;
+            elements.userText.classList.add('placeholder');
+            elements.userText.dataset.isPlaceholder = 'true';
         } else {
-            showStatus(elements.globalStatus, 'Aucune parole détectée.', 'warning');
+
+            elements.userText.classList.remove('placeholder');
+            elements.userText.dataset.isPlaceholder = 'false';
         }
-      showStatus(elements.recordingStatus, '✅ Enregistrement terminé', 'success');
-      
+
     }
+
+// Sende den transkribierten Text an das Backend
+
+if (finalTranscript.trim()) {
+    sendMessageToBackend(finalTranscript.trim());
+} else {
+    showStatus(elements.recordingStatus, 'Aucune parole détectée.', 'warning'); // Geändert zu recordingStatus
+}
+showStatus(elements.recordingStatus, '✅ Enregistrement terminé', 'success');
+}
 
   function cleanupAudioStream() {
     if (currentAudioStream) {
@@ -582,7 +599,7 @@ async function sendMessageToBackend(message) {
             headers: {'Content-Type': 'application/json',},
             body: JSON.stringify({
             message: message,
-            userId: userId, // Verwenden Sie userId, nicht user_id
+            userId: userId, 
             scenario: currentScenario
             }),
 
@@ -715,7 +732,7 @@ async function sendMessageToBackend(message) {
         
         showProgressStatus(2, '📝 Conversation préparée, génération de l\'audio...');
         
-        if (data.audio_url && elements.audioPlayback) {
+        if (data.audio_url) {
           showProgressStatus(3, '🎵 Audio généré, préparation de la lecture...');
           elements.audioPlayback.src = data.audio_url;
           elements.audioPlayback.classList.remove('hidden');
@@ -745,8 +762,6 @@ async function sendMessageToBackend(message) {
         elements.responseText.innerHTML = "🎯 Sujet libre sélectionné. Cliquez sur 'Reconnaissance vocale' pour commencer!";
       }
     }
-    // Start speech recognition and recording automatically after scenario setup
-    await startRealTimeSpeech();
   });
 
   elements.newConvBtn?.addEventListener('click', () => {resetUI();});
