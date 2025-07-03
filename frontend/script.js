@@ -401,7 +401,6 @@ function resetUI() {
 
         // Reset transcript
         finalTranscript = '';
-        audioChunks = [];
         recordedAudioBlob = null;
         
         // Clear user text
@@ -417,6 +416,8 @@ function resetUI() {
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true,
+            sampleRate: 44100,
+            channelCount: 1
           }
         };
         
@@ -427,20 +428,29 @@ function resetUI() {
           options.mimeType = 'audio/webm;codecs=opus';
         } else if (MediaRecorder.isTypeSupported('audio/webm')) {
           options.mimeType = 'audio/webm';
+        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+          options.mimeType = 'audio/mp4';
+        } else {
+          console.warn('No supported audio format found');
         }
+        console.log('Using MediaRecorder with:', options)
         
         mediaRecorder = new MediaRecorder(currentAudioStream, options);
-        
+
+        // Event-Handler VOR start() setzen
         mediaRecorder.ondataavailable = event => {
+          console.log('Data available:', event.data.size, 'bytes');
           if (event.data.size > 0) {
             audioChunks.push(event.data);
           }
         };
-        
+
         mediaRecorder.onstop = async () => {
+          console.log('MediaRecorder stopped, total chunks:', audioChunks.length);
           if (audioChunks.length > 0) {
             const mimeType = mediaRecorder.mimeType || 'audio/webm';
             recordedAudioBlob = new Blob(audioChunks, { type: mimeType });
+            console.log('Created blob:', recordedAudioBlob.size, 'bytes');
             
             // Automatically upload audio to backend
             await uploadRecordedAudio();
@@ -452,10 +462,18 @@ function resetUI() {
             }
             
             console.log('Audio recording completed and uploaded, blob size:', recordedAudioBlob.size);
+          } else {
+            console.error('No audio chunks recorded!');
           }
         };
         
-        mediaRecorder.start(250);
+        // Warten bis MediaRecorder ready ist
+        setTimeout(() => {
+          if (mediaRecorder && mediaRecorder.state === 'inactive') {
+            mediaRecorder.start(1000); // Längere Intervalle für bessere Chunks
+            console.log('MediaRecorder started with state:', mediaRecorder.state);
+          }
+        }, 100);
         
         // Start speech recognition
         isRecognitionRestarting = false;
@@ -497,7 +515,17 @@ function resetUI() {
       recognitionActive = false;
       
       if (mediaRecorder && mediaRecorder.state === "recording") {
+        console.log('Stopping MediaRecorder...');
         mediaRecorder.stop();
+        
+        // Warten bis MediaRecorder wirklich gestoppt ist
+        setTimeout(() => {
+          console.log('MediaRecorder final state:', mediaRecorder.state);
+          // audioChunks erst nach dem Stop zurücksetzen
+          setTimeout(() => {
+            audioChunks = [];
+          }, 500);
+        }, 100);
       }
       
       cleanupAudioStream();

@@ -143,8 +143,9 @@ def transcribe():
     # KORRIGIERT: Hole user_id aus Form-Daten falls vorhanden
     user_id = request.form.get('user_id')
     
-    # GEÄNDERT: get_user_temp_dir wird jetzt mit base_dir aufgerufen
     temp_path_for_stt, user_id = get_user_temp_dir(user_id, base_dir=TEMP_AUDIO_DIR_ROOT)
+    # Debug: Check if user_id is being duplicated
+    logger.info(f"Original user_id: {request.form.get('user_id')}, processed: {user_id}")
     audio_path = os.path.join(temp_path_for_stt, "recording.mp3") # Speichert die Benutzeraufnahme als 'recording.mp3'
 
     try:
