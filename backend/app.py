@@ -4,7 +4,7 @@ from flask_cors import CORS
 import os
 import requests
 import logging
-import uuid # Import für eindeutige Dateinamen
+#import uuid # Import für eindeutige Dateinamen
 
 # =========================================================
 # TTS KONFIGURATION: Wählen Sie hier Ihren aktiven TTS-Anbieter
