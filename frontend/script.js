@@ -54,6 +54,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     recognition.onresult = (event) => {
       console.log('Speech recognition result received, results count:', event.results.length);
+      console.log('Current isRealTimeMode:', isRealTimeMode);
+      console.log('Current finalTranscript before processing:', finalTranscript);
       let interimTranscript = '';
       let newFinalTranscript = '';
       
@@ -111,9 +113,9 @@ document.addEventListener('DOMContentLoaded', function() {
           break;
         case 'no-speech':
           if (isRealTimeMode) {
-            console.log('No speech detected, continuing...');
+            console.log('No speech detected in real-time mode, will restart...');
             shouldRestart = true;
-            return;
+            errorMessage = null; // Keine Fehlermeldung anzeigen
           } else {
             errorMessage = '🔇 Aucune parole détectée.';
           }
@@ -161,10 +163,10 @@ document.addEventListener('DOMContentLoaded', function() {
       if (isRealTimeMode && !isRecognitionRestarting) {
         console.log('Auto-restarting recognition in real-time mode');
         setTimeout(() => {
-          if (isRealTimeMode && !isRecognitionRestarting) {
+          if (isRealTimeMode && !isRecognitionRestarting && !recognitionActive) {
             startRecognition();
           }
-        }, 100);
+        }, 500); // Längere Pause zwischen Restarts
       } else if (!isRealTimeMode) {
         hideStatus(elements.recordingStatus);
         resetRecordButton();
@@ -196,14 +198,20 @@ document.addEventListener('DOMContentLoaded', function() {
           if (isRealTimeMode) {
             startRecognition();
           }
-        }, 300);
+        }, 1000); // Längere Wartezeit
         return;
       }
 
       try {
-        console.log('Starting speech recognition');
+        console.log('Starting speech recognition, current final transcript:', finalTranscript);
         isRecognitionRestarting = false;
         recognition.start();
+        
+        // Debug: Log recognition state
+        setTimeout(() => {
+          console.log('Recognition active after start:', recognitionActive);
+        }, 100);
+        
       } catch (e) {
         console.error('Could not start recognition:', e);
         recognitionActive = false;
@@ -215,7 +223,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (isRealTimeMode && !recognitionActive) {
               startRecognition();
             }
-          }, 2000);
+          }, 3000); // Längere Wartezeit bei Fehlern
         }
       }
     }
@@ -486,19 +494,23 @@ document.addEventListener('DOMContentLoaded', function() {
         elements.userText.dataset.isPlaceholder = 'false';
       }
       
-      showStatus(elements.recordingStatus, '🎤 Aufnahme + Erkennung aktiv. Sprechen Sie jetzt!', 'success');
+      showStatus(elements.recordingStatus, '🎤 Enregistrement + reconnaissance actifs. Parlez maintenant!', 'success');
       
-      startRecognition();
       
       if (elements.recordBtn) {
-        elements.recordBtn.innerHTML = '🔴 Aufnahme + Erkennung läuft...';
+        elements.recordBtn.innerHTML = '🔴 Enregistrement + reconnaissance...';
         elements.recordBtn.disabled = true;
         elements.recordBtn.classList.add('recording');
       }
+
+      // Recognition erst nach UI-Update starten
+      setTimeout(() => {
+        startRecognition();
+      }, 100);
       
       if (elements.stopBtn) {
         elements.stopBtn.classList.remove('hidden');
-        elements.stopBtn.innerHTML = '⏹️ Stoppen';
+        elements.stopBtn.innerHTML = '⏹️ Arrêter';
       }
       
     } catch (err) {
@@ -581,21 +593,25 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       };
       
-      mediaRecorder.onstop = () => {
-        if (audioChunks.length > 0) {
-          const mimeType = mediaRecorder.mimeType || 'audio/webm';
-          recordedAudioBlob = new Blob(audioChunks, { type: mimeType });
-          
-          const audioURL = URL.createObjectURL(recordedAudioBlob);
-          if (elements.userAudio) {
-            elements.userAudio.src = audioURL;
-            elements.userAudioSection?.classList.remove('hidden');
+        mediaRecorder.onstop = () => {
+          if (audioChunks.length > 0) {
+            const mimeType = mediaRecorder.mimeType || 'audio/webm';
+            recordedAudioBlob = new Blob(audioChunks, { type: mimeType });
+            
+            const audioURL = URL.createObjectURL(recordedAudioBlob);
+            if (elements.userAudio) {
+              elements.userAudio.src = audioURL;
+              elements.userAudioSection?.classList.remove('hidden');
+            }
+            
+            console.log('Audio recording completed, blob size:', recordedAudioBlob.size);
+            
+            // Wenn Real-Time-Modus, zeige die finale Transkription an
+            if (isRealTimeMode && finalTranscript.trim()) {
+              console.log('Final transcript in real-time mode:', finalTranscript);
+            }
           }
-          
-          elements.useSTTBtn?.classList.remove('hidden');
-          console.log('Recording completed, blob size:', recordedAudioBlob.size);
-        }
-      };
+        };
       
       mediaRecorder.start();
       
