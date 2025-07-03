@@ -830,7 +830,11 @@ async function sendMessage() {
       } else {
         showResponseText();
       }
-    } else if (!audioHasBeenPlayed) {
+    } 
+    else if (currentResponse && !audioHasBeenPlayed) {
+        elements.showResponseBtn?.classList.add('hidden');
+    }
+    else if (!audioHasBeenPlayed) {
       showStatus(elements.globalStatus, '⚠️ Veuillez d\'abord écouter l\'audio', 'error');
       setTimeout(() => hideStatus(elements.globalStatus), 3000);
     }
