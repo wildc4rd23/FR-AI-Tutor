@@ -1,4 +1,4 @@
-// Optimiertes script.js mit verbesserter Real-Time Transkription
+// Optimiertes script.js mit verbesserter Audioaufnahme
 document.addEventListener('DOMContentLoaded', function() {
   const elements = {
     recordBtn: document.getElementById('record'),
@@ -32,23 +32,24 @@ document.addEventListener('DOMContentLoaded', function() {
   let currentResponse = null;
   let audioHasBeenPlayed = false;
   let isTextCurrentlyVisible = false;
-  let isRealTimeMode = true; // immer RT 
+  let isRealTimeMode = true;
   let recognitionActive = false;
   let recognitionTimeout;
-  let finalTranscript = ''; //speichert den kumulativen finalen Transkript
+  let finalTranscript = '';
   let isRecognitionRestarting = false;
-  let userId = Date.now().toString(); // Generate unique user ID
-  let currentScenario = 'libre'; // Default scenario
+  let userId = Date.now().toString();
+  let currentScenario = 'libre';
+  let isRecording = false; // Neuer Status-Tracker
 
   const placeholderText = "Tapez votre message hier oder verwenden Sie die Aufnahme...";
 
-  // === VERBESSERTE Spracherkennung mit stabilerer Real-Time Implementation ===
+  // === VERBESSERTE Spracherkennung ===
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (SpeechRecognition) {
     recognition = new SpeechRecognition();
     recognition.lang = 'fr-FR';
     recognition.interimResults = true;
-    recognition.continuous = true; //wichtig für kontinuierliche Erkennung
+    recognition.continuous = true;
     recognition.maxAlternatives = 1;
 
     recognition.onresult = (event) => {
@@ -72,7 +73,7 @@ document.addEventListener('DOMContentLoaded', function() {
         finalTranscript += newFinalTranscript;
         console.log('Updated final transcript:', finalTranscript);
       }
-      // Zeigt den aktuellen Stand des Transkripts an (final + interim)
+
       const displayText = (finalTranscript + interimTranscript).trim();
       if (elements.userText && displayText) {
         elements.userText.textContent = displayText;
@@ -80,7 +81,6 @@ document.addEventListener('DOMContentLoaded', function() {
         elements.userText.dataset.isPlaceholder = 'false';
       }
 
-      // Status Update
       const statusText = interimTranscript ? 
         `🎤 Écoute... "${interimTranscript}"` : 
         (newFinalTranscript ? `🎤 Transcrit: "${newFinalTranscript.trim()}"` : '🎤 En écoute...');
@@ -120,9 +120,9 @@ document.addEventListener('DOMContentLoaded', function() {
         showStatus(elements.globalStatus, errorMessage, 'error');
       }
       
-      if (shouldRestart && !isRecognitionRestarting) {
+      if (shouldRestart && !isRecognitionRestarting && isRecording) {
         setTimeout(() => {
-          if (!isRecognitionRestarting) {
+          if (!isRecognitionRestarting && isRecording) {
             startRecognition();
           }
         }, 1000);
@@ -133,9 +133,9 @@ document.addEventListener('DOMContentLoaded', function() {
       console.log('Speech recognition ended');
       recognitionActive = false;
       
-      if (!isRecognitionRestarting) {
+      if (!isRecognitionRestarting && isRecording) {
         setTimeout(() => {
-          if (!isRecognitionRestarting && !recognitionActive) {
+          if (!isRecognitionRestarting && !recognitionActive && isRecording) {
             startRecognition();
           }
         }, 500);
@@ -164,10 +164,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         setTimeout(() => {
-          if (isRealTimeMode) {
+          if (isRealTimeMode && isRecording) {
             startRecognition();
           }
-        }, 1000); // Längere Wartezeit
+        }, 1000);
         return;
       }
 
@@ -176,7 +176,6 @@ document.addEventListener('DOMContentLoaded', function() {
         isRecognitionRestarting = false;
         recognition.start();
         
-        // Debug: Log recognition state
         setTimeout(() => {
           console.log('Recognition active after start:', recognitionActive);
         }, 100);
@@ -187,12 +186,12 @@ document.addEventListener('DOMContentLoaded', function() {
         isRecognitionRestarting = false;
         showStatus(elements.recordingStatus, '⚠️ Impossible de démarrer la reconnaissance vocale', 'error');
         
-        if (isRealTimeMode) {
+        if (isRealTimeMode && isRecording) {
           setTimeout(() => {
-            if (isRealTimeMode && !recognitionActive) {
+            if (isRealTimeMode && !recognitionActive && isRecording) {
               startRecognition();
             }
-          }, 3000); // Längere Wartezeit bei Fehlern
+          }, 3000);
         }
       }
     }
@@ -282,6 +281,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (elements.stopBtn) {
       elements.stopBtn.classList.add('hidden');
     }
+    isRecording = false;
   }
 
   function showProgressStatus(step, message) {
@@ -329,23 +329,38 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-function resetUI() {
-  console.log('Resetting UI...');
-  
-  if (recognition) {
-    isRecognitionRestarting = true;
-    try {
-      recognition.stop();
-    } catch (e) {
-      console.warn('Could not stop recognition:', e);
+  function resetUI() {
+    console.log('Resetting UI...');
+    
+    // Stop recording completely
+    isRecording = false;
+    
+    if (recognition) {
+      isRecognitionRestarting = true;
+      try {
+        recognition.stop();
+      } catch (e) {
+        console.warn('Could not stop recognition:', e);
+      }
     }
-  }
-  
-  recognitionActive = false;
-  isRecognitionRestarting = false;
+    
+    recognitionActive = false;
+    isRecognitionRestarting = false;
+    
     if (recognitionTimeout) {
       clearTimeout(recognitionTimeout);
     }
+
+    // Stop MediaRecorder properly
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      try {
+        mediaRecorder.stop();
+      } catch (e) {
+        console.warn('Could not stop MediaRecorder:', e);
+      }
+    }
+    
+    cleanupAudioStream();
 
     elements.startSection?.classList.remove('hidden');
     elements.conversationSection?.classList.add('hidden');
@@ -379,319 +394,329 @@ function resetUI() {
     currentResponse = null;
     audioHasBeenPlayed = false;
     isTextCurrentlyVisible = false;
-    finalTranscript = ''; //setzt kumulativen Transcript zurück
+    finalTranscript = '';
+    audioChunks = []; // Reset audio chunks
     
     hideStatus(elements.globalStatus);
     hideStatus(elements.audioStatus);
     hideStatus(elements.recordingStatus);
   }
 
-    async function startRealTimeSpeech() {
-      console.log('Starting real-time speech with recording...');
+  // === VERBESSERTE Audioaufnahme-Funktion ===
+  async function startRealTimeSpeech() {
+    console.log('Starting real-time speech with recording...');
+    
+    try {
+      const permissionsOk = await checkMicrophonePermissions();
+      if (!permissionsOk || !recognition) {
+        showStatus(elements.globalStatus, '⚠️ Mikrofon oder Spracherkennung nicht verfügbar', 'error');
+        return;
+      }
+
+      // Set recording state
+      isRecording = true;
       
-      try {
-        const permissionsOk = await checkMicrophonePermissions();
-        if (!permissionsOk || !recognition) {
-          showStatus(elements.globalStatus, '⚠️ Mikrofon oder Spracherkennung nicht verfügbar', 'error');
-          return;
+      // Reset transcript and audio
+      finalTranscript = '';
+      recordedAudioBlob = null;
+      audioChunks = []; // Wichtig: Reset audio chunks
+      
+      // Clear user text
+      if (elements.userText) {
+        elements.userText.textContent = '';
+        elements.userText.classList.remove('placeholder');
+        elements.userText.dataset.isPlaceholder = 'false';
+      }
+      
+      // Get audio stream with optimized constraints
+      const constraints = { 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100,
+          channelCount: 1
         }
+      };
+      
+      currentAudioStream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log('Audio stream obtained successfully');
+      
+      // Test audio stream
+      const audioTracks = currentAudioStream.getAudioTracks();
+      if (audioTracks.length === 0) {
+        throw new Error('No audio tracks available');
+      }
+      
+      console.log('Audio track settings:', audioTracks[0].getSettings());
+      
+      // Setup MediaRecorder with better options
+      let options = { audioBitsPerSecond: 128000 };
+      
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        options.mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        options.mimeType = 'audio/webm';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        options.mimeType = 'audio/mp4';
+      } else {
+        console.warn('No supported audio format found, using default');
+        options = {};
+      }
+      
+      console.log('Creating MediaRecorder with options:', options);
+      mediaRecorder = new MediaRecorder(currentAudioStream, options);
 
-        // Reset transcript vor Start
-        finalTranscript = '';
-        recordedAudioBlob = null;
-        
-        // Clear user text
-        if (elements.userText) {
-          elements.userText.textContent = '';
-          elements.userText.classList.remove('placeholder');
-          elements.userText.dataset.isPlaceholder = 'false';
+      // Setup event handlers BEFORE starting
+      mediaRecorder.ondataavailable = event => {
+        console.log('MediaRecorder data available:', event.data.size, 'bytes');
+        if (event.data.size > 0) {
+          audioChunks.push(event.data);
+          console.log('Total audio chunks:', audioChunks.length);
         }
-        
-        // Start audio recording
-        const constraints = { 
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            sampleRate: 44100,
-            channelCount: 1
-          }
-        };
-        
-        currentAudioStream = await navigator.mediaDevices.getUserMedia(constraints);
-        
-        let options = {};
-        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-          options.mimeType = 'audio/webm;codecs=opus';
-        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-          options.mimeType = 'audio/webm';
-        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-          options.mimeType = 'audio/mp4';
-        } else {
-          console.warn('No supported audio format found');
-        }
-        console.log('Using MediaRecorder with:', options)
-        
-        mediaRecorder = new MediaRecorder(currentAudioStream, options);
+      };
 
-        // Event-Handler VOR start() setzen
-        mediaRecorder.ondataavailable = event => {
-          console.log('Data available:', event.data.size, 'bytes');
-          if (event.data.size > 0) {
-            audioChunks.push(event.data);
-          }
-        };
-
-        mediaRecorder.onstop = async () => {
-          console.log('MediaRecorder stopped, total chunks:', audioChunks.length);
-          if (audioChunks.length > 0) {
-
-            // WICHTIG: Erhalte den MIME-Typ vom MediaRecorder, nicht statisch "audio/webm"
+      mediaRecorder.onstop = async () => {
+        console.log('MediaRecorder stopped, processing audio...');
+        console.log('Total chunks collected:', audioChunks.length);
+        
+        if (audioChunks.length > 0) {
+          const totalSize = audioChunks.reduce((sum, chunk) => sum + chunk.size, 0);
+          console.log('Total audio size:', totalSize, 'bytes');
+          
+          if (totalSize > 0) {
             const mimeType = mediaRecorder.mimeType || 'audio/webm';
             recordedAudioBlob = new Blob(audioChunks, {type: mimeType});
-
-            console.log('Created blob:', recordedAudioBlob.size, 'bytes');
-            // Audio an das Backend senden zum Speichern über die /api/transcribe Route
+            console.log('Created audio blob:', recordedAudioBlob.size, 'bytes, type:', recordedAudioBlob.type);
+            
+            // Upload audio
             showStatus(elements.recordingStatus, '💾 Audio wird gespeichert...', 'loading');
             const uploadResult = await uploadRecordedAudio(recordedAudioBlob, mimeType);
+            
             if (uploadResult && uploadResult.audio_path) {
-                showStatus(elements.recordingStatus, '✅ Audio gespeichert', 'success');
-                // Sicherstellen, dass Elemente gültig sind, bevor versucht wird, sie zu manipulieren
-                if (elements.userAudio && elements.userAudioSection) {
-                    elements.userAudio.src = uploadResult.audio_path;
-                    elements.userAudio.load(); // Explizites Laden hinzufügen
-                    elements.userAudioSection.classList.remove('hidden'); // Macht den Audio-Player sichtbar
-                    console.log('User audio player set and section shown. Src:', elements.userAudio.src);
-                } else {
-                    console.error('userAudio oder userAudioSection Element nicht gefunden!');
-                }
-
+              showStatus(elements.recordingStatus, '✅ Audio gespeichert', 'success');
+              
+              if (elements.userAudio && elements.userAudioSection) {
+                elements.userAudio.src = uploadResult.audio_path;
+                elements.userAudio.load();
+                elements.userAudioSection.classList.remove('hidden');
+                console.log('User audio player configured:', elements.userAudio.src);
+              }
             } else {
-                showStatus(elements.recordingStatus, '⚠️ Fehler beim Speichern des Audios', 'error');
+              showStatus(elements.recordingStatus, '⚠️ Fehler beim Speichern des Audios', 'error');
             }
-
-            console.log('Audio recording completed and uploaded, blob size:', recordedAudioBlob.size);
-
-            } else {
-
-            console.error('No audio chunks recorded!');
-            showStatus(elements.recordingStatus, '⚠️ Kein Audio aufgenommen', 'error');
-
-            }
-        };
-        
-        // Warten bis MediaRecorder ready ist
-        setTimeout(() => {
-          if (mediaRecorder && mediaRecorder.state === 'inactive') {
-            mediaRecorder.start(1000); // Längere Intervalle für bessere Chunks
-            console.log('MediaRecorder started with state:', mediaRecorder.state);
+          } else {
+            console.error('Audio chunks have zero total size!');
+            showStatus(elements.recordingStatus, '⚠️ Aufnahme ist leer', 'error');
           }
-        }, 100);
-        
-        // Start speech recognition
-        isRecognitionRestarting = false;
-        startRecognition();
-        
-        // Update UI
-        if (elements.recordBtn) {
-          elements.recordBtn.innerHTML = '🔴 Aufnahme stoppen';
-          elements.recordBtn.classList.add('recording');
-        }
-        
-        if (elements.stopBtn) {
-          elements.stopBtn.classList.remove('hidden');
-          elements.stopBtn.innerHTML = '⏹️ Stoppen';
-        }
-        
-        showStatus(elements.recordingStatus, '🎤 Aufnahme + Erkennung aktiv', 'success');
-        
-      } catch (err) {
-        console.error('Real-time speech error:', err);
-        showStatus(elements.recordingStatus, '⚠️ Fehler: ' + err.message, 'error');
-        resetRecordButton();
-        cleanupAudioStream();
-      }
-    }
-
-    function stopRealTimeSpeech() {
-      console.log('Stopping real-time speech...');
-      
-      isRecognitionRestarting = true;
-      
-      if (recognition && recognitionActive) {
-        try {
-          recognition.stop();
-        } catch (e) {
-          console.warn('Could not stop recognition:', e);
-        }
-      }
-      recognitionActive = false;
-      
-      if (mediaRecorder && mediaRecorder.state === "recording") {
-        console.log('Stopping MediaRecorder...');
-        mediaRecorder.stop();
-        
-        // Warten bis MediaRecorder wirklich gestoppt ist
-        setTimeout(() => {
-          console.log('MediaRecorder final state:', mediaRecorder.state);
-          // audioChunks erst nach dem Stop zurücksetzen
-          setTimeout(() => {
-            audioChunks = [];
-          }, 500);
-        }, 100);
-      }
-      
-      cleanupAudioStream();
-      resetRecordButton();
-    // Wenn die Aufnahme gestoppt wurde, stelle sicher, dass der finale Text im userText-Feld ist
-
-    if (elements.userText) {
-        const finalContent = finalTranscript.trim();
-        elements.userText.textContent = finalContent;
-        console.log('Final User Text gesetzt:', elements.userText.textContent); // Bestätigen des Inhalts
-
-        if (finalContent) {
-            elements.userText.classList.remove('placeholder');
-            elements.userText.dataset.isPlaceholder = 'false';
         } else {
-            elements.userText.textContent = placeholderText; // Nur Platzhalter setzen, wenn wirklich leer
-            elements.userText.classList.add('placeholder');
-            elements.userText.dataset.isPlaceholder = 'true';
+          console.error('No audio chunks recorded!');
+          showStatus(elements.recordingStatus, '⚠️ Kein Audio aufgenommen', 'error');
         }
-    } else {
-        console.error('userText Element nicht gefunden!');
+      };
+
+      mediaRecorder.onerror = (event) => {
+        console.error('MediaRecorder error:', event.error);
+        showStatus(elements.recordingStatus, '⚠️ Aufnahmefehler: ' + event.error, 'error');
+      };
+
+      mediaRecorder.onstart = () => {
+        console.log('MediaRecorder started successfully');
+        showStatus(elements.recordingStatus, '🎤 Aufnahme gestartet', 'success');
+      };
+      
+      // Start recording with smaller timeslices for better data collection
+      console.log('Starting MediaRecorder...');
+      mediaRecorder.start(250); // 250ms timeslices
+      
+      // Start speech recognition
+      isRecognitionRestarting = false;
+      startRecognition();
+      
+      // Update UI
+      if (elements.recordBtn) {
+        elements.recordBtn.innerHTML = '🔴 Aufnahme stoppen';
+        elements.recordBtn.classList.add('recording');
+      }
+      
+      if (elements.stopBtn) {
+        elements.stopBtn.classList.remove('hidden');
+        elements.stopBtn.innerHTML = '⏹️ Stoppen';
+      }
+      
+      showStatus(elements.recordingStatus, '🎤 Aufnahme + Erkennung aktiv', 'success');
+      
+    } catch (err) {
+      console.error('Real-time speech error:', err);
+      showStatus(elements.recordingStatus, '⚠️ Fehler: ' + err.message, 'error');
+      isRecording = false;
+      resetRecordButton();
+      cleanupAudioStream();
+    }
+  }
+
+  function stopRealTimeSpeech() {
+    console.log('Stopping real-time speech...');
+    
+    // Set recording state
+    isRecording = false;
+    isRecognitionRestarting = true;
+    
+    // Stop speech recognition
+    if (recognition && recognitionActive) {
+      try {
+        recognition.stop();
+      } catch (e) {
+        console.warn('Could not stop recognition:', e);
+      }
+    }
+    recognitionActive = false;
+    
+    // Stop MediaRecorder
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      console.log('Stopping MediaRecorder...');
+      try {
+        mediaRecorder.stop();
+        console.log('MediaRecorder stop called, state:', mediaRecorder.state);
+      } catch (e) {
+        console.error('Error stopping MediaRecorder:', e);
+      }
+    }
+    
+    // Clean up audio stream
+    cleanupAudioStream();
+    resetRecordButton();
+    
+    // Update user text with final transcript
+    if (elements.userText) {
+      const finalContent = finalTranscript.trim();
+      elements.userText.textContent = finalContent;
+      console.log('Final User Text set:', finalContent);
+
+      if (finalContent) {
+        elements.userText.classList.remove('placeholder');
+        elements.userText.dataset.isPlaceholder = 'false';
+      } else {
+        elements.userText.textContent = placeholderText;
+        elements.userText.classList.add('placeholder');
+        elements.userText.dataset.isPlaceholder = 'true';
+      }
     }
 
-// Sende den transkribierten Text an das Backend
-
-if (finalTranscript.trim()) {
-    sendMessageToBackend(finalTranscript.trim());
-} else {
-    showStatus(elements.recordingStatus, 'Keine Sprache erkannt.', 'warning');
-}
-showStatus(elements.recordingStatus, '✅ Aufnahme beendet', 'success');
-}
+    // Send transcribed text to backend
+    if (finalTranscript.trim()) {
+      sendMessageToBackend(finalTranscript.trim());
+    } else {
+      showStatus(elements.recordingStatus, '⚠️ Keine Sprache erkannt', 'warning');
+    }
+  }
 
   function cleanupAudioStream() {
     if (currentAudioStream) {
-      currentAudioStream.getTracks().forEach(track => track.stop());
+      console.log('Cleaning up audio stream...');
+      currentAudioStream.getTracks().forEach(track => {
+        track.stop();
+        console.log('Audio track stopped');
+      });
       currentAudioStream = null;
     }
   }
 
-
-
-// === Backend Communication ===
-
-async function sendMessageToBackend(message) {
-
+  // === Backend Communication ===
+  async function sendMessageToBackend(message) {
     if (!message.trim()) {
-        showStatus(elements.globalStatus, 'Bitte geben Sie eine Nachricht ein.', 'warning');
-        return;
+      showStatus(elements.globalStatus, 'Bitte geben Sie eine Nachricht ein.', 'warning');
+      return;
     }
+    
     showProgressStatus(1, '🚀 Nachricht wird gesendet...');
-
     elements.sendBtn.disabled = true;
     elements.recordBtn.disabled = true;
 
     try {
-        const response = await fetch('/api/respond', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json',},
-            body: JSON.stringify({
-            message: message,
-            userId: userId, 
-            scenario: currentScenario
-            }),
+      const response = await fetch('/api/respond', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          message: message,
+          userId: userId, 
+          scenario: currentScenario
+        }),
+      });
 
-        });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('Backend response:', data);
-        currentResponse = data.response; // Angepasst an 'response' aus app.py
-        showResponseText(); // Show the text first
+      const data = await response.json();
+      console.log('Backend response:', data);
+      currentResponse = data.response;
+      showResponseText();
     
-        if (data.audio_url) { // Angepasst an 'audio_url' aus app.py
+      if (data.audio_url) {
+        elements.audioPlayback.src = data.audio_url;
+        elements.audioPlayback.classList.remove('hidden');
+        elements.playAudioBtn.classList.remove('hidden');
+        audioHasBeenPlayed = false;
+        updateShowResponseButton();
+        showProgressStatus(3, '🔊 Audio bereit.');
+      } else {
+        showStatus(elements.audioStatus, '⚠️ Keine Audioantwort erhalten.', 'warning');
+        elements.playAudioBtn.classList.add('hidden');
+        showProgressStatus(4, '✅ Textantwort bereit.');
+      }
 
-            elements.audioPlayback.src = data.audio_url;
-            elements.audioPlayback.classList.remove('hidden');
-            elements.playAudioBtn.classList.remove('hidden');
-            audioHasBeenPlayed = false; // Reset for new response
-            updateShowResponseButton();
-            showProgressStatus(3, '🔊 Audio bereit.');
-
-        } else {
-
-            showStatus(elements.audioStatus, '⚠️ Keine Audioantwort erhalten.', 'warning');
-            elements.playAudioBtn.classList.add('hidden');
-            showProgressStatus(4, '✅ Textantwort bereit.');
-        }
-
-        showStatus(elements.globalStatus, '✅ Antwort erhalten', 'success');
+      showStatus(elements.globalStatus, '✅ Antwort erhalten', 'success');
 
     } catch (error) {
-
-        console.error('Error sending message to backend:', error);
-        showStatus(elements.globalStatus, `❌ Fehler: ${error.message}`, 'error');
-        elements.responseText.textContent = 'Beim Kommunizieren mit dem Server ist ein Fehler aufgetreten.';
-        isTextCurrentlyVisible = true;
-        updateShowResponseButton();
-
+      console.error('Error sending message to backend:', error);
+      showStatus(elements.globalStatus, `❌ Fehler: ${error.message}`, 'error');
+      elements.responseText.textContent = 'Beim Kommunizieren mit dem Server ist ein Fehler aufgetreten.';
+      isTextCurrentlyVisible = true;
+      updateShowResponseButton();
     } finally {
+      elements.sendBtn.disabled = false;
+      elements.recordBtn.disabled = false;
+    }
+  }
 
-        elements.sendBtn.disabled = false;
-        elements.recordBtn.disabled = false;
+  // === Audio Upload Function ===
+  async function uploadRecordedAudio(audioBlob, mimeType) {
+    if (!audioBlob || audioBlob.size === 0) {
+      console.warn('No audio blob to upload or blob is empty.');
+      return null;
     }
 
-}
+    const formData = new FormData();
+    const fileExtension = mimeType.split('/')[1].split(';')[0];
+    const fileName = `recording.${fileExtension}`;
+    
+    formData.append('audio', audioBlob, fileName);
+    formData.append('user_id', userId);
+    
+    console.log(`Uploading audio blob: ${audioBlob.size} bytes, type: ${mimeType}, filename: ${fileName}`);
 
-    // === Audio Upload Function (Updated) ===
+    try {
+      const response = await fetch('/api/transcribe', {
+        method: 'POST',
+        body: formData,
+      });
 
-    async function uploadRecordedAudio(audioBlob, mimeType) {
-        if (!audioBlob) {
-            console.warn('No audio blob to upload.');
-        return null;
-        }
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-        const formData = new FormData();
-        // Verwenden Sie den korrekten Dateinamen mit der ermittelten Erweiterung
-        // Der Backend-Teil os.path.splitext(original_filename)[1] erwartet eine Erweiterung
+      const data = await response.json();
+      console.log('Audio uploaded successfully:', data);
+      return data;
 
-        const fileExtension = mimeType.split('/')[1].split(';')[0]; // z.B. 'webm' aus 'audio/webm;codecs=opus'
-        formData.append('audio', audioBlob, `recording.${fileExtension}`); // 'audio' ist der Key, den das Backend erwartet
-        formData.append('user_id', userId);
-        console.log(`Uploading audio blob of type ${mimeType} with size ${audioBlob.size} bytes as recording.${fileExtension} to /api/transcribe`);
-
-        try {
-
-            const response = await fetch('/api/transcribe', { // Wieder auf /api/transcribe gerichtet
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log('Audio uploaded successfully:', data);
-            return data; // Enthält audio_path
-
-        } catch (error) {
-
-            console.error('Error uploading audio:', error);
-            return null;
-
-        }
-
+    } catch (error) {
+      console.error('Error uploading audio:', error);
+      return null;
     }
+  }
 
   // === Event Listeners ===
-
   elements.startBtn?.addEventListener('click', async () => {
     const scenario = elements.scenarioSelect?.value;
     if (!scenario) {
@@ -702,8 +727,8 @@ async function sendMessageToBackend(message) {
 
     elements.startSection?.classList.add('hidden');
     elements.conversationSection?.classList.remove('hidden');
-    currentUserId = userId; // Set current user ID
-    // Setzt den Anzeigetext für das aktuelle Szenario
+    currentUserId = userId;
+    
     const currentScenarioDisplay = document.getElementById('currentScenarioDisplay');
     if (currentScenarioDisplay) {
       currentScenarioDisplay.innerText = scenario === "libre" ? "Ihr freies Thema" : scenario;
@@ -719,15 +744,16 @@ async function sendMessageToBackend(message) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
-            message: intro, // Hier 'message' verwenden, wie es der Backend-Endpunkt erwartet
-            userId: userId, // Hier 'userId' verwenden
+            message: intro,
+            userId: userId,
             scenario: scenario
           })
         });
 
         if (!res.ok) {
-            throw new Error(`HTTP error! status: ${res.status}`);
+          throw new Error(`HTTP error! status: ${res.status}`);
         }
+        
         const data = await res.json();
         currentResponse = data.response;
         
@@ -765,54 +791,37 @@ async function sendMessageToBackend(message) {
     }
   });
 
-  elements.newConvBtn?.addEventListener('click', () => {resetUI();});
-// Anpassen des Record-Buttons, um Start/Stop der Echtzeit-Spracherkennung zu steuern
+  elements.newConvBtn?.addEventListener('click', () => {
+    resetUI();
+  });
 
-elements.recordBtn?.addEventListener('click', () => {
-
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-        stopRealTimeSpeech();
+  elements.recordBtn?.addEventListener('click', () => {
+    if (isRecording) {
+      stopRealTimeSpeech();
     } else {
-        startRealTimeSpeech();
+      startRealTimeSpeech();
     }
+  });
 
-});
-
-elements.stopBtn?.addEventListener('click', () => {
-
+  elements.stopBtn?.addEventListener('click', () => {
     stopRealTimeSpeech();
+  });
 
-});
-
-elements.sendBtn?.addEventListener('click', () => {
-
-    // Wenn der Benutzer auf "Senden" klickt, senden wir den aktuellen finalTranscript an das Backend
-
+  elements.sendBtn?.addEventListener('click', () => {
     if (finalTranscript.trim()) {
-
-        sendMessageToBackend(finalTranscript.trim());
-
+      sendMessageToBackend(finalTranscript.trim());
     } else if (elements.userText.textContent.trim() && elements.userText.dataset.isPlaceholder !== 'true') {
-
-        // Fallback: Wenn kein finalTranscript, aber Text im Feld ist (z.B. manuell eingegeben)
-
-        sendMessageToBackend(elements.userText.textContent.trim());
-
+      sendMessageToBackend(elements.userText.textContent.trim());
     } else {
-
-    showStatus(elements.globalStatus, 'Bitte nehmen Sie zuerst eine Nachricht auf oder tippen Sie sie ein.', 'warning');
-
+      showStatus(elements.globalStatus, 'Bitte nehmen Sie zuerst eine Nachricht auf oder tippen Sie sie ein.', 'warning');
     }
+  });
 
-});
-
-elements.playAudioBtn?.addEventListener('click', () => {
-
+  elements.playAudioBtn?.addEventListener('click', () => {
     if (elements.audioPlayback && elements.audioPlayback.src) {
-
-        elements.audioPlayback.play().catch(err => {
-            console.error('Audio play failed:', err);
-            showStatus(elements.audioStatus, '⚠️ Wiedergabe des Audios nicht möglich', 'error');
+      elements.audioPlayback.play().catch(err => {
+        console.error('Audio play failed:', err);
+        showStatus(elements.audioStatus, '⚠️ Wiedergabe des Audios nicht möglich', 'error');
         });
 
         audioHasBeenPlayed = true;
