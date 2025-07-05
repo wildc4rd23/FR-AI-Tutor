@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let isRecognitionRestarting = false;
   let userId = Date.now().toString();
   let currentScenario = 'libre';
+  let autoSendAfterRecording = false; // Konfig automatisches Senden der UserAufnahme
   let isRecording = false; // Neuer Status-Tracker
 
   const placeholderText = "Tapez votre message hier oder verwenden Sie die Aufnahme...";
@@ -602,12 +603,19 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
 
-    // Send transcribed text to backend
+
+    // Send transcribed text to backend - NUR wenn konfiguriert
     if (finalTranscript.trim()) {
-      sendMessageToBackend(finalTranscript.trim());
+      if (autoSendAfterRecording) {
+        console.log('Auto-Send aktiviert - gesendeter Text:', finalTranscript.trim());
+        sendMessageToBackend(finalTranscript.trim());
+      } else {
+        showStatus(elements.recordingStatus, '✅ Transcription prête, Envoyer', 'success');
+      }
     } else {
       showStatus(elements.recordingStatus, '⚠️ Aucune parole détectée', 'warning');
     }
+
   }
 
   function cleanupAudioStream() {
@@ -623,10 +631,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // === Backend Communication ===
   async function sendMessageToBackend(message) {
+    console.log('=== MESSAGE SENDING DEBUG ===');
+    console.log('Ursprünglicher Parameter:', message);
+    console.log('Aktueller userText Inhalt:', elements.userText?.textContent);
+    console.log('Aktueller finalTranscript:', finalTranscript);
+    console.log('userText isPlaceholder:', elements.userText?.dataset.isPlaceholder);
+ 
     if (!message.trim()) {
       showStatus(elements.recordingStatus, 'Veuillez entrer un message.', 'warning');
       return;
     }
+    console.log('TATSÄCHLICH GESENDETER TEXT:', message.trim());
+    console.log('=== END DEBUG ===');
     
     showProgressStatus(1, '🚀 Message en cours d\'envoi...');
     elements.sendBtn.disabled = true;
@@ -875,19 +891,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
   elements.sendBtn?.addEventListener('click', () => {
     let messageToSend = '';
-
-    if (finalTranscript.trim()) {
-      messageToSend = finalTranscript.trim();
-    } else if (elements.userText.textContent.trim() && 
-               elements.userText.dataset.isPlaceholder !== 'true' && 
-               elements.userText.textContent !== placeholderText) {
-      messageToSend = elements.userText.textContent.trim();
+    console.log('=== SEND BUTTON CLICKED ===');
+    console.log('finalTranscript:', finalTranscript);
+    console.log('userText content:', elements.userText?.textContent);
+    console.log('userText isPlaceholder:', elements.userText?.dataset.isPlaceholder);
+    
+    // Prüfe ob userText geändert wurde (Priorität über finalTranscript)
+    if (elements.userText?.textContent?.trim() && 
+          elements.userText.dataset.isPlaceholder !== 'true' && 
+          elements.userText.textContent !== placeholderText) {
+        messageToSend = elements.userText.textContent.trim();
+        console.log('Verwendung: Bearbeiteter userText');
+    } else if (finalTranscript.trim()) {
+        messageToSend = finalTranscript.trim();
+        console.log('Verwendung: Original finalTranscript');
     }
-
+      
     if (messageToSend) {
-      sendMessageToBackend(messageToSend);
+        console.log('Endgültig gesendeter Text:', messageToSend);
+        sendMessageToBackend(messageToSend);
     } else {
-      showStatus(elements.recordingStatus, 'Veuillez d\'abord enregistrer ou taper un message.', 'warning');
+        console.log('Kein gültiger Text zum Senden gefunden');
+        showStatus(elements.globalStatus, 'Veuillez d\'abord enregistrer ou taper un message.', 'warning');
     }
   });
 
@@ -932,13 +957,27 @@ document.addEventListener('DOMContentLoaded', function() {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       
-        if (finalTranscript.trim()) {
-            sendMessageToBackend(finalTranscript.trim());
-        } else if (elements.userText.textContent.trim() && elements.userText.dataset.isPlaceholder !== 'true') {
-            sendMessageToBackend(elements.userText.textContent.trim());
-        } else {
-            showStatus(elements.recordingStatus, 'Veuillez d\'abord enregistrer ou taper un message.', 'warning');
-        }
+      console.log('=== KEYBOARD SHORTCUT USED ===');
+      let messageToSend = '';
+
+      // Gleiche Logik wie beim Send Button
+      if (elements.userText?.textContent?.trim() && 
+          elements.userText.dataset.isPlaceholder !== 'true' && 
+          elements.userText.textContent !== placeholderText) {
+        messageToSend = elements.userText.textContent.trim();
+        console.log('Verwendung: Bearbeiteter userText via Keyboard');
+      } else if (finalTranscript.trim()) {
+        messageToSend = finalTranscript.trim();
+        console.log('Verwendung: Original finalTranscript via Keyboard');
+      }
+
+      if (messageToSend) {
+        console.log('Endgültig gesendeter Text via Keyboard:', messageToSend);
+        sendMessageToBackend(messageToSend);
+      } else {
+        console.log('Kein gültiger Text zum Senden gefunden via Keyboard');
+        showStatus(elements.globalStatus, 'Veuillez d\'abord enregistrer ou taper un message.', 'warning');
+      }
     }
     
     // Space bar to toggle real-time speech (when not in input field)
