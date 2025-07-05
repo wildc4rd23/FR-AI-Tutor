@@ -93,11 +93,17 @@
       background: #fef5e7 !important;
       border-left-color: #ed8936 !important;
     }
-    audio {
-      width: 100%;
-      margin: 15px 0;
-      border-radius: 8px;
+    
+    /* Compact Audio Player Styles */
+    .compact-audio {
+      width: 200px;
+      height: 35px;
+      border-radius: 6px;
+      margin: 0;
+      display: inline-block;
+      vertical-align: middle;
     }
+    
     .audio-controls {
       display: flex;
       gap: 10px;
@@ -106,11 +112,20 @@
       margin: 15px 0;
       flex-wrap: wrap;
     }
+    
+    .audio-controls-inline {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin: 15px 0;
+    }
+    
     .record-btn {
       background: #e53e3e;
       min-width: auto;
       padding: 15px 25px;
       border-radius: 50px;
+      margin: 0;
     }
     .record-btn:hover:not(:disabled) {
       background: #c53030;
@@ -119,17 +134,26 @@
       background: #fc8181;
       animation: pulse 1.5s infinite;
     }
+    .record-btn.paused {
+      background: #f6ad55;
+    }
+    .record-btn.paused:hover:not(:disabled) {
+      background: #ed8936;
+    }
+    
     .stop-btn {
       background: #2d3748;
       min-width: auto;
       padding: 15px 25px;
       border-radius: 50px;
+      margin: 0;
     }
     .secondary-btn {
       background: #718096;
       font-size: 14px;
       min-width: auto;
       padding: 10px 20px;
+      margin: 0;
     }
     .send-btn {
       background: #38a169;
@@ -168,9 +192,27 @@
       font-size: 4em;
       margin-bottom: 20px;
     }
+    
+    /* Keyboard shortcuts hint */
+    .keyboard-hint {
+      text-align: center;
+      font-size: 12px;
+      color: #718096;
+      margin-top: 10px;
+      font-style: italic;
+    }
+    
     @media (max-width: 600px) {
       .audio-controls {
         flex-direction: column;
+      }
+      .audio-controls-inline {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .compact-audio {
+        width: 100%;
+        margin-bottom: 10px;
       }
       button {
         width: 100%;
@@ -210,19 +252,18 @@
       <div style="text-align: center; margin-bottom: 20px; font-weight: bold; color: #4a5568;">
         Thème actuel: <span id="currentScenarioDisplay">Non sélectionné</span>
       </div>     
+      
       <!-- Assistant Response -->
       <div class="text-block assistant-response">
         <h3>👨‍🏫 Réponse de l'assistant</h3>
         <div class="text-content" id="responseText">...</div>
         
-        <div class="audio-controls">
-          <button id="showResponseBtn" class="secondary-btn">👁️ Afficher la réponse</button>
-          <button id="playAudioBtn" class="secondary-btn hidden">🔊 Écouter l'audio</button>
+        <div class="audio-controls-inline">
+          <audio id="audioPlayback" controls class="compact-audio hidden">
+            Votre navigateur ne supporte pas l'élément audio.
+          </audio>
+          <button id="showResponseBtn" class="secondary-btn hidden">👁️ Afficher la réponse</button>
         </div>
-        
-        <audio id="audioPlayback" controls class="hidden">
-          Votre navigateur ne supporte pas l'élément audio.
-        </audio>
         
         <div id="audioStatus" class="hidden"></div>
       </div>
@@ -232,21 +273,15 @@
         <h3>🎙️ Votre réponse</h3>
         
         <!-- Audio Recording -->
-        <div class="audio-controls">
+        <div class="audio-controls-inline">
           <button id="record" class="record-btn">🎙️ Enregistrer</button>
           <button id="stop" class="stop-btn hidden">🛑 Arrêter</button>
-          <button id="useSTT" class="secondary-btn hidden">🎤 Utiliser STT</button>
-        </div>
-        
-        <div id="recordingStatus" class="hidden"></div>
-        
-        <!-- User Audio Playback -->
-        <div id="userAudioSection" class="hidden">
-          <strong>Votre enregistrement :</strong>
-          <audio id="userAudio" controls style="margin-top: 10px;">
+          <audio id="userAudio" controls class="compact-audio hidden">
             Votre navigateur ne supporte pas l'élément audio.
           </audio>
         </div>
+        
+        <div id="recordingStatus" class="hidden"></div>
         
         <!-- Editable Text -->
         <div style="margin-top: 20px;">
@@ -264,6 +299,9 @@
         <!-- Send Button -->
         <div class="audio-controls">
           <button id="sendMessage" class="send-btn">📤 Envoyer le message</button>
+          <div class="keyboard-hint">
+            Raccourcis: Espace = Pause/Reprendre | Ctrl+Entrée = Envoyer
+          </div>
         </div>
       </div>
 
@@ -275,7 +313,3 @@
 
     <!-- Status Messages -->
   </div>
-
-  <script src="script.js"></script>
-</body>
-</html>
