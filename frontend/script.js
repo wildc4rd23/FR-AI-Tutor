@@ -211,7 +211,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       recognitionActive = false;
     }
-    
+
     function resetRecordButton() {
       if (!elements.recordBtn) return;
       
@@ -415,7 +415,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Pause/Resume Funktionalität für Aufnahme
-function pauseRealTimeSpeech() {
+  function pauseRealTimeSpeech() {
   console.log('Pausing real-time speech...');
   
   isPaused = true;
@@ -437,22 +437,22 @@ function pauseRealTimeSpeech() {
   }
   updateRecordButton();
   showStatus(elements.recordingStatus, '⏸️ Enregistrement en pause', 'loading');
-}
-
-function resumeRealTimeSpeech() {
-  console.log('Resuming real-time speech...');
-  
-  isPaused = false;
-  isRecognitionRestarting = false;
-  
-  // Resume speech recognition
-  if (isRecording && recognition) {
-    startRecognition();
   }
-  
-  updateRecordButton();
-  showStatus(elements.recordingStatus, '🎤 Enregistrement repris', 'success');
-}
+
+  function resumeRealTimeSpeech() {
+      console.log('Resuming real-time speech...');
+      
+      isPaused = false;
+      isRecognitionRestarting = false;
+      
+      // Resume speech recognition
+      if (isRecording && recognition) {
+        startRecognition();
+      }
+      
+      updateRecordButton();
+      showStatus(elements.recordingStatus, '🎤 Enregistrement repris', 'success');
+  }
   function updateRecordButton() {
 
     if (!elements.recordBtn) return;
@@ -853,7 +853,7 @@ function resumeRealTimeSpeech() {
 
   // === Hilfsfunktionen für Audio von TTS ===
 
-     function showAudioRetryOptions() {
+    function showAudioRetryOptions() {
         if (elements.responseText) {
             elements.responseText.innerHTML = `
                 <div style="text-align: center; margin-top: 15px;">
@@ -1012,7 +1012,7 @@ elements.audioPlayback?.addEventListener('ended', () => {
     }
   });
 
-});
+
   elements.showResponseBtn?.addEventListener('click', () => {
     if (currentResponse && audioHasBeenPlayed) {
       if (isTextCurrentlyVisible) {
@@ -1076,7 +1076,8 @@ document.addEventListener('keydown', (e) => {
     }
   }
  
-  
+ }); 
+
 // Initial UI setup
   resetUI();
   console.log('🚀 FR-AI-Tutor Frontend initialized with Real-Time Speech Recognition');
