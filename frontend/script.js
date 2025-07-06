@@ -7,20 +7,18 @@ document.addEventListener('DOMContentLoaded', function() {
     startBtn: document.getElementById('startConversation'),
     newConvBtn: document.getElementById('newConversation'),
     showResponseBtn: document.getElementById('showResponseBtn'),
-    playAudioBtn: document.getElementById('playAudioBtn'),
 
     userText: document.getElementById('userText'),
     responseText: document.getElementById('responseText'),
     audioPlayback: document.getElementById('audioPlayback'),
     userAudio: document.getElementById('userAudio'),
-    userAudioSection: document.getElementById('userAudioSection'),
+    //userAudioSection: document.getElementById('userAudioSection'),
 
     startSection: document.getElementById('startSection'),
     conversationSection: document.getElementById('conversationSection'),
     scenarioSelect: document.getElementById('scenario'),
     recordingStatus: document.getElementById('recordingStatus'),
-    audioStatus: document.getElementById('audioStatus'),
-    recordingStatus: document.getElementById('recordingStatus')
+    audioStatus: document.getElementById('audioStatus')
   };
 
   let mediaRecorder;
@@ -40,9 +38,10 @@ document.addEventListener('DOMContentLoaded', function() {
   let userId = Date.now().toString();
   let currentScenario = 'libre';
   let autoSendAfterRecording = false; // Konfig automatisches Senden der UserAufnahme
-  let isRecording = false; // Neuer Status-Tracker
+  let isRecording = false; // Status-Tracker
+  let isPaused = false; // Neuer Status für Pause
 
-  const placeholderText = "Tapez votre message hier oder verwenden Sie die Aufnahme...";
+  const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
 
   // === VERBESSERTE Spracherkennung ===
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -121,27 +120,38 @@ document.addEventListener('DOMContentLoaded', function() {
         showStatus(elements.recordingStatus, errorMessage, 'error');
       }
       
-      if (shouldRestart && !isRecognitionRestarting && isRecording) {
-        setTimeout(() => {
-          if (!isRecognitionRestarting && isRecording) {
-            startRecognition();
-          }
-        }, 1000);
-      }
-    };
+      if (shouldRestart && !isRecognitionRestarting && isRecording && !isPaused) {
 
-    recognition.onend = () => {
-      console.log('Speech recognition ended');
-      recognitionActive = false;
-      
-      if (!isRecognitionRestarting && isRecording) {
-        setTimeout(() => {
-          if (!isRecognitionRestarting && !recognitionActive && isRecording) {
-            startRecognition();
+            setTimeout(() => {
+
+              if (!isRecognitionRestarting && isRecording && !isPaused) {
+
+                startRecognition();
+
+              }
+
+            }, 1000);
+
           }
-        }, 500);
-      }
-    };
+
+        };
+
+
+
+        recognition.onend = () => {
+
+          console.log('Speech recognition ended');
+
+          recognitionActive = false;
+
+          if (!isRecognitionRestarting && isRecording && !isPaused) {
+            setTimeout(() => {
+              if (!isRecognitionRestarting && !recognitionActive && isRecording && !isPaused) {
+                startRecognition();
+              }
+            }, 500);
+          }
+        };
 
     recognition.onstart = () => {
       console.log('Speech recognition started');
@@ -150,8 +160,8 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     function startRecognition() {
-      if (isRecognitionRestarting) {
-        console.log('Recognition restart already in progress');
+      if (isRecognitionRestarting || isPaused) {
+        console.log('Recognition restart already in progress or paused');
         return;
       }
 
@@ -165,7 +175,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         setTimeout(() => {
-          if (isRealTimeMode && isRecording) {
+          if (isRealTimeMode && isRecording && !isPaused) {
             startRecognition();
           }
         }, 1000);
@@ -187,9 +197,9 @@ document.addEventListener('DOMContentLoaded', function() {
         isRecognitionRestarting = false;
         showStatus(elements.recordingStatus, '⚠️ Impossible de démarrer la reconnaissance vocale', 'error');
         
-        if (isRealTimeMode && isRecording) {
+        if (isRealTimeMode && isRecording && !isPaused) {
           setTimeout(() => {
-            if (isRealTimeMode && !recognitionActive && isRecording) {
+            if (isRealTimeMode && !recognitionActive && isRecording && !isPaused) {
               startRecognition();
             }
           }, 3000);
@@ -197,10 +207,22 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
 
+
   } else {
     console.warn('SpeechRecognition API nicht verfügbar.');
     showStatus(elements.recordingStatus, '⚠️ Reconnaissance vocale non supportée dans ce navigateur.', 'warning');
   }
+
+    function stopRecognition() {
+      if (recognitionActive) {
+        try {
+          recognition.stop();
+        } catch (e) {
+          console.warn('Could not stop recognition:', e);
+        }
+      }
+      recognitionActive = false;
+    }
 
   // === VERBESSERTE Mikrofonzugriff-Diagnose ===
   async function checkMicrophonePermissions() {
@@ -273,16 +295,34 @@ document.addEventListener('DOMContentLoaded', function() {
     element.classList.add('hidden');
   }
 
-  function resetRecordButton() {
-    if (elements.recordBtn) {
-      elements.recordBtn.disabled = false;
-      elements.recordBtn.innerHTML = '🎙️ Reconnaissance vocale';
+  function updateRecordButton() {
+
+    if (!elements.recordBtn) return;
+
+    if (isRecording && !isPaused) {
+      elements.recordBtn.innerHTML = '⏸️ Pause';
+      elements.recordBtn.classList.add('recording');
+      elements.recordBtn.classList.remove('paused');
+
+    } else if (isRecording && isPaused) {
+      elements.recordBtn.innerHTML = '▶️ Reprendre';
       elements.recordBtn.classList.remove('recording');
+      elements.recordBtn.classList.add('paused');
+
+    } else {
+      elements.recordBtn.innerHTML = '🎙️ Enregistrer';
+      elements.recordBtn.classList.remove('recording', 'paused');
     }
+
+    elements.recordBtn.disabled = false;
+
     if (elements.stopBtn) {
-      elements.stopBtn.classList.add('hidden');
+      if (isRecording) {
+        elements.stopBtn.classList.remove('hidden');
+      } else {
+        elements.stopBtn.classList.add('hidden');
+      }
     }
-    isRecording = false;
   }
 
   function showProgressStatus(step, message) {
@@ -335,6 +375,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Stop recording completely
     isRecording = false;
+    isPaused = false;
     
     if (recognition) {
       isRecognitionRestarting = true;
@@ -382,13 +423,13 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (elements.userAudio) {
       elements.userAudio.src = '';
+      elements.userAudio.classList.add('hidden');
     }
     
-    elements.userAudioSection?.classList.add('hidden');
-    elements.playAudioBtn?.classList.add('hidden');
+    //elements.userAudioSection?.classList.add('hidden');
     elements.showResponseBtn?.classList.add('hidden');
     
-    resetRecordButton();
+    updateRecordButton();
     
     currentUserId = null;
     recordedAudioBlob = null;
@@ -403,7 +444,7 @@ document.addEventListener('DOMContentLoaded', function() {
     hideStatus(elements.recordingStatus);
   }
 
-  // === VERBESSERTE Audioaufnahme-Funktion ===
+  // === VERBESSERTE Audioaufnahme-Funktion mit Pause/Resume===
   async function startRealTimeSpeech() {
     console.log('Starting real-time speech with recording...');
     
@@ -416,6 +457,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
       // Set recording state
       isRecording = true;
+      isPaused = false;
       
       // Reset transcript and audio
       finalTranscript = '';
@@ -497,10 +539,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (uploadResult && uploadResult.audio_path) {
               showStatus(elements.recordingStatus, '✅ Audio enregistré', 'success');
               
-              if (elements.userAudio && elements.userAudioSection) {
+              if (elements.userAudio) {
                 elements.userAudio.src = uploadResult.audio_path;
                 elements.userAudio.load();
-                elements.userAudioSection.classList.remove('hidden');
+                elements.userAudio.classList.remove('hidden');
                 console.log('User audio player configured:', elements.userAudio.src);
               }
             } else {
@@ -671,7 +713,6 @@ document.addEventListener('DOMContentLoaded', function() {
       if (data.audio_url) {
         elements.audioPlayback.src = data.audio_url;
         elements.audioPlayback.classList.remove('hidden');
-        elements.playAudioBtn.classList.remove('hidden');
         audioHasBeenPlayed = false;
         updateShowResponseButton();
         showProgressStatus(4, '🔊 Texte et audio prêts - 100% terminé!');  // ← ÄNDERUNG: Step 4 statt 3
@@ -702,7 +743,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log('Audio-Retry erfolgreich:', retryData.audio_url);
                     elements.audioPlayback.src = retryData.audio_url;
                     elements.audioPlayback.classList.remove('hidden');
-                    elements.playAudioBtn.classList.remove('hidden');
                     audioHasBeenPlayed = false;
                     updateShowResponseButton();
                     showProgressStatus(4, '🔊 Texte et audio prêts - 100% terminé!');
@@ -794,7 +834,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function continueWithoutAudio() {
         console.log('Benutzer wählt: ohne Audio fortfahren');
         showResponseText(); // Nutzt bestehende Funktion
-        elements.playAudioBtn?.classList.add('hidden');
         showProgressStatus(4, '✅ Texte prêt - 100% terminé!');
     } 
 
@@ -847,7 +886,6 @@ document.addEventListener('DOMContentLoaded', function() {
           elements.audioPlayback.classList.remove('hidden');
           elements.audioPlayback.addEventListener('canplay', function() {
             showProgressStatus(4, '🔊 Audio prêt! Cliquez sur "Écouter" pour commencer.');
-            elements.playAudioBtn?.classList.remove('hidden');
           }, { once: true });
 
           elements.audioPlayback.addEventListener('ended', function() {
@@ -915,18 +953,6 @@ document.addEventListener('DOMContentLoaded', function() {
         showStatus(elements.globalStatus, 'Veuillez d\'abord enregistrer ou taper un message.', 'warning');
     }
   });
-
-  elements.playAudioBtn?.addEventListener('click', () => {
-    if (elements.audioPlayback && elements.audioPlayback.src) {
-      elements.audioPlayback.play().catch(err => {
-        console.error('Audio play failed:', err);
-        showStatus(elements.audioStatus, '⚠️ Lecture audio impossible', 'error');
-        });
-
-        audioHasBeenPlayed = true;
-        updateShowResponseButton();
-
-    }
 
 });
   elements.showResponseBtn?.addEventListener('click', () => {
