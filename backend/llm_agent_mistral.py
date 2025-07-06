@@ -5,12 +5,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def query_llm_mistral(prompt, max_tokens=150, temperature=0.7):
+def query_llm_mistral(prompt, history=None, max_tokens=150, temperature=0.7):
     """
-    Fragt Mistral LLM ab mit Längenbegrenzung
+    Fragt Mistral LLM ab mit Längenbegrenzung und Konversationshistorie.
     
     Args:
-        prompt (str): Der Eingabeprompt
+        prompt (str): Der aktuelle Eingabeprompt des Benutzers.
+        history (list, optional): Eine Liste von Nachrichten im Format [{"role": "user", "content": "text"}, ...].
+                                  Wird verwendet, um den Konversationskontext beizubehalten.
         max_tokens (int): Maximale Anzahl Tokens in der Antwort (Standard: 150)
         temperature (float): Kreativität der Antwort (0.0-1.0, Standard: 0.7)
     
@@ -44,12 +46,21 @@ def query_llm_mistral(prompt, max_tokens=150, temperature=0.7):
     Exemple de réponse idéale: "C'est une très bonne idée ! J'aime beaucoup l'idée de voyager. Quel type de cuisine vous attire le plus quand vous pensez à un nouveau pays ? Ou peut-être avez-vous déjà une destination en tête ?"
     """
 
+    messages = [{"role": "system", "content": system_prompt}]
+    
+    # Füge die Konversationshistorie hinzu, falls vorhanden
+    if history:
+        # Sicherstellen, dass die Historie nicht den System-Prompt enthält, da dieser separat hinzugefügt wird
+        # und dass sie im korrekten Format ist.
+        # Das Frontend sendet {role: 'user'/'assistant', content: 'text'}
+        messages.extend(history)
+    
+    # Füge den aktuellen Benutzerprompt hinzu
+    messages.append({"role": "user", "content": prompt})
+
     payload = {
         "model": "mistral-small",  # Kosteneffizient für Sprachlernen
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt}
-        ],
+        "messages": messages,
         "max_tokens": max_tokens,  # Begrenzt die Antwortlänge
         "temperature": temperature,  # Kontrolliert Kreativität
         "top_p": 0.9,  # Zusätzliche Kontrolle über Variabilität
@@ -57,7 +68,7 @@ def query_llm_mistral(prompt, max_tokens=150, temperature=0.7):
     }
 
     try:
-        logger.info(f"Sending request to Mistral with max_tokens={max_tokens}")
+        logger.info(f"Sending request to Mistral with max_tokens={max_tokens} and history length {len(history) if history else 0}")
         response = requests.post(url, headers=headers, json=payload, timeout=30)
         response.raise_for_status()
         
@@ -77,18 +88,19 @@ def query_llm_mistral(prompt, max_tokens=150, temperature=0.7):
         logger.error(f"Unexpected response format: {result}")
         raise Exception("Unerwartetes Antwortformat von Mistral API")
 
-def get_intro_for_scenario(scenario):
-    """
-    Generiert einen Intro-Text basierend auf dem bestehenden system_prompt
-    """
-    if scenario == "libre":
-        return "Bonjour ! Prêt pour une conversation libre en français ?"
+# get_intro_for_scenario wird nicht mehr benötigt, da das Frontend den initialen Prompt sendet
+# def get_intro_for_scenario(scenario):
+#     """
+#     Generiert einen Intro-Text basierend auf dem bestehenden system_prompt
+#     """
+#     if scenario == "libre":
+#         return "Bonjour ! Prêt pour une conversation libre en français ?"
     
-    # Nutze den bestehenden system_prompt und füge nur die Scenario-Anweisung hinzu
-    intro_request = f"L'étudiant veut pratiquer le thème '{scenario}'. Commence notre conversation avec une question ou situation engageante pour ce thème."
+#     # Nutze den bestehenden system_prompt und füge nur die Scenario-Anweisung hinzu
+#     intro_request = f"L'étudiant veut pratiquer le thème '{scenario}'. Commence notre conversation avec une question ou situation engageante pour ce thème."
     
-    # Verwende die normale query_llm_mistral Funktion, die bereits den system_prompt enthält
-    return query_llm_mistral(intro_request, max_tokens=150, temperature=0.7)
+#     # Verwende die normale query_llm_mistral Funktion, die bereits den system_prompt enthält
+#     return query_llm_mistral(intro_request, max_tokens=150, temperature=0.7)
 
 def post_process_response(text, max_chars=200):
     """
@@ -129,13 +141,14 @@ def post_process_response(text, max_chars=200):
     return text
 
 # Hilfsfunktion für verschiedene Konversationstypen
-def query_llm_for_scenario(prompt, scenario="general", max_tokens=160):
+def query_llm_for_scenario(prompt, scenario="general", history=None, max_tokens=160):
     """
-    Spezialisierte LLM-Abfrage je nach Szenario
+    Spezialisierte LLM-Abfrage je nach Szenario mit Konversationshistorie.
     
     Args:
         prompt (str): Benutzereingabe
         scenario (str): Konversationsszenario
+        history (list, optional): Die Konversationshistorie.
         max_tokens (int): Maximale Token-Anzahl
     
     Returns:
@@ -165,4 +178,5 @@ def query_llm_for_scenario(prompt, scenario="general", max_tokens=160):
     }
     
     config = scenario_configs.get(scenario, scenario_configs["general"])
-    return query_llm_mistral(prompt, **config)
+    # NEU: Historie an query_llm_mistral übergeben
+    return query_llm_mistral(prompt, history=history, **config)

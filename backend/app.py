@@ -200,6 +200,7 @@ def respond():
     user_message = request_data.get('message') or request_data.get('text')
     user_id = request_data.get('userId') or request_data.get('user_id')
     scenario = request_data.get('scenario') # Szenario-Info erhalten
+    conversation_history = request_data.get('history', []) # NEU: Konversationshistorie erhalten
 
     if not user_message:
         logger.error(f"Keine Nachricht erhalten. Request data: {request_data}")
@@ -223,9 +224,11 @@ def respond():
         logger.info(f"Anfrage an LLM für User {user_id} mit Nachricht: {user_message[:50]}...")
         if scenario:
             logger.info(f"Szenario für LLM: {scenario}")
-            llm_response = query_llm_for_scenario(user_message, scenario)
+            # NEU: Historie an query_llm_for_scenario übergeben
+            llm_response = query_llm_for_scenario(user_message, scenario, history=conversation_history)
         else:
-            llm_response = query_llm_mistral(user_message)
+            # NEU: Historie an query_llm_mistral übergeben
+            llm_response = query_llm_mistral(user_message, history=conversation_history)
 
         logger.info(f"LLM-Antwort für User {user_id}: {llm_response[:50]}...")
 

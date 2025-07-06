@@ -40,6 +40,8 @@ document.addEventListener('DOMContentLoaded', function() {
   let autoSendAfterRecording = false; // Konfig automatisches Senden der UserAufnahme
   let isRecording = false; // Status-Tracker
   let isPaused = false; // Neuer Status für Pause
+  // NEU: Konversationshistorie
+  let conversationHistory = []; // Speichert Nachrichten als {role: 'user'/'assistant', content: 'text'}
 
   const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
 
@@ -408,7 +410,8 @@ document.addEventListener('DOMContentLoaded', function() {
     isTextCurrentlyVisible = false;
     finalTranscript = '';
     audioChunks = []; // Reset audio chunks
-    
+    conversationHistory = []; // NEU: Konversationshistorie zurücksetzen
+
     hideStatus(elements.recordingStatus);
     hideStatus(elements.audioStatus);
     hideStatus(elements.recordingStatus);
@@ -587,6 +590,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     elements.userAudio.load();
                     elements.userAudio.classList.remove('hidden');
                     console.log('User audio player configured:', elements.userAudio.src);
+                  } else {
+
+                    console.error('userAudio Element nicht gefunden!');
+
                   }
                 } else {
                   showStatus(elements.recordingStatus, '⚠️ Erreur lors de l\'enregistrement de l\'audio', 'error');
@@ -669,20 +676,7 @@ function hasAudioContent(audioBlob) {
     fileReader.readAsArrayBuffer(audioBlob);
   });
 }
-      
-  /*    // Update UI
-      if (elements.recordBtn) {
-        elements.recordBtn.innerHTML = '🔴 Arrêter l\'enregistrement';
-        elements.recordBtn.classList.add('recording');
-      }
-     
-      if (elements.stopBtn) {
-        elements.stopBtn.classList.remove('hidden');
-        elements.stopBtn.innerHTML = '⏹️ Arrêter';
-      }
-    */   
     
-
   function stopRealTimeSpeech() {
     console.log('Stopping real-time speech...');
     
@@ -777,13 +771,18 @@ function hasAudioContent(audioBlob) {
     elements.recordBtn.disabled = true;
 
     try {
+
+     // NEU: Füge Benutzernachricht zur Historie hinzu
+      conversationHistory.push({ role: 'user', content: message });
+
       const response = await fetch('/api/respond', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           message: message,
           userId: userId, 
-          scenario: currentScenario
+          scenario: currentScenario,
+          history: conversationHistory // NEU: Sende die Historie an das Backend
         }),
       });
 
@@ -795,13 +794,16 @@ function hasAudioContent(audioBlob) {
       console.log('Backend response:', data);
       currentResponse = data.response;
       showResponseText();
+
+      // NEU: Füge LLM-Antwort zur Historie hinzu
+      conversationHistory.push({ role: 'assistant', content: data.response });
     
       if (data.audio_url) {
         elements.audioPlayback.src = data.audio_url;
         elements.audioPlayback.classList.remove('hidden');
         audioHasBeenPlayed = false;
         updateShowResponseButton();
-        showProgressStatus(4, '🔊 Texte et audio prêts - 100% terminé!');  // ← ÄNDERUNG: Step 4 statt 3
+        showProgressStatus(4, '🔊 Texte et audio prêts - 100% terminé!');  
       }else {
         // Kein Audio vorhanden - Retry-Mechanismus
         console.error('Keine Audio-URL vom Backend erhalten - starte Retry-Versuch');
@@ -818,6 +820,7 @@ function hasAudioContent(audioBlob) {
                         message: message,
                         userId: userId, 
                         scenario: currentScenario,
+                        history: conversationHistory, // NEU: Historie auch bei Retry senden
                         retry_audio: true
                     }),
                 });
@@ -945,30 +948,40 @@ function hasAudioContent(audioBlob) {
       showProgressStatus(1, '🤔 L\'assistant prépare la conversation...');
       
     // const intro = `J'apprends le français au niveau B1/B2. Je voudrais avoir une conversation avec toi sur le thème « ${scenario} ». Corrige-moi si je fais des erreurs et aide-moi à améliorer ma grammaire et mon expression. Commence par me poser une question ou présenter une situation pour démarrer notre conversation.`;
-
+    // HIER GEÄNDERT: intro Variable wird durch LLM-Aufruf ersetzt
       try {
-        const res = await fetch('/api/respond', {
+            
+        const introPrompt = `L'étudiant veut pratiquer le thème '${scenario}'. Commence notre conversation avec une question ou situation engageante pour ce thème.`;
+        // NEU: Initialen Prompt zur Historie hinzufügen (als "user" an das LLM)
+        conversationHistory.push({ role: 'user', content: introPrompt });
+
+        const resIntro = await fetch('/api/respond', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
-            message: intro,
+            message: introPrompt, // Sende den Prompt an das Backend
             userId: userId,
-            scenario: scenario
+            scenario: scenario,
+            history: conversationHistory // NEU: Historie senden
           })
         });
 
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
+        if (!resIntro.ok) {
+          throw new Error(`HTTP error! status: ${resIntro.status}`);
         }
-        
-        const data = await res.json();
-        currentResponse = data.response;
+
+        const introData = await resIntro.json();
+        currentResponse = introData.response; // Die LLM-Antwort ist jetzt das Intro
+    
+
+        // NEU: LLM-Antwort zur Historie hinzufügen
+        conversationHistory.push({ role: 'assistant', content: introData.response });
         
         showProgressStatus(2, '📝 Conversation préparée, génération de l\'audio...');
         
-        if (data.audio_url) {
+        if (introData.audio_url) {
           showProgressStatus(3, '🎵 Audio généré, préparation de la lecture...');
-          elements.audioPlayback.src = data.audio_url;
+          elements.audioPlayback.src = introData.audio_url;
           elements.audioPlayback.classList.remove('hidden');
           elements.audioPlayback.addEventListener('canplay', function() {
             showProgressStatus(4, '🔊 Audio prêt! Cliquez sur "Écouter" pour commencer.');
@@ -1049,7 +1062,7 @@ elements.audioPlayback?.addEventListener('ended', () => {
         sendMessageToBackend(messageToSend);
     } else {
         console.log('Kein gültiger Text zum Senden gefunden');
-        showStatus(elements.globalStatus, 'Veuillez d\'abord enregistrer ou taper un message.', 'warning');
+        showStatus(elements.recordingStatus, 'Veuillez d\'abord enregistrer ou taper un message.', 'warning');
     }
   });
 
@@ -1101,7 +1114,7 @@ document.addEventListener('keydown', (e) => {
       sendMessageToBackend(messageToSend);
     } else {
       console.log('Kein gültiger Text zum Senden gefunden via Keyboard');
-      showStatus(elements.globalStatus, 'Veuillez d\'abord enregistrer ou taper un message.', 'warning');
+      showStatus(elements.recordingStatus, 'Veuillez d\'abord enregistrer ou taper un message.', 'warning');
     }
   }
   
