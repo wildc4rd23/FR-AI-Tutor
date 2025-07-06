@@ -77,6 +77,19 @@ def query_llm_mistral(prompt, max_tokens=150, temperature=0.7):
         logger.error(f"Unexpected response format: {result}")
         raise Exception("Unerwartetes Antwortformat von Mistral API")
 
+def get_intro_for_scenario(scenario):
+    """
+    Generiert einen Intro-Text basierend auf dem bestehenden system_prompt
+    """
+    if scenario == "libre":
+        return "Bonjour ! Prêt pour une conversation libre en français ?"
+    
+    # Nutze den bestehenden system_prompt und füge nur die Scenario-Anweisung hinzu
+    intro_request = f"L'étudiant veut pratiquer le thème '{scenario}'. Commence notre conversation avec une question ou situation engageante pour ce thème."
+    
+    # Verwende die normale query_llm_mistral Funktion, die bereits den system_prompt enthält
+    return query_llm_mistral(intro_request, max_tokens=150, temperature=0.7)
+
 def post_process_response(text, max_chars=200):
     """
     Nachbearbeitung der Antwort für optimale TTS-Nutzung

@@ -571,21 +571,30 @@ document.addEventListener('DOMContentLoaded', function() {
               recordedAudioBlob = new Blob(audioChunks, {type: mimeType});
               console.log('Created audio blob:', recordedAudioBlob.size, 'bytes, type:', recordedAudioBlob.type);
               
-              // Upload audio
-              showStatus(elements.recordingStatus, '💾 Sauvegarde audio...', 'loading');
-              const uploadResult = await uploadRecordedAudio(recordedAudioBlob, mimeType);
+              // Prüfe auf tatsächlichen Audioinhalt
+              showStatus(elements.recordingStatus, '🔍 Analyse de l\'audio...', 'loading');
+              const hasContent = await hasAudioContent(recordedAudioBlob);
               
-              if (uploadResult && uploadResult.audio_path) {
-                showStatus(elements.recordingStatus, '✅ Audio enregistré', 'success');
+              if (hasContent) {
+                showStatus(elements.recordingStatus, '💾 Sauvegarde audio...', 'loading');
+                const uploadResult = await uploadRecordedAudio(recordedAudioBlob, mimeType);
                 
-                if (elements.userAudio) {
-                  elements.userAudio.src = uploadResult.audio_path;
-                  elements.userAudio.load();
-                  elements.userAudio.classList.remove('hidden');
-                  console.log('User audio player configured:', elements.userAudio.src);
+                if (uploadResult && uploadResult.audio_path) {
+                  showStatus(elements.recordingStatus, '✅ Audio enregistré', 'success');
+                  
+                  if (elements.userAudio) {
+                    elements.userAudio.src = uploadResult.audio_path;
+                    elements.userAudio.load();
+                    elements.userAudio.classList.remove('hidden');
+                    console.log('User audio player configured:', elements.userAudio.src);
+                  }
+                } else {
+                  showStatus(elements.recordingStatus, '⚠️ Erreur lors de l\'enregistrement de l\'audio', 'error');
                 }
               } else {
-                showStatus(elements.recordingStatus, '⚠️ Erreur lors de l\'enregistrement de l\'audio', 'error');
+                console.log('No significant audio content detected, skipping upload');
+                showStatus(elements.recordingStatus, '⚠️ Aucun contenu audio détecté', 'warning');
+                recordedAudioBlob = null;
               }
             } else {
               console.error('Audio chunks have zero total size!');
@@ -628,6 +637,38 @@ document.addEventListener('DOMContentLoaded', function() {
         cleanupAudioStream();
       }
     }
+
+function hasAudioContent(audioBlob) {
+  return new Promise((resolve) => {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const fileReader = new FileReader();
+    
+    fileReader.onload = function(e) {
+      audioContext.decodeAudioData(e.target.result)
+        .then(buffer => {
+          // Prüfe auf tatsächlichen Audioinhalt
+          let hasSound = false;
+          const threshold = 0.01; // Mindestlautstärke
+          
+          for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+            const channelData = buffer.getChannelData(channel);
+            for (let i = 0; i < channelData.length; i++) {
+              if (Math.abs(channelData[i]) > threshold) {
+                hasSound = true;
+                break;
+              }
+            }
+            if (hasSound) break;
+          }
+          
+          resolve(hasSound);
+        })
+        .catch(() => resolve(false));
+    };
+    
+    fileReader.readAsArrayBuffer(audioBlob);
+  });
+}
       
   /*    // Update UI
       if (elements.recordBtn) {
@@ -903,7 +944,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (scenario !== "libre") {
       showProgressStatus(1, '🤔 L\'assistant prépare la conversation...');
       
-     const intro = `J'apprends le français au niveau B1/B2. Je voudrais avoir une conversation avec toi sur le thème « ${scenario} ». Corrige-moi si je fais des erreurs et aide-moi à améliorer ma grammaire et mon expression. Commence par me poser une question ou présenter une situation pour démarrer notre conversation.`;
+    // const intro = `J'apprends le français au niveau B1/B2. Je voudrais avoir une conversation avec toi sur le thème « ${scenario} ». Corrige-moi si je fais des erreurs et aide-moi à améliorer ma grammaire et mon expression. Commence par me poser une question ou présenter une situation pour démarrer notre conversation.`;
 
       try {
         const res = await fetch('/api/respond', {
