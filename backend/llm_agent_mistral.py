@@ -68,7 +68,7 @@ def query_llm_mistral(prompt, history=None, max_tokens=150, temperature=0.7):
         "top_p": 0.9,  # Zusätzliche Kontrolle über Variabilität
         "stop": [".", "!", "?", "\n\n"]  # Stoppt bei natürlichen Satzenden
     }
-    logger.debug("🧠 LLM Mistral Request:\n%s", json.dumps(payload, indent=2, ensure_ascii=False))
+    logger.info("🧠 LLM Mistral Request:\n%s", json.dumps(payload, indent=2, ensure_ascii=False))
 
     try:
         logger.info(f"Sending request to Mistral with max_tokens={max_tokens} and history length {len(history) if history else 0}")
