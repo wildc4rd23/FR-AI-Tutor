@@ -775,6 +775,14 @@ function hasAudioContent(audioBlob) {
      // NEU: Füge Benutzernachricht zur Historie hinzu
       conversationHistory.push({ role: 'user', content: message });
 
+console.log('=== SENDING TO BACKEND ===');
+console.log('📤 User message:', message);
+console.log('🧠 Aktuelle conversationHistory:');
+console.table(conversationHistory);  // Gut lesbar als Tabelle
+console.log('📌 User ID:', userId);
+console.log('🎯 Scenario:', currentScenario);
+
+
       const response = await fetch('/api/respond', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -963,6 +971,11 @@ function hasAudioContent(audioBlob) {
         console.log('Initial intro prompt for LLM:', introPrompt);
         conversationHistory = []; // Historie für neues Gespräch
         conversationHistory.push({ role: 'user', content: introPrompt });
+
+console.log('=== INTRO PROMPT SENDING ===');
+console.log('📤 Intro Prompt:', introPrompt);
+console.log('🧠 Aktuelle conversationHistory (Intro):');
+console.table(conversationHistory);
 
         const resIntro = await fetch('/api/respond', {
           method: 'POST',

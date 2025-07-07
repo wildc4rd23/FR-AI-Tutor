@@ -123,8 +123,6 @@
     .record-btn {
       background: #e53e3e;
       min-width: auto;
-      padding: 15px 25px;
-      border-radius: 50px;
       margin: 0;
     }
     .record-btn:hover:not(:disabled) {
@@ -144,8 +142,6 @@
     .stop-btn {
       background: #2d3748;
       min-width: auto;
-      padding: 15px 25px;
-      border-radius: 50px;
       margin: 0;
     }
     .secondary-btn {
@@ -224,7 +220,7 @@
   <div class="container">
     <div class="logo">🇫🇷</div>
     <h1>Assistant Vocal Français</h1>
-    <p style="text-align: center; color: #718096; margin-bottom: 30px;">
+    <p style="text-align: center; color: #718096; margin-bottom: 10px;">
       Pratiquez votre français avec un assistant intelligent (niveau B1/B2)
     </p>
 
@@ -296,15 +292,16 @@
           >
             Tapez votre message ici ou utilisez l'enregistrement...
           </div>
+            <!-- Send Button -->
+            <div class="audio-controls">
+              <button id="sendMessage" class="send-btn">📤 Envoyer le message</button>
+              <div class="keyboard-hint">
+                Raccourcis: Espace = Pause/Reprendre | Ctrl+Entrée = Envoyer
+              </div>
+            </div>
         </div>
         
-        <!-- Send Button -->
-        <div class="audio-controls">
-          <button id="sendMessage" class="send-btn">📤 Envoyer le message</button>
-          <div class="keyboard-hint">
-            Raccourcis: Espace = Pause/Reprendre | Ctrl+Entrée = Envoyer
-          </div>
-        </div>
+
       </div>
 
       <!-- Contrôles -->
