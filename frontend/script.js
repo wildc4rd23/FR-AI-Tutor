@@ -752,6 +752,18 @@ function hasAudioContent(audioBlob) {
   }
 
   // === Backend Communication ===
+
+  // === Hilfsfunktion
+  async function extractErrorMessage(response) {
+      try {
+        const text = await response.text();
+        const parsed = JSON.parse(text);
+        return parsed.error || parsed.response || text;
+      } catch (e) {
+        return "Erreur inconnue du serveur.";
+      }
+    }
+
   async function sendMessageToBackend(message) {
     console.log('=== MESSAGE SENDING DEBUG ===');
     console.log('Ursprünglicher Parameter:', message);
@@ -795,26 +807,27 @@ console.log('🎯 Scenario:', currentScenario);
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await extractErrorMessage(response);
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
       console.log('Backend response:', data);
       currentResponse = data.response;
-      showResponseText();
-
-      // NEU: Füge LLM-Antwort zur Historie hinzu
+      
+      // Füge LLM-Antwort zur Historie hinzu
       conversationHistory.push({ role: 'assistant', content: data.response });
-    
+        showResponseText();
+
       if (data.audio_url) {
         elements.audioPlayback.src = data.audio_url;
         elements.audioPlayback.classList.remove('hidden');
         audioHasBeenPlayed = false;
         updateShowResponseButton();
         showProgressStatus(4, '🔊 Texte et audio prêts - 100% terminé!');  
-      }else {
+      } else {
         // Kein Audio vorhanden - Retry-Mechanismus
-        console.error('Keine Audio-URL vom Backend erhalten - starte Retry-Versuch');
+        console.error('Keine Audio-URL vom Backend erhalten - starte Retry in 2 Sek');
         showProgressStatus(3, '⚠️ Audio manquant - Nouvelle tentative');
         
         // Automatischer Retry nach 2 Sekunden
@@ -833,8 +846,13 @@ console.log('🎯 Scenario:', currentScenario);
                     }),
                 });
 
-                const retryData = await retryResponse.json();
-                console.log('Audio-Retry-Response:', retryData);
+
+                if (!retryRes.ok) {
+                    const retryErrorText = await extractErrorMessage(retryRes);
+                    throw new Error(`Retry fehlgeschlagen: ${retryErrorText}`);
+                }
+                const retryData = await retryRes.json();
+                console.log('🔁 Audio-Retry-Response:', retryData);
 
                 if (retryData.audio_url) {
                     console.log('Audio-Retry erfolgreich:', retryData.audio_url);
@@ -853,7 +871,7 @@ console.log('🎯 Scenario:', currentScenario);
         }, 2000);
       }
 
-      showStatus(elements.recordingStatus, '✅ Réponse reçu', 'success');
+      showStatus(elements.recordingStatus, '✅ Réponse reçue', 'success');
 
     } catch (error) {
       console.error('Error sending message to backend:', error);
@@ -903,7 +921,9 @@ console.log('🎯 Scenario:', currentScenario);
     }
   }
 
-  // === Hilfsfunktionen für Audio von TTS ===
+
+
+  // === für Audio von TTS ===
 
     function showAudioRetryOptions() {
         if (elements.responseText) {
