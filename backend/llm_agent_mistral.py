@@ -19,6 +19,8 @@ def query_llm_mistral(prompt, history=None, max_tokens=150, temperature=0.7):
     Returns:
         str: Die LLM-Antwort
     """
+    logger.debug("🧠 LLM Mistral Request:\n%s", json.dumps(payload, indent=2, ensure_ascii=False))
+
     api_key = os.environ.get("MISTRAL_API_KEY")
     if not api_key:
         raise Exception("MISTRAL_API_KEY Umgebungsvariable fehlt")
