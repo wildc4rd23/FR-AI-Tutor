@@ -928,12 +928,18 @@ function hasAudioContent(audioBlob) {
 
   // === Event Listeners ===
   elements.startBtn?.addEventListener('click', async () => {
+        console.log('Start Conversation button clicked.');
+
     const scenario = elements.scenarioSelect?.value;
+
     if (!scenario) {
       showStatus(elements.recordingStatus, "⚠️ Veuillez choisir un thème.", 'error');
       setTimeout(() => hideStatus(elements.recordingStatus), 3000);
+      console.log('Scenario not selected. Aborting start.');
       return;
     }
+
+    console.log('Scenario selected:', scenario);
 
     elements.startSection?.classList.add('hidden');
     elements.conversationSection?.classList.remove('hidden');
@@ -946,13 +952,16 @@ function hasAudioContent(audioBlob) {
 
     if (scenario !== "libre") {
       showProgressStatus(1, '🤔 L\'assistant prépare la conversation...');
+      console.log('Preparing conversation for scenario:', scenario);
       
     // const intro = `J'apprends le français au niveau B1/B2. Je voudrais avoir une conversation avec toi sur le thème « ${scenario} ». Corrige-moi si je fais des erreurs et aide-moi à améliorer ma grammaire et mon expression. Commence par me poser une question ou présenter une situation pour démarrer notre conversation.`;
     // HIER GEÄNDERT: intro Variable wird durch LLM-Aufruf ersetzt
       try {
             
         const introPrompt = `L'étudiant veut pratiquer le thème '${scenario}'. Commence notre conversation avec une question ou situation engageante pour ce thème.`;
-        // NEU: Initialen Prompt zur Historie hinzufügen (als "user" an das LLM)
+        // Initialen Prompt zur Historie hinzufügen (als "user" an das LLM)
+        console.log('Initial intro prompt for LLM:', introPrompt);
+        conversationHistory = []; // Historie für neues Gespräch
         conversationHistory.push({ role: 'user', content: introPrompt });
 
         const resIntro = await fetch('/api/respond', {
@@ -967,12 +976,14 @@ function hasAudioContent(audioBlob) {
         });
 
         if (!resIntro.ok) {
-          throw new Error(`HTTP error! status: ${resIntro.status}`);
+          const errorText = await resIntro.text();
+          console.error('HTTP error during intro fetch:', resIntro.status, errorText);
+          throw new Error(`HTTP error! status: ${resIntro.status} - ${errorText}`);
         }
 
         const introData = await resIntro.json();
+        console.log('Intro LLM response data:', introData);
         currentResponse = introData.response; // Die LLM-Antwort ist jetzt das Intro
-    
 
         // NEU: LLM-Antwort zur Historie hinzufügen
         conversationHistory.push({ role: 'assistant', content: introData.response });
@@ -980,33 +991,40 @@ function hasAudioContent(audioBlob) {
         showProgressStatus(2, '📝 Conversation préparée, génération de l\'audio...');
         
         if (introData.audio_url) {
+          console.log('Intro audio URL received:', introData.audio_url);
           showProgressStatus(3, '🎵 Audio généré, préparation de la lecture...');
           elements.audioPlayback.src = introData.audio_url;
           elements.audioPlayback.classList.remove('hidden');
-          elements.audioPlayback.addEventListener('canplay', function() {
-            showProgressStatus(4, '🔊 Audio prêt! Cliquez sur "Écouter" pour commencer.');
-          }, { once: true });
+           elements.audioPlayback.addEventListener('canplaythrough', function handler() {
+            showProgressStatus(4, '🔊 Audio prêt! Cliquez pour écouter.'); 
+            elements.audioPlayback.removeEventListener('canplaythrough', handler); // Event Listener entfernen
+           }, { once: true });
 
-          elements.audioPlayback.addEventListener('ended', function() {
+          elements.audioPlayback.addEventListener('ended', function handler() {
             audioHasBeenPlayed = true;
             showProgressStatus(4, '✅ Lecture terminée! Vous pouvez maintenant voir le texte.');
             updateShowResponseButton();
+            elements.audioPlayback.removeEventListener('ended', handler); // Event Listener entfernen
           }, { once: true });
+
         } else {
+          console.warn('No audio URL received for intro.');
           audioHasBeenPlayed = true;
           showResponseText();
+          showStatus(elements.recordingStatus, '⚠️ Aucun audio d\'introduction reçu.', 'warning');
         }
-        
       } catch (err) {
-        console.error('Error starting conversation:', err);
+        console.error('Error starting conversation (catch block):', err);
         if (elements.responseText) {
           elements.responseText.innerHTML = `<div class="status-message status-error">⚠️ Erreur: ${err.message}</div>`;
         }
+        showStatus(elements.recordingStatus, `❌ Erreur lors du démarrage: ${err.message}`, 'error');
       }
     } else {
       if (elements.responseText) {
         elements.responseText.innerHTML = "🎯 Sujet libre sélectionné. Cliquez sur 'Reconnaissance' pour commencer!";
       }
+      console.log('Free topic selected. Waiting for user input.');
     }
   });
 
