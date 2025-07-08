@@ -22,7 +22,8 @@ def get_scenario_system_prompt(scenario):
     - Sois encourageant, patient et bienveillant
     - Agis comme un véritable partenaire de discussion
     """
-    
+    logger.info(f"Base System Prompt geladen (Anfang): {base_prompt[:100]}...") # Loggen des Base Prompts
+
     scenario_prompts = {
         "restaurant": base_prompt + """
         
@@ -80,7 +81,11 @@ def get_scenario_system_prompt(scenario):
         """
     }
     
-    return scenario_prompts.get(scenario, scenario_prompts["libre"])
+    selected_prompt = scenario_prompts.get(scenario, scenario_prompts["libre"])
+
+    logger.info(f"Szenario-spezifischer Prompt '{scenario}' ausgewählt (Anfang): {selected_prompt[:100]}...") # Loggen des Szenario Prompts
+
+    return selected_prompt
 
 def get_scenario_starter(scenario):
     """
@@ -95,58 +100,73 @@ def get_scenario_starter(scenario):
         Moi, le weekend dernier, j'ai fait une randonnée dans les Alpes - c'était magnifique ! 
         Et vous, qu'est-ce que vous aimez faire quand vous avez du temps libre ?""",
         
-        "travail": """Bonjour ! Je suis ravi de vous rencontrer. J'ai vu votre profil et votre parcours m'intéresse beaucoup. 
-        Parlez-moi un peu de votre expérience professionnelle. 
-        Qu'est-ce qui vous motive le plus dans votre travail ?""",
-        
-        "voyage": """Bonjour et bienvenue ! Je suis guide touristique depuis 10 ans et j'adore faire découvrir la France. 
-        Dites-moi, c'est votre première fois en France ou vous connaissez déjà quelques régions ? 
-        Qu'est-ce qui vous attire le plus : la gastronomie, l'histoire, ou les paysages ?""",
-        
-        "libre": """Bonjour ! Je suis ravi de discuter avec vous aujourd'hui. 
-        J'aime les conversations spontanées - on apprend toujours quelque chose d'intéressant ! 
-        De quoi avez-vous envie de parler ? Ou voulez-vous que je vous pose une question pour commencer ?"""
+        "travail": """Bonjour ! Je suis ravi de vous rencontrer. Parlons un peu de votre parcours professionnel. Quel est votre domaine d'expertise ? Qu'est-ce qui vous motive le plus dans votre travail ?""",
+
+        "voyage": """Bienvenue ! Si vous pouviez voyager n'importe où en France, quelle région choisiriez-vous et pourquoi ?""",
+
+        "libre": """Bonjour ! Je suis là pour pratiquer le français avec vous. Quel sujet aimeriez-vous aborder aujourd'hui ?"""
     }
     
-    return starters.get(scenario, starters["libre"])
+    selected_starter = starters.get(scenario, starters["libre"])
+    logger.info(f"Szenario-Starter '{scenario}' ausgewählt (Anfang): {selected_starter[:100]}...") # Loggen des Starters
+    return selected_starter
 
 def query_llm_mistral(prompt, history=None, max_tokens=150, temperature=0.7, scenario="libre"):
     """
-    Optimierte LLM-Abfrage mit szenario-spezifischen Prompts
+ Fragt Mistral LLM ab mit Längenbegrenzung und Konversationshistorie.
+
+    Args:
+        prompt (str): Der aktuelle Eingabeprompt des Benutzers.
+        history (list, optional): Eine Liste von Nachrichten im Format [{"role": "user", "content": "text"}, ...].
+                                  Wird verwendet, um den Konversationskontext beizubehalten.
+        max_tokens (int): Maximale Anzahl Tokens in der Antwort (Standard: 150)
+        temperature (float): Kreativität der Antwort (0.0-1.0, Standard: 0.7)
+        scenario (str): Das aktuelle Szenario zur Bestimmung des System-Prompts.
+
+    Returns:
+
+        str: Die LLM-Antwort
+
     """
+
     api_key = os.environ.get("MISTRAL_API_KEY")
+
     if not api_key:
+
         raise Exception("MISTRAL_API_KEY Umgebungsvariable fehlt")
-    
+
     url = "https://api.mistral.ai/v1/chat/completions"
     headers = {
+
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
 
-    # Szenario-spezifischen System-Prompt verwenden
+    # Erweiterten System-Prompt für Französisch-Tutor erstellen
     system_prompt = get_scenario_system_prompt(scenario)
+    logger.info(f"Finaler System Prompt für LLM (Anfang): {system_prompt[:100]}...") # Loggen des finalen System Prompts
     messages = [{"role": "system", "content": system_prompt}]
-    
-    # Historie hinzufügen (ohne Duplikate)
+
+    # Sicherstellen, dass die Historie nicht den System-Prompt enthält, da dieser separat hinzugefügt wird
     if history:
-        # Filtere System-Prompts aus der Historie
-        filtered_history = [msg for msg in history if msg.get("role") != "system"]
-        messages.extend(filtered_history)
+        messages.extend(history)
     
-    # Aktuellen Prompt hinzufügen
     messages.append({"role": "user", "content": prompt})
 
     payload = {
-        "model": "mistral-small",
+        "model": "mistral-small-latest",
         "messages": messages,
         "max_tokens": max_tokens,
         "temperature": temperature,
         "top_p": 0.9,
+        "random_seed": 42, # Für reproduzierbare Ergebnisse, optional
         "stop": [".", "!", "?", "\n\n"]
     }
     
-    # Debugging: Nur erste und letzte Nachricht loggen
+# NEU: Loggen der gesamten Konversation für Debugging/Überwachung
+    logger.info("🗣️ Komplette LLM-Konversation gesendet: %s", json.dumps(messages, indent=2, ensure_ascii=False))
+
+    # Debugging: Nur erste und letzte Nachricht loggen (vom Benutzer bereitgestellt)
     debug_messages = {
         "system": messages[0]["content"][:100] + "...",
         "last_user": messages[-1]["content"],
@@ -162,7 +182,7 @@ def query_llm_mistral(prompt, history=None, max_tokens=150, temperature=0.7, sce
         result = response.json()
         content = result["choices"][0]["message"]["content"].strip()
         
-        # Nachbearbeitung für TTS
+        # Nachbearbeitung für TTS (bestehende Funktion post_process_response wird genutzt)
         content = post_process_response(content, max_chars=200)
         
         logger.info(f"✅ Mistral response: {len(content)} characters")
