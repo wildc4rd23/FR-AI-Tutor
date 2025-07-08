@@ -1,10 +1,11 @@
 # backend/app.py
-from flask import Flask, request, jsonify, send_from_directory, abort
+from flask import Flask, request, jsonify, send_from_directory, abort, url_for
 from flask_cors import CORS
 import os
 import requests
 import logging
-import uuid # Import für eindeutige Dateinamen
+import uuid
+from datetime import datetime
 
 # =========================================================
 # TTS KONFIGURATION: Wählen Sie hier Ihren aktiven TTS-Anbieter
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 logger.info(f"Aktiver TTS-Anbieter: {ACTIVE_TTS_PROVIDER}")
 
 # Aktive Imports basierend auf der Konfiguration
-from llm_agent_mistral import query_llm_mistral, query_llm_for_scenario
+from llm_agent_mistral import query_llm_mistral, query_llm_for_scenario, get_intro_for_scenario
 from utils import get_user_temp_dir, cleanup_temp_dir
 
 # Bedingte TTS-Importe
@@ -40,18 +41,75 @@ else:
     synthesize_speech_openai = dummy_synthesize_speech 
     synthesize_speech_amzpolly = dummy_synthesize_speech
 
-# Fallback Imports (für späteren Einsatz, auskommentiert)
-# from vosk_stt import transcribe_audio
-# from tts_tacotron import synthesize_speech as synthesize_tacotron
-
 app = Flask(__name__, static_folder='../frontend')
 CORS(app)
+
+# Session-Management für Backend-Historie
+user_sessions = {}
+
+def get_user_session(user_id):
+    """Holt oder erstellt eine Benutzersession"""
+    if user_id not in user_sessions:
+        user_sessions[user_id] = {
+            'history': [],
+            'scenario': 'libre',
+            'created_at': datetime.now()
+        }
+    return user_sessions[user_id]
 
 # Bestimme das Projekt-Root-Verzeichnis (eine Ebene über dem 'backend'-Ordner)
 PROJECT_ROOT = os.path.dirname(app.root_path)
 # Dies ist der Basisordner, in dem ALLE temporären Audio-Dateien gespeichert werden
 TEMP_AUDIO_DIR_ROOT = os.path.join(PROJECT_ROOT, 'temp_audio')
-os.makedirs(TEMP_AUDIO_DIR_ROOT, exist_ok=True) # Stelle sicher, dass der Ordner existiert
+os.makedirs(TEMP_AUDIO_DIR_ROOT, exist_ok=True)
+
+# Generische TTS-Funktion basierend auf dem aktiven Anbieter
+def generate_tts(text, user_id, prefix="response"):
+    """Generiert TTS-Audio für den gegebenen Text und User"""
+    temp_path_absolute, _ = get_user_temp_dir(user_id, base_dir=TEMP_AUDIO_DIR_ROOT)
+    output_filename = f"{prefix}.mp3"
+    output_path_absolute = os.path.join(temp_path_absolute, output_filename)
+    
+    try:
+        if ACTIVE_TTS_PROVIDER == "GOOGLE":
+            synthesize_speech_google(text, output_path_absolute)
+        elif ACTIVE_TTS_PROVIDER == "MINIMAX":
+            synthesize_speech_minimax(text, output_path_absolute)
+        elif ACTIVE_TTS_PROVIDER == "OPENAI":
+            synthesize_speech_openai(text, output_path_absolute)
+        elif ACTIVE_TTS_PROVIDER == "AMAZON_POLLY":
+            synthesize_speech_amzpolly(text, output_path_absolute)
+        else:
+            raise Exception(f"Ungültiger TTS-Anbieter konfiguriert: {ACTIVE_TTS_PROVIDER}")
+            
+        if os.path.exists(output_path_absolute) and os.path.getsize(output_path_absolute) > 0:
+            return output_path_absolute
+        else:
+            raise Exception("TTS-Ausgabe ist leer oder konnte nicht gespeichert werden")
+            
+    except Exception as e:
+        logger.error(f"TTS-Fehler für User {user_id}: {str(e)}")
+        
+        # Tacotron Fallback (für späteren Einsatz)
+        if ACTIVE_TTS_PROVIDER != "TACOTRON": # Verhindert Endlosschleife
+            # from tts_tacotron import synthesize_speech as synthesize_tacotron # Import hier, wenn Tacotron verwendet wird
+            logger.warning(f"Primärer TTS ({ACTIVE_TTS_PROVIDER}) fehlgeschlagen, versuche Tacotron-Fallback...")
+            fallback_output_path = os.path.join(temp_path_absolute, f"{prefix}_tacotron.mp3")
+            try:
+                # synthesize_tacotron(text, fallback_output_path)
+                # Dummy-Fallback bis Tacotron implementiert ist
+                if True: # Simuliere Erfolg
+                    # Erstelle eine Dummy-Datei, wenn Tacotron noch nicht integriert ist
+                    if not os.path.exists(fallback_output_path) or os.path.getsize(fallback_output_path) == 0:
+                        with open(fallback_output_path, "wb") as f:
+                            f.write(b"Dummy Tacotron Audio") # Füge hier echte Tacotron-Synthese ein
+                    logger.info(f"Tacotron Fallback erfolgreich für User {user_id} (Dummy)")
+                    return fallback_output_path
+            except Exception as fallback_e:
+                logger.error(f"Tacotron-Fallback fehlgeschlagen für User {user_id}: {str(fallback_e)}")
+                raise Exception(f"{ACTIVE_TTS_PROVIDER}: {str(e)}, Tacotron-Fallback: {str(fallback_e)}")
+        
+        raise e
 
 # === Frontend ===
 @app.route('/')
@@ -60,12 +118,10 @@ def index():
 
 @app.route('/<path:path>')
 def static_files(path):
-    # GEÄNDERT: Entfernt die spezielle Behandlung für Audio-Dateien hier.
-    # Temporäre Audio-Dateien werden jetzt von der dedizierten /temp_audio Route serviert.
     return send_from_directory(app.static_folder, path)
 
-# === NEUE Route zum Servieren temporärer Audio-Dateien ===
-@app.route('/temp_audio/<path:filename>') # GEÄNDERT: Route für temporäre Audios
+# === Route zum Servieren temporärer Audio-Dateien ===
+@app.route('/temp_audio/<path:filename>')
 def serve_temp_audio(filename):
     full_audio_path = os.path.join(TEMP_AUDIO_DIR_ROOT, filename)
     logger.info(f"Versuche, temporäre Audio-Datei zu servieren: {full_audio_path}")
@@ -75,15 +131,67 @@ def serve_temp_audio(filename):
         abort(404)
 
     try:
-        # send_from_directory benötigt das Basisverzeichnis (TEMP_AUDIO_DIR_ROOT)
-        # und den relativen Pfad der Datei (filename) innerhalb dieses Basisverzeichnisses.
         return send_from_directory(TEMP_AUDIO_DIR_ROOT, filename)
     except Exception as e:
         logger.error(f"Fehler beim Servieren der Audio-Datei {filename}: {str(e)}")
         abort(500)
 
-# === Route audio löschen ===
+# === NEUE Route: Conversation Starter ===
+@app.route('/api/start_conversation', methods=['POST'])
+def start_conversation():
+    """Optimierte Conversation-Starter ohne doppelte LLM-Calls"""
+    try:
+        data = request.get_json()
+        scenario = data.get('scenario', 'libre')
+        user_id = data.get('userId')
+        
+        if not user_id:
+            return jsonify({'error': 'User ID erforderlich'}), 400
+            
+        logger.info(f"🚀 Starting conversation for user {user_id}, scenario: {scenario}")
+        
+        # Session initialisieren
+        session = get_user_session(user_id)
+        session['scenario'] = scenario
+        session['history'] = []  # Neue Konversation
+        
+        # Direkte Starter-Nachricht (ohne LLM)
+        intro_message = get_intro_for_scenario(scenario)
+        
+        # Zur Session-Historie hinzufügen
+        session['history'].append({
+            'role': 'assistant',
+            'content': intro_message
+        })
+        
+        logger.info(f"📝 Intro message prepared: {intro_message[:50]}...")
+        
+        # TTS für Intro
+        audio_file = None
+        audio_url = None
+        
+        try:
+            audio_file = generate_tts(intro_message, user_id, prefix="intro")
+            if audio_file:
+                relative_path = os.path.relpath(audio_file, start=TEMP_AUDIO_DIR_ROOT)
+                audio_url = f"/temp_audio/{relative_path.replace(os.sep, '/')}"
+                logger.info(f"🎵 TTS generated: {audio_url}")
+        except Exception as tts_error:
+            logger.error(f"❌ TTS generation failed: {tts_error}")
+        
+        response_data = {
+            'response': intro_message,
+            'audio_url': audio_url
+        }
+        
+        logger.info("✅ Conversation started successfully")
+        return jsonify(response_data)
+        
+    except Exception as e:
+        logger.error(f"❌ Error starting conversation: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
+# === Route audio löschen ===
 @app.route('/api/delete-audio', methods=['POST'])
 def delete_audio():
     """Löscht die aufgenommene Audio-Datei nach erfolgreichem Senden"""
@@ -133,7 +241,6 @@ def delete_audio():
         logger.error(f"Fehler beim Löschen der Audio-Datei für User {user_id}: {str(e)}")
         return jsonify({'error': f'Fehler beim Löschen: {str(e)}'}), 500
 
-
 # === Transkription (Vosk für später) - Angepasst für Dateispeicherung ===
 @app.route('/api/transcribe', methods=['POST'])
 def transcribe():
@@ -167,13 +274,18 @@ def transcribe():
         # VOSK STT Integration (für späteren Einsatz)
         # from vosk_stt import transcribe_audio # Import hier, wenn Vosk verwendet wird
         # try:
-        #     # transcript = transcribe_audio(audio_path_absolute) # Funktion von vosk_stt.py
-        #     transcript = "Dies ist eine Transkription von Vosk (noch nicht aktiv)." # Dummy, bis Vosk implementiert ist
+        #     transcript = transcribe_audio(audio_path_absolute) # Funktion von vosk_stt.py
         #     logger.info(f"Audio für User {user_id} transkribiert: {transcript[:50]}...")
-        #     return jsonify({'transcript': transcript, 'audio_path': f"/temp_audio/{os.path.relpath(audio_path_absolute, start=TEMP_AUDIO_DIR_ROOT).replace(os.sep, '/')}"})
+        #     return jsonify({
+        #         'transcript': transcript, 
+        #         'audio_path': f"/temp_audio/{os.path.relpath(audio_path_absolute, start=TEMP_AUDIO_DIR_ROOT).replace(os.sep, '/')}"
+        #     })
         # except Exception as e:
         #     logger.error(f"Fehler bei Vosk-Transkription für User {user_id}: {str(e)}")
-        #     return jsonify({'error': f'Fehler bei Transkription: {str(e)}', 'audio_path': f"/temp_audio/{os.path.relpath(audio_path_absolute, start=TEMP_AUDIO_DIR_ROOT).replace(os.sep, '/')}"}), 500
+        #     return jsonify({
+        #         'error': f'Fehler bei Transkription: {str(e)}', 
+        #         'audio_path': f"/temp_audio/{os.path.relpath(audio_path_absolute, start=TEMP_AUDIO_DIR_ROOT).replace(os.sep, '/')}"
+        #     }), 500
         
         # Wenn Vosk nicht verwendet wird, einfach eine Erfolgsmeldung zurückgeben.
         # Die Transkription wird im Frontend durchgeführt.
@@ -189,114 +301,103 @@ def transcribe():
         logger.error(f"Fehler beim Speichern der Audio-Transkription für User {user_id}: {str(e)}")
         return jsonify({'error': f'Fehler beim Speichern der Audio: {str(e)}'}), 500
 
-
-# === LLM Response & TTS ===
+# === LLM Response & TTS (ANGEPASST für Session-Management) ===
 @app.route('/api/respond', methods=['POST'])
 def respond():
-    request_data = request.get_json()
-    if not request_data:
-        return jsonify({'error': 'Keine JSON-Daten empfangen'}), 400
-        
-    user_message = request_data.get('message') or request_data.get('text')
-    user_id = request_data.get('userId') or request_data.get('user_id')
-    scenario = request_data.get('scenario') # Szenario-Info erhalten
-    conversation_history = request_data.get('history', []) # NEU: Konversationshistorie erhalten
-
-    if not user_message:
-        logger.error(f"Keine Nachricht erhalten. Request data: {request_data}")
-        return jsonify({'error': 'Nachricht fehlt'}), 400
-
-    # GEÄNDERT: get_user_temp_dir wird jetzt mit base_dir aufgerufen
-    temp_path_absolute, user_id = get_user_temp_dir(user_id, base_dir=TEMP_AUDIO_DIR_ROOT)
-    output_filename = "response.mp3" 
-    output_path_absolute = os.path.join(temp_path_absolute, output_filename)
-
-    # Der relative Pfad, der in der URL verwendet wird.
-    # Dieser muss relativ zum `TEMP_AUDIO_DIR_ROOT` sein, damit die `serve_temp_audio`-Route funktioniert.
-    output_path_relative = os.path.relpath(output_path_absolute, start=TEMP_AUDIO_DIR_ROOT)
-
-
-    llm_response = ""
-    audio_url = None
-    tts_error = None
-
+    """Optimierte Response-Verarbeitung mit Backend-Historie"""
     try:
-        logger.info(f"Anfrage an LLM für User {user_id} mit Nachricht: {user_message[:50]}...")
-        if scenario:
-            logger.info(f"Szenario für LLM: {scenario}")
-            # NEU: Historie an query_llm_for_scenario übergeben
-            llm_response = query_llm_for_scenario(user_message, scenario, history=conversation_history)
-        else:
-            # NEU: Historie an query_llm_mistral übergeben
-            llm_response = query_llm_mistral(user_message, history=conversation_history)
-
-        logger.info(f"LLM-Antwort für User {user_id}: {llm_response[:50]}...")
-
-        # Text-to-Speech (TTS)
-        logger.info(f"Starte TTS-Synthese für User {user_id} mit {ACTIVE_TTS_PROVIDER}...")
-
+        data = request.get_json()
+        message = data.get('message', '').strip()
+        user_id = data.get('userId')
+        scenario = data.get('scenario', 'libre')
+        retry_audio = data.get('retry_audio', False)
+        
+        if not message:
+            return jsonify({'error': 'Nachricht erforderlich'}), 400
+        if not user_id:
+            return jsonify({'error': 'User ID erforderlich'}), 400
+            
+        logger.info(f"📨 Processing message from user {user_id}")
+        logger.info(f"🎭 Scenario: {scenario}")
+        logger.info(f"📝 Message: {message}")
+        
+        # Session holen
+        session = get_user_session(user_id)
+        session['scenario'] = scenario
+        
+        # Benutzer-Nachricht zur Historie hinzufügen
+        session['history'].append({
+            'role': 'user',
+            'content': message
+        })
+        
+        logger.info(f"📚 Session history length: {len(session['history'])}")
+        
+        # LLM-Antwort generieren
         try:
-            if ACTIVE_TTS_PROVIDER == "GOOGLE":
-                 synthesize_speech_google(llm_response, output_path_absolute)
-            elif ACTIVE_TTS_PROVIDER == "MINIMAX":
-                 synthesize_speech_minimax(llm_response, output_path_absolute)
-            elif ACTIVE_TTS_PROVIDER == "OPENAI":
-                 synthesize_speech_openai(llm_response, output_path_absolute)
-            elif ACTIVE_TTS_PROVIDER == "AMAZON_POLLY":
-                synthesize_speech_amzpolly(llm_response, output_path_absolute)
-            else:
-                raise Exception(f"Ungültiger TTS-Anbieter konfiguriert: {ACTIVE_TTS_PROVIDER}")
-
-            if os.path.exists(output_path_absolute) and os.path.getsize(output_path_absolute) > 0:
-                audio_url = f"/temp_audio/{output_path_relative.replace(os.sep, '/')}" # <-- Wichtig: Neue URL-Struktur
-                logger.info(f"TTS erfolgreich für User {user_id} mit {ACTIVE_TTS_PROVIDER}. Audio-URL: {audio_url}")
-            else:
-                tts_error = "TTS-Ausgabe ist leer oder konnte nicht gespeichert werden."
-
-        except Exception as e:
-            logger.error(f"{ACTIVE_TTS_PROVIDER} TTS fehlgeschlagen für User {user_id}: {str(e)}")
-            tts_error = str(e)
-
-        # Tacotron Fallback (für späteren Einsatz) - DIESEN BLOCK EINZUFÜGEN
-        if tts_error and ACTIVE_TTS_PROVIDER != "TACOTRON": # Verhindert Endlosschleife, wenn Tacotron selbst der primäre ist
-            # from tts_tacotron import synthesize_speech as synthesize_tacotron # Import hier, wenn Tacotron verwendet wird
-            logger.warning(f"Primärer TTS ({ACTIVE_TTS_PROVIDER}) fehlgeschlagen, versuche Tacotron-Fallback...")
-            fallback_output_path = os.path.join(temp_path_absolute, "response_tacotron.mp3")
-            try:
-                # synthesize_tacotron(llm_response, fallback_output_path)
-                # Dummy-Fallback bis Tacotron implementiert ist
-                if True: # Simuliere Erfolg
-                    # Erstelle eine Dummy-Datei, wenn Tacotron noch nicht integriert ist
-                    if not os.path.exists(fallback_output_path) or os.path.getsize(fallback_output_path) == 0:
-                        with open(fallback_output_path, "wb") as f:
-                            f.write(b"Dummy Tacotron Audio") # Füge hier echte Tacotron-Synthese ein
-                    audio_url = f"/temp_audio/{os.path.relpath(fallback_output_path, start=TEMP_AUDIO_DIR_ROOT).replace(os.sep, '/')}"
-                    logger.info(f"Tacotron Fallback erfolgreich für User {user_id} (Dummy). Audio-URL: {audio_url}")
-                    tts_error = None # Fehler zurücksetzen, da Fallback erfolgreich war
-            except Exception as fallback_e:
-                logger.error(f"Tacotron-Fallback fehlgeschlagen für User {user_id}: {str(fallback_e)}")
-                tts_error = f"{ACTIVE_TTS_PROVIDER}: {tts_error}, Tacotron-Fallback: {str(fallback_e)}"
-
-        # Cleanup (aber behalte die Audio-Datei)
-        if audio_url:
-            cleanup_temp_dir(temp_path_absolute, exclude_file=output_path_absolute)
-
+            llm_response = query_llm_for_scenario(
+                message, 
+                scenario=scenario, 
+                history=session['history'][:-1],  # Ohne die gerade hinzugefügte User-Message
+                max_tokens=160
+            )
+            
+            logger.info(f"🤖 LLM response generated: {llm_response[:50]}...")
+            
+            # LLM-Antwort zur Historie hinzufügen
+            session['history'].append({
+                'role': 'assistant',
+                'content': llm_response
+            })
+            
+        except Exception as llm_error:
+            logger.error(f"❌ LLM error: {llm_error}")
+            return jsonify({'error': f'LLM-Fehler: {str(llm_error)}'}), 500
+        
+        # TTS generieren
+        audio_file = None
+        audio_url = None
+        
+        try:
+            audio_file = generate_tts(llm_response, user_id)
+            if audio_file:
+                relative_path = os.path.relpath(audio_file, start=TEMP_AUDIO_DIR_ROOT)
+                audio_url = f"/temp_audio/{relative_path.replace(os.sep, '/')}"
+                logger.info(f"🎵 TTS generated: {audio_url}")
+        except Exception as tts_error:
+            logger.error(f"❌ TTS generation failed: {tts_error}")
+            if not retry_audio:
+                logger.info("⚠️ TTS failed, but not a retry - continuing")
+        
         response_data = {
-            "response": llm_response,
-            "audio_url": audio_url
+            'response': llm_response,
+            'audio_url': audio_url
         }
-
-        if tts_error:
-            response_data["tts_error"] = tts_error
-
+        
+        logger.info("✅ Response sent successfully")
         return jsonify(response_data)
-
+        
     except Exception as e:
-        logger.error(f"Allgemeiner Fehler in /api/respond: {str(e)}")
-        return jsonify({
-            'error': f'Serverfehler: {str(e)}',
-            'response': 'Excusez-moi, il y a eu un problème technique.'
-        }), 500
+        logger.error(f"❌ Error in /api/respond: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# === Session-Cleanup ===
+@app.route('/api/reset_session', methods=['POST'])
+def reset_session():
+    """Setzt die Benutzer-Session zurück"""
+    try:
+        data = request.get_json()
+        user_id = data.get('userId')
+        
+        if user_id and user_id in user_sessions:
+            del user_sessions[user_id]
+            logger.info(f"🔄 Session reset for user {user_id}")
+        
+        return jsonify({'status': 'Session reset'})
+        
+    except Exception as e:
+        logger.error(f"❌ Error resetting session: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 # === Health Check für Render ===
 @app.route('/health')
