@@ -764,126 +764,105 @@ function hasAudioContent(audioBlob) {
       }
     }
 
-  async function sendMessageToBackend(message) {
-    console.log('=== MESSAGE SENDING DEBUG ===');
-    console.log('Ursprünglicher Parameter:', message);
-    console.log('Aktueller userText Inhalt:', elements.userText?.textContent);
-    console.log('Aktueller finalTranscript:', finalTranscript);
-    console.log('userText isPlaceholder:', elements.userText?.dataset.isPlaceholder);
- 
+async function sendMessageToBackend(message) {
+    console.log('📤 Sending message:', message);
+    
     if (!message.trim()) {
-      showStatus(elements.recordingStatus, 'Veuillez entrer un message.', 'warning');
-      return;
+        showStatus(elements.recordingStatus, 'Veuillez entrer un message.', 'warning');
+        return;
     }
-    console.log('TATSÄCHLICH GESENDETER TEXT:', message.trim());
-    console.log('=== END DEBUG ===');
     
     showProgressStatus(1, '🚀 Message en cours d\'envoi...');
     elements.sendBtn.disabled = true;
     elements.recordBtn.disabled = true;
 
     try {
+        // Vereinfachte Anfrage - Historie wird im Backend verwaltet
+        const response = await fetch('/api/respond', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                message: message,
+                userId: userId, 
+                scenario: currentScenario
+                // Entfernt: history Parameter
+            }),
+        });
 
-     // NEU: Füge Benutzernachricht zur Historie hinzu
-      conversationHistory.push({ role: 'user', content: message });
+        if (!response.ok) {
+            const errorText = await extractErrorMessage(response);
+            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+        }
 
-console.log('=== SENDING TO BACKEND ===');
-console.log('📤 User message:', message);
-console.log('🧠 Aktuelle conversationHistory:');
-console.table(conversationHistory);  // Gut lesbar als Tabelle
-console.log('📌 User ID:', userId);
-console.log('🎯 Scenario:', currentScenario);
-
-
-      const response = await fetch('/api/respond', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          message: message,
-          userId: userId, 
-          scenario: currentScenario,
-          history: conversationHistory // NEU: Sende die Historie an das Backend
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await extractErrorMessage(response);
-        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
-      console.log('Backend response:', data);
-      currentResponse = data.response;
-      
-      // Füge LLM-Antwort zur Historie hinzu
-      conversationHistory.push({ role: 'assistant', content: data.response });
+        const data = await response.json();
+        console.log('✅ Backend response received');
+        currentResponse = data.response;
+        
+        // Lokale Historie nur zur Anzeige
+        conversationHistory.push(
+            { role: 'user', content: message },
+            { role: 'assistant', content: data.response }
+        );
+        
         showResponseText();
 
-      if (data.audio_url) {
-        elements.audioPlayback.src = data.audio_url;
-        elements.audioPlayback.classList.remove('hidden');
-        audioHasBeenPlayed = false;
-        updateShowResponseButton();
-        showProgressStatus(4, '🔊 Texte et audio prêts - 100% terminé!');  
-      } else {
-        // Kein Audio vorhanden - Retry-Mechanismus
-        console.error('Keine Audio-URL vom Backend erhalten - starte Retry in 2 Sek');
-        showProgressStatus(3, '⚠️ Audio manquant - Nouvelle tentative');
-        
-        // Automatischer Retry nach 2 Sekunden
-        setTimeout(async () => {
-            try {
-                console.log('Starte Audio-Retry-Anfrage...');
-                const retryResponse = await fetch('/api/respond', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        message: message,
-                        userId: userId, 
-                        scenario: currentScenario,
-                        history: conversationHistory, // NEU: Historie auch bei Retry senden
-                        retry_audio: true
-                    }),
-                });
+        if (data.audio_url) {
+            elements.audioPlayback.src = data.audio_url;
+            elements.audioPlayback.classList.remove('hidden');
+            audioHasBeenPlayed = false;
+            updateShowResponseButton();
+            showProgressStatus(4, '🔊 Texte et audio prêts - 100% terminé!');  
+        } else {
+            console.warn('⚠️ No audio URL received, starting retry...');
+            showProgressStatus(3, '⚠️ Audio manquant - Nouvelle tentative...');
+            
+            setTimeout(async () => {
+                try {
+                    const retryResponse = await fetch('/api/respond', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            message: message,
+                            userId: userId, 
+                            scenario: currentScenario,
+                            retry_audio: true
+                        }),
+                    });
 
-
-                if (!retryRes.ok) {
-                    const retryErrorText = await extractErrorMessage(retryRes);
-                    throw new Error(`Retry fehlgeschlagen: ${retryErrorText}`);
+                    if (!retryResponse.ok) {
+                        throw new Error('Retry failed');
+                    }
+                    
+                    const retryData = await retryResponse.json();
+                    
+                    if (retryData.audio_url) {
+                        console.log('🔄 Audio retry successful');
+                        elements.audioPlayback.src = retryData.audio_url;
+                        elements.audioPlayback.classList.remove('hidden');
+                        showProgressStatus(4, '🔊 Texte et audio prêts - 100% terminé!');
+                    } else {
+                        throw new Error('No audio in retry');
+                    }
+                } catch (retryError) {
+                    console.error('❌ Audio retry failed:', retryError);
+                    showAudioRetryOptions();
                 }
-                const retryData = await retryRes.json();
-                console.log('🔁 Audio-Retry-Response:', retryData);
+            }, 2000);
+        }
 
-                if (retryData.audio_url) {
-                    console.log('Audio-Retry erfolgreich:', retryData.audio_url);
-                    elements.audioPlayback.src = retryData.audio_url;
-                    elements.audioPlayback.classList.remove('hidden');
-                    audioHasBeenPlayed = false;
-                    updateShowResponseButton();
-                    showProgressStatus(4, '🔊 Texte et audio prêts - 100% terminé!');
-                } else {
-                    throw new Error('Retry fehlgeschlagen');
-                }
-            } catch (retryError) {
-                console.error('Audio-Retry fehlgeschlagen:', retryError.message);
-                showAudioRetryOptions();
-            }
-        }, 2000);
-      }
-
-      showStatus(elements.recordingStatus, '✅ Réponse reçue', 'success');
+        showStatus(elements.recordingStatus, '✅ Réponse reçue', 'success');
 
     } catch (error) {
-      console.error('Error sending message to backend:', error);
-      showStatus(elements.recordingStatus, `❌ Erreur: ${error.message}`, 'error');
-      elements.responseText.textContent = 'Erreur de communication du serveur';
-      isTextCurrentlyVisible = true;
-      updateShowResponseButton();
+        console.error('❌ Error sending message:', error);
+        showStatus(elements.recordingStatus, `❌ Erreur: ${error.message}`, 'error');
+        elements.responseText.textContent = 'Erreur de communication du serveur';
+        isTextCurrentlyVisible = true;
+        updateShowResponseButton();
     } finally {
-      elements.sendBtn.disabled = false;
-      elements.recordBtn.disabled = false;
+        elements.sendBtn.disabled = false;
+        elements.recordBtn.disabled = false;
     }
-  }
+}
 
   // === Audio Upload Function ===
   async function uploadRecordedAudio(audioBlob, mimeType) {
@@ -908,7 +887,8 @@ console.log('🎯 Scenario:', currentScenario);
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await extractErrorMessage(response);
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -955,111 +935,87 @@ console.log('🎯 Scenario:', currentScenario);
     } 
 
   // === Event Listeners ===
-  elements.startBtn?.addEventListener('click', async () => {
-        console.log('Start Conversation button clicked.');
+// === OPTIMIERTE KONVERSATIONS-STARTER ===
+elements.startBtn?.addEventListener('click', async () => {
+    console.log('🚀 Starting conversation...');
 
     const scenario = elements.scenarioSelect?.value;
-
     if (!scenario) {
-      showStatus(elements.recordingStatus, "⚠️ Veuillez choisir un thème.", 'error');
-      setTimeout(() => hideStatus(elements.recordingStatus), 3000);
-      console.log('Scenario not selected. Aborting start.');
-      return;
+        showStatus(elements.recordingStatus, "⚠️ Veuillez choisir un thème.", 'error');
+        return;
     }
-
-    console.log('Scenario selected:', scenario);
 
     elements.startSection?.classList.add('hidden');
     elements.conversationSection?.classList.remove('hidden');
     currentUserId = userId;
+    currentScenario = scenario;
     
     const currentScenarioDisplay = document.getElementById('currentScenarioDisplay');
     if (currentScenarioDisplay) {
-      currentScenarioDisplay.innerText = scenario === "libre" ? "Votre sujet libre" : scenario;
+        const scenarioNames = {
+            "libre": "Conversation libre",
+            "restaurant": "Au restaurant",
+            "loisirs": "Loisirs et hobbies", 
+            "travail": "Monde du travail",
+            "voyage": "Voyage en France"
+        };
+        currentScenarioDisplay.innerText = scenarioNames[scenario] || scenario;
     }
 
+    // Vereinfachte Conversation-Starter
     if (scenario !== "libre") {
-      showProgressStatus(1, '🤔 L\'assistant prépare la conversation...');
-      console.log('Preparing conversation for scenario:', scenario);
-      
-    // const intro = `J'apprends le français au niveau B1/B2. Je voudrais avoir une conversation avec toi sur le thème « ${scenario} ». Corrige-moi si je fais des erreurs et aide-moi à améliorer ma grammaire et mon expression. Commence par me poser une question ou présenter une situation pour démarrer notre conversation.`;
-    // HIER GEÄNDERT: intro Variable wird durch LLM-Aufruf ersetzt
-      try {
+        showProgressStatus(1, '🤔 Préparation de la conversation...');
+        
+        try {
+            // Direkter Aufruf für Intro - keine LLM-Abfrage nötig
+            const response = await fetch('/api/start_conversation', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    scenario: scenario,
+                    userId: userId
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log('🎯 Conversation started successfully');
             
-        const introPrompt = `L'étudiant veut pratiquer le thème '${scenario}'. Commence notre conversation avec une question ou situation engageante pour ce thème.`;
-        // Initialen Prompt zur Historie hinzufügen (als "user" an das LLM)
-        console.log('Initial intro prompt for LLM:', introPrompt);
-        conversationHistory = []; // Historie für neues Gespräch
-        conversationHistory.push({ role: 'user', content: introPrompt });
-
-console.log('=== INTRO PROMPT SENDING ===');
-console.log('📤 Intro Prompt:', introPrompt);
-console.log('🧠 Aktuelle conversationHistory (Intro):');
-console.table(conversationHistory);
-
-        const resIntro = await fetch('/api/respond', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            message: introPrompt, // Sende den Prompt an das Backend
-            userId: userId,
-            scenario: scenario,
-            history: conversationHistory // NEU: Historie senden
-          })
-        });
-
-        if (!resIntro.ok) {
-          const errorText = await resIntro.text();
-          console.error('HTTP error during intro fetch:', resIntro.status, errorText);
-          throw new Error(`HTTP error! status: ${resIntro.status} - ${errorText}`);
+            currentResponse = data.response;
+            conversationHistory = [{ role: 'assistant', content: data.response }];
+            
+            showProgressStatus(2, '📝 Conversation préparée...');
+            
+            if (data.audio_url) {
+                elements.audioPlayback.src = data.audio_url;
+                elements.audioPlayback.classList.remove('hidden');
+                showProgressStatus(4, '🔊 Prêt! Cliquez pour écouter.');
+                
+                elements.audioPlayback.addEventListener('ended', function handler() {
+                    audioHasBeenPlayed = true;
+                    showProgressStatus(4, '✅ À vous maintenant!');
+                    updateShowResponseButton();
+                    elements.audioPlayback.removeEventListener('ended', handler);
+                }, { once: true });
+            } else {
+                audioHasBeenPlayed = true;
+                showResponseText();
+            }
+            
+        } catch (err) {
+            console.error('❌ Error starting conversation:', err);
+            showStatus(elements.recordingStatus, `❌ Erreur: ${err.message}`, 'error');
         }
-
-        const introData = await resIntro.json();
-        console.log('Intro LLM response data:', introData);
-        currentResponse = introData.response; // Die LLM-Antwort ist jetzt das Intro
-
-        // NEU: LLM-Antwort zur Historie hinzufügen
-        conversationHistory.push({ role: 'assistant', content: introData.response });
-        
-        showProgressStatus(2, '📝 Conversation préparée, génération de l\'audio...');
-        
-        if (introData.audio_url) {
-          console.log('Intro audio URL received:', introData.audio_url);
-          showProgressStatus(3, '🎵 Audio généré, préparation de la lecture...');
-          elements.audioPlayback.src = introData.audio_url;
-          elements.audioPlayback.classList.remove('hidden');
-           elements.audioPlayback.addEventListener('canplaythrough', function handler() {
-            showProgressStatus(4, '🔊 Audio prêt! Cliquez pour écouter.'); 
-            elements.audioPlayback.removeEventListener('canplaythrough', handler); // Event Listener entfernen
-           }, { once: true });
-
-          elements.audioPlayback.addEventListener('ended', function handler() {
-            audioHasBeenPlayed = true;
-            showProgressStatus(4, '✅ Lecture terminée! Vous pouvez maintenant voir le texte.');
-            updateShowResponseButton();
-            elements.audioPlayback.removeEventListener('ended', handler); // Event Listener entfernen
-          }, { once: true });
-
-        } else {
-          console.warn('No audio URL received for intro.');
-          audioHasBeenPlayed = true;
-          showResponseText();
-          showStatus(elements.recordingStatus, '⚠️ Aucun audio d\'introduction reçu.', 'warning');
-        }
-      } catch (err) {
-        console.error('Error starting conversation (catch block):', err);
-        if (elements.responseText) {
-          elements.responseText.innerHTML = `<div class="status-message status-error">⚠️ Erreur: ${err.message}</div>`;
-        }
-        showStatus(elements.recordingStatus, `❌ Erreur lors du démarrage: ${err.message}`, 'error');
-      }
     } else {
-      if (elements.responseText) {
-        elements.responseText.innerHTML = "🎯 Sujet libre sélectionné. Cliquez sur 'Reconnaissance' pour commencer!";
-      }
-      console.log('Free topic selected. Waiting for user input.');
+        // Freie Konversation
+        currentResponse = "🎯 Conversation libre - parlez de ce qui vous intéresse!";
+        audioHasBeenPlayed = true;
+        showResponseText();
     }
-  });
+});
 
   elements.newConvBtn?.addEventListener('click', () => {
     resetUI();
@@ -1139,6 +1095,26 @@ elements.audioPlayback?.addEventListener('ended', () => {
         currentScenario = event.target.value;
         console.log('Scenario changed to:', currentScenario);
     });
+
+// === VERBESSERTES DEBUGGING ===
+function debugConversationState() {
+    console.log('=== CONVERSATION STATE DEBUG ===');
+    console.log('🆔 User ID:', userId);
+    console.log('🎭 Current Scenario:', currentScenario);
+    console.log('📝 Current Response:', currentResponse ? 'Set' : 'Not set');
+    console.log('🎵 Audio played:', audioHasBeenPlayed);
+    console.log('👁️ Text visible:', isTextCurrentlyVisible);
+    console.log('🗣️ Recording:', isRecording);
+    console.log('⏸️ Paused:', isPaused);
+    console.log('📜 Local History Length:', conversationHistory.length);
+    console.log('=================================');
+}
+
+// Debug-Funktion alle 30 Sekunden (nur in Development)
+if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    setInterval(debugConversationState, 30000);
+}
+    
 
   // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
