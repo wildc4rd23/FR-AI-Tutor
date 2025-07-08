@@ -5,6 +5,7 @@ import os
 import requests
 import logging
 import uuid
+import time
 from datetime import datetime
 
 # =========================================================
@@ -63,27 +64,38 @@ PROJECT_ROOT = os.path.dirname(app.root_path)
 TEMP_AUDIO_DIR_ROOT = os.path.join(PROJECT_ROOT, 'temp_audio')
 os.makedirs(TEMP_AUDIO_DIR_ROOT, exist_ok=True)
 
+# Optimierte User-Verzeichnis-Funktion
+def get_user_temp_dir_optimized(user_id):
+    """Optimierte Version der User-Verzeichnis-Funktion"""
+    user_dir = os.path.join(TEMP_AUDIO_DIR_ROOT, user_id)
+    os.makedirs(user_dir, exist_ok=True)
+    return user_dir
+
 # Generische TTS-Funktion basierend auf dem aktiven Anbieter
 def generate_tts(text, user_id, prefix="response"):
-    """Generiert TTS-Audio für den gegebenen Text und User"""
-    temp_path_absolute, _ = get_user_temp_dir(user_id, base_dir=TEMP_AUDIO_DIR_ROOT)
-    output_filename = f"{prefix}.mp3"
-    output_path_absolute = os.path.join(temp_path_absolute, output_filename)
+    """Generiert TTS-Audio für den gegebenen Text und User mit optimiertem File Management"""
+    user_dir = get_user_temp_dir_optimized(user_id)
+    
+    # Eindeutiger Dateiname mit Timestamp
+    timestamp = int(time.time())
+    output_filename = f"{prefix}_{timestamp}.mp3"
+    output_path = os.path.join(user_dir, output_filename)
     
     try:
         if ACTIVE_TTS_PROVIDER == "GOOGLE":
-            synthesize_speech_google(text, output_path_absolute)
+            synthesize_speech_google(text, output_path)
         elif ACTIVE_TTS_PROVIDER == "MINIMAX":
-            synthesize_speech_minimax(text, output_path_absolute)
+            synthesize_speech_minimax(text, output_path)
         elif ACTIVE_TTS_PROVIDER == "OPENAI":
-            synthesize_speech_openai(text, output_path_absolute)
+            synthesize_speech_openai(text, output_path)
         elif ACTIVE_TTS_PROVIDER == "AMAZON_POLLY":
-            synthesize_speech_amzpolly(text, output_path_absolute)
+            synthesize_speech_amzpolly(text, output_path)
         else:
             raise Exception(f"Ungültiger TTS-Anbieter konfiguriert: {ACTIVE_TTS_PROVIDER}")
             
-        if os.path.exists(output_path_absolute) and os.path.getsize(output_path_absolute) > 0:
-            return output_path_absolute
+        if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+            logger.info(f"TTS erfolgreich generiert: {output_filename}")
+            return output_path
         else:
             raise Exception("TTS-Ausgabe ist leer oder konnte nicht gespeichert werden")
             
@@ -94,7 +106,7 @@ def generate_tts(text, user_id, prefix="response"):
         if ACTIVE_TTS_PROVIDER != "TACOTRON": # Verhindert Endlosschleife
             # from tts_tacotron import synthesize_speech as synthesize_tacotron # Import hier, wenn Tacotron verwendet wird
             logger.warning(f"Primärer TTS ({ACTIVE_TTS_PROVIDER}) fehlgeschlagen, versuche Tacotron-Fallback...")
-            fallback_output_path = os.path.join(temp_path_absolute, f"{prefix}_tacotron.mp3")
+            fallback_output_path = os.path.join(user_dir, f"{prefix}_tacotron_{timestamp}.mp3")
             try:
                 # synthesize_tacotron(text, fallback_output_path)
                 # Dummy-Fallback bis Tacotron implementiert ist
@@ -194,7 +206,7 @@ def start_conversation():
 # === Route audio löschen ===
 @app.route('/api/delete-audio', methods=['POST'])
 def delete_audio():
-    """Löscht die aufgenommene Audio-Datei nach erfolgreichem Senden"""
+    """Optimierte Audio-Löschung mit besserem File Management"""
     request_data = request.get_json()
     if not request_data:
         return jsonify({'error': 'Keine JSON-Daten empfangen'}), 400
@@ -205,9 +217,23 @@ def delete_audio():
         return jsonify({'error': 'User ID fehlt'}), 400
     
     try:
-        temp_path_absolute, _ = get_user_temp_dir(user_id, base_dir=TEMP_AUDIO_DIR_ROOT)
+        user_dir = get_user_temp_dir_optimized(user_id)
         
-        # Auch andere mögliche Dateiformate löschen
+        # Lösche alle Aufnahme-Dateien (recording_*)
+        deleted_files = []
+        
+        if os.path.exists(user_dir):
+            for filename in os.listdir(user_dir):
+                if filename.startswith("recording_"):
+                    file_path = os.path.join(user_dir, filename)
+                    try:
+                        os.remove(file_path)
+                        deleted_files.append(filename)
+                        logger.info(f"Audio-Datei gelöscht: {filename}")
+                    except OSError as e:
+                        logger.warning(f"Konnte Datei nicht löschen {filename}: {str(e)}")
+        
+        # Fallback: Auch alte Dateiformate löschen (für Kompatibilität)
         possible_files = [
             "recording.mp3",
             "recording.webm", 
@@ -215,16 +241,15 @@ def delete_audio():
             "recording.m4a"
         ]
         
-        deleted_files = []
         for filename in possible_files:
-            file_path = os.path.join(temp_path_absolute, filename)
+            file_path = os.path.join(user_dir, filename)
             if os.path.exists(file_path):
                 try:
                     os.remove(file_path)
                     deleted_files.append(filename)
-                    logger.info(f"Audio-Datei gelöscht: {file_path}")
+                    logger.info(f"Audio-Datei gelöscht: {filename}")
                 except OSError as e:
-                    logger.warning(f"Konnte Datei nicht löschen {file_path}: {str(e)}")
+                    logger.warning(f"Konnte Datei nicht löschen {filename}: {str(e)}")
         
         if deleted_files:
             return jsonify({
@@ -250,25 +275,24 @@ def transcribe():
     user_id = request.form.get('user_id')
     audio_file = request.files['audio']
 
-    temp_path_for_stt, user_id = get_user_temp_dir(user_id, base_dir=TEMP_AUDIO_DIR_ROOT)
+    # Verwende optimierte User-Verzeichnis-Funktion
+    user_dir = get_user_temp_dir_optimized(user_id)
     
-    # Dateierweiterung aus dem Original-Dateinamen extrahieren
-    # Das Frontend sendet jetzt den korrekten Dateinamen, z.B. "recording.webm"
+    # Eindeutiger Dateiname mit Timestamp
+    timestamp = int(time.time())
     original_filename = audio_file.filename
-    file_extension = os.path.splitext(original_filename)[1] # Z.B. .webm
-
-    # Generiere einen eindeutigen Dateinamen, um Konflikte zu vermeiden
-    audio_filename = f"recording_{uuid.uuid4()}{file_extension}"
-    audio_path_absolute = os.path.join(temp_path_for_stt, audio_filename)
+    file_extension = os.path.splitext(original_filename)[1] if original_filename else '.webm'
+    audio_filename = f"recording_{timestamp}{file_extension}"
+    audio_path_absolute = os.path.join(user_dir, audio_filename)
 
     try:
         audio_file.save(audio_path_absolute)
-        logger.info(f"Benutzeraufnahme für User {user_id} als {audio_path_absolute} gespeichert.")
+        logger.info(f"Benutzeraufnahme für User {user_id} als {audio_filename} gespeichert.")
         
         if os.path.exists(audio_path_absolute) and os.path.getsize(audio_path_absolute) > 0:
-            logger.info(f"Aufnahme erfolgreich gespeichert: {audio_path_absolute} ({os.path.getsize(audio_path_absolute)} bytes)")
+            logger.info(f"Aufnahme erfolgreich gespeichert: {audio_filename} ({os.path.getsize(audio_path_absolute)} bytes)")
         else:
-            logger.error(f"Aufnahme nicht korrekt gespeichert: {audio_path_absolute}")
+            logger.error(f"Aufnahme nicht korrekt gespeichert: {audio_filename}")
             return jsonify({'error': 'Fehler beim Speichern der Audiodatei'}), 500
         
         # VOSK STT Integration (für späteren Einsatz)
