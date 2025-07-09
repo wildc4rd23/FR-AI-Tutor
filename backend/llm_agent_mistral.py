@@ -6,9 +6,13 @@ import json
 
 logger = logging.getLogger(__name__)
 
-def get_scenario_system_prompt(scenario):
+# Modifizierte get_scenario_system_prompt, um optional eine Anweisung für die erste Antwort zu akzeptieren
+
+def get_scenario_system_prompt(scenario, first_turn_instruction_example=None):
+
     """
-    Erweiterte szenario-spezifische System-Prompts für bessere Gesprächsqualität
+    Erweiterte szenario-spezifische System-Prompts für bessere Gesprächsqualität.
+    Kann optional eine Anweisung für die erste Antwort enthalten.
     """
     base_prompt = """Tu es un professeur de français expérimenté qui aide des étudiants de niveau B1/B2. 
     
@@ -83,13 +87,20 @@ def get_scenario_system_prompt(scenario):
     
     selected_prompt = scenario_prompts.get(scenario, scenario_prompts["libre"])
 
-    logger.info(f"Szenario-spezifischer Prompt '{scenario}' ausgewählt (Anfang): {selected_prompt[:100]}...") # Loggen des Szenario Prompts
+        if first_turn_instruction_example:
+
+        selected_prompt += f"\n\nVOTRE PREMIÈRE RÉPONSE DOIT RESSEMBLER À UN EXEMPLE COMME : « {first_turn_instruction_example} ». Votre réponse doit sembler naturelle et comme un début direct de conversation."
+        logger.info(f"Szenario-spezifischer Prompt mit Erst-Antwort-Anweisung (Anfang): {selected_prompt[:150]}...")
+
+    else:
+
+        logger.info(f"Szenario-spezifischer Prompt '{scenario}' ausgewählt (Anfang): {selected_prompt[:100]}...") # Loggen des Szenario Prompts
 
     return selected_prompt
 
 def get_scenario_starter(scenario):
     """
-    Szenario-spezifische Starter-Prompts für natürlichere Gespräche
+    Definiert szenario-spezifische Starter-Prompts, die nun als Beispiele/Anweisungen dienen.
     """
     starters = {
         "restaurant": """Bonjour et bienvenue dans notre restaurant ! Je vois que vous regardez la carte. 
@@ -111,22 +122,40 @@ def get_scenario_starter(scenario):
     logger.info(f"Szenario-Starter '{scenario}' ausgewählt (Anfang): {selected_starter[:100]}...") # Loggen des Starters
     return selected_starter
 
-def query_llm_mistral(prompt, history=None, max_tokens=150, temperature=0.7, scenario="libre"):
+def post_process_response(text, max_chars=200):
+
     """
- Fragt Mistral LLM ab mit Längenbegrenzung und Konversationshistorie.
+    Verbesserte Nachbearbeitung für TTS-Optimierung
 
-    Args:
-        prompt (str): Der aktuelle Eingabeprompt des Benutzers.
-        history (list, optional): Eine Liste von Nachrichten im Format [{"role": "user", "content": "text"}, ...].
-                                  Wird verwendet, um den Konversationskontext beizubehalten.
-        max_tokens (int): Maximale Anzahl Tokens in der Antwort (Standard: 150)
-        temperature (float): Kreativität der Antwort (0.0-1.0, Standard: 0.7)
-        scenario (str): Das aktuelle Szenario zur Bestimmung des System-Prompts.
+    """
+    text = " ".join(text.split())
 
-    Returns:
+    if len(text) > max_chars:
+        sentences = text.split('. ')
+        result = ""
 
-        str: Die LLM-Antwort
+        for sentence in sentences:
+            if len(result + sentence + '. ') <= max_chars:
+                result += sentence + '. '
+            else:
+                break
 
+        if not result.strip():
+            result = text[:max_chars-3] + "..."  
+        text = result.strip()
+    
+    if text and not text.endswith(('.', '!', '?')):
+        text += '.'
+    
+    return text
+
+# Modifizierte query_llm_mistral, um das neue first_turn_instruction_example-Argument zu akzeptieren und weiterzugeben
+
+def query_llm_mistral(prompt, history=None, max_tokens=150, temperature=0.7, scenario="libre", first_turn_instruction_example=None):
+
+    """
+    Fragt Mistral LLM ab mit Längenbegrenzung und Konversationshistorie.
+    Kann optional eine Anweisung für die erste Antwort übergeben, die den System-Prompt ergänzt.
     """
 
     api_key = os.environ.get("MISTRAL_API_KEY")
@@ -142,8 +171,9 @@ def query_llm_mistral(prompt, history=None, max_tokens=150, temperature=0.7, sce
         "Content-Type": "application/json"
     }
 
-    # Erweiterten System-Prompt für Französisch-Tutor erstellen
-    system_prompt = get_scenario_system_prompt(scenario)
+    # Erweiterten System-Prompt für Französisch-Tutor erstellen mit Beispiel je szenario
+    system_prompt = get_scenario_system_prompt(scenario, first_turn_instruction_example=first_turn_instruction_example)
+
     logger.info(f"Finaler System Prompt für LLM (Anfang): {system_prompt[:100]}...") # Loggen des finalen System Prompts
     messages = [{"role": "system", "content": system_prompt}]
 
@@ -195,40 +225,27 @@ def query_llm_mistral(prompt, history=None, max_tokens=150, temperature=0.7, sce
         logger.error(f"❌ Unexpected response format: {result}")
         raise Exception("Unerwartetes Antwortformat von Mistral API")
 
-def get_intro_for_scenario(scenario):
-    """
-    Direkte Rückgabe des Starter-Texts ohne LLM-Aufruf
-    """
-    return get_scenario_starter(scenario)
+# NEU: Funktion zum Abrufen der ersten LLM-Antwort für ein Szenario
 
-def post_process_response(text, max_chars=200):
+def get_initial_llm_response_for_scenario(scenario):
+
     """
-    Verbesserte Nachbearbeitung für TTS-Optimierung
+    Ruft die erste LLM-Antwort für ein neues Szenario ab,
+    indem der Starter-Text als Anweisung in den System-Prompt integriert wird.
     """
-    # Bereinigung
-    text = " ".join(text.split())
-    
-    # Längenoptimierung
-    if len(text) > max_chars:
-        sentences = text.split('. ')
-        result = ""
-        
-        for sentence in sentences:
-            if len(result + sentence + '. ') <= max_chars:
-                result += sentence + '. '
-            else:
-                break
-        
-        if not result.strip():
-            result = text[:max_chars-3] + "..."
-        
-        text = result.strip()
-    
-    # Satzende sicherstellen
-    if text and not text.endswith(('.', '!', '?')):
-        text += '.'
-    
-    return text
+
+    initial_prompt_for_llm = "Bonjour ! Commençons notre conversation." 
+    starter_example = get_scenario_starter(scenario) 
+
+    first_llm_response = query_llm_mistral(
+
+        prompt=initial_prompt_for_llm,
+        history=None, 
+        scenario=scenario,
+        first_turn_instruction_example=starter_example 
+    )
+
+    return first_llm_response
 
 def query_llm_for_scenario(prompt, scenario="libre", history=None, max_tokens=160):
     """
@@ -243,4 +260,24 @@ def query_llm_for_scenario(prompt, scenario="libre", history=None, max_tokens=16
     }
     
     config = scenario_configs.get(scenario, scenario_configs["libre"])
-    return query_llm_mistral(prompt, history=history, scenario=scenario, **config)
+        logger.info(f"LLM-Konfiguration für Szenario '{scenario}': {config}")
+
+
+
+    return query_llm_mistral(
+
+        prompt, 
+        history=history, 
+        max_tokens=config["max_tokens"], 
+        temperature=config["temperature"],
+        scenario=scenario 
+
+    )
+
+
+# Diese Funktion wird im neuen Setup nicht mehr direkt als Intro verwendet, 
+# sondern dient jetzt nur noch als Quelle für den Starter-Beispieltext.
+
+def get_intro_for_scenario(scenario):
+
+    return get_scenario_starter(scenario)

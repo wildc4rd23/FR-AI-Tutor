@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 logger.info(f"Aktiver TTS-Anbieter: {ACTIVE_TTS_PROVIDER}")
 
 # Aktive Imports basierend auf der Konfiguration
-from llm_agent_mistral import query_llm_mistral, query_llm_for_scenario, get_intro_for_scenario
+from llm_agent_mistral import query_llm_mistral, query_llm_for_scenario, get_intro_for_scenario, get_initial_llm_response_for_scenario 
 from utils import get_user_temp_dir, cleanup_temp_dir
 
 # Bedingte TTS-Importe
@@ -167,23 +167,28 @@ def start_conversation():
         session['scenario'] = scenario
         session['history'] = []  # Neue Konversation
         
-        # Direkte Starter-Nachricht (ohne LLM)
+        # Direkte Starter-Nachricht (ohne LLM - kein TTS)
         intro_message = get_intro_for_scenario(scenario)
+        
+        logger.info(f"📝 Intro message prepared: {intro_message[:50]}...")
+
+        # KORRIGIERT: Erste LLM-Antwort mit TTS generieren, die den Starter-Text als Anweisung verwendet
+        initial_llm_response = get_initial_llm_response_for_scenario(scenario)
         
         # Zur Session-Historie hinzufügen
         session['history'].append({
             'role': 'assistant',
-            'content': intro_message
+            'content': initial_llm_response
         })
+        # Logging erweitert
+        logger.info(f"Erste LLM-generierte Antwort für User {user_id}: {initial_llm_response[:50]}...")
         
-        logger.info(f"📝 Intro message prepared: {intro_message[:50]}...")
-        
-        # TTS für Intro
+        # TTS für erste LLM Response
         audio_file = None
         audio_url = None
         
         try:
-            audio_file = generate_tts(intro_message, user_id, prefix="intro")
+            audio_file = generate_tts(initial_llm_response, user_id, prefix="llm")
             if audio_file:
                 relative_path = os.path.relpath(audio_file, start=TEMP_AUDIO_DIR_ROOT)
                 audio_url = f"/temp_audio/{relative_path.replace(os.sep, '/')}"
@@ -192,7 +197,7 @@ def start_conversation():
             logger.error(f"❌ TTS generation failed: {tts_error}")
         
         response_data = {
-            'response': intro_message,
+            'response': initial_llm_response,
             'audio_url': audio_url
         }
         
