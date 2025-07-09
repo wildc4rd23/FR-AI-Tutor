@@ -87,7 +87,7 @@ def get_scenario_system_prompt(scenario, first_turn_instruction_example=None):
     
     selected_prompt = scenario_prompts.get(scenario, scenario_prompts["libre"])
 
-        if first_turn_instruction_example:
+    if first_turn_instruction_example:
 
         selected_prompt += f"\n\nVOTRE PREMIÈRE RÉPONSE DOIT RESSEMBLER À UN EXEMPLE COMME : « {first_turn_instruction_example} ». Votre réponse doit sembler naturelle et comme un début direct de conversation."
         logger.info(f"Szenario-spezifischer Prompt mit Erst-Antwort-Anweisung (Anfang): {selected_prompt[:150]}...")
