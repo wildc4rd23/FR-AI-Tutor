@@ -40,6 +40,18 @@ def get_scenario_system_prompt(scenario, first_turn_instruction_example=None):
         - Utilise des expressions typiques des serveurs français
         - Propose des spécialités régionales françaises
         """,
+
+        "faire_les_courses": base_prompt + """
+        
+        CONTEXTE SPÉCIFIQUE - AU SUPERMARCHÉ:
+        - Tu joues le rôle d'un vendeur
+        """,
+
+         "visite_chez_le_médecin": base_prompt + """
+        
+        CONTEXTE SPÉCIFIQUE - VISITE CHEZ LE MÉDECIN        
+        - Tu joues le rôle d'un docteur
+        """,
         
         "loisirs": base_prompt + """
         
@@ -106,12 +118,19 @@ def get_scenario_starter(scenario):
         "restaurant": """Bonjour et bienvenue dans notre restaurant ! Je vois que vous regardez la carte. 
         Puis-je vous expliquer nos spécialités du jour ? Nous avons un excellent coq au vin aujourd'hui. 
         Avez-vous déjà goûté la cuisine française traditionnelle ?""",
+
+        "faire_les_courses": """Bonjour, comment puis-je vous aider? Vous cherchez quelque chose de spécifique?
+        Nous vous proposons une offre spéciale aujourd'hui.""",
+
+         "visite_chez_le_médecin": """Bonjour! Comment va votre jambe aujourd'hui? Avez-vous mal au genou? 
+         Avez-vous besoin d'une ordonnance pour des médicaments?""",
         
         "loisirs": """Salut ! J'adore découvrir ce que les gens font pendant leur temps libre. 
         Moi, le weekend dernier, j'ai fait une randonnée dans les Alpes - c'était magnifique ! 
         Et vous, qu'est-ce que vous aimez faire quand vous avez du temps libre ?""",
         
-        "travail": """Bonjour ! Je suis ravi de vous rencontrer. Parlons un peu de votre parcours professionnel. Quel est votre domaine d'expertise ? Qu'est-ce qui vous motive le plus dans votre travail ?""",
+        "travail": """Bonjour ! Je suis ravi de vous rencontrer. Parlons un peu de votre parcours professionnel. 
+        Quel est votre domaine d'expertise ? Qu'est-ce qui vous motive le plus dans votre travail ?""",
 
         "voyage": """Bienvenue ! Si vous pouviez voyager n'importe où en France, quelle région choisiriez-vous et pourquoi ?""",
 
@@ -260,7 +279,7 @@ def query_llm_for_scenario(prompt, scenario="libre", history=None, max_tokens=16
     }
     
     config = scenario_configs.get(scenario, scenario_configs["libre"])
-        logger.info(f"LLM-Konfiguration für Szenario '{scenario}': {config}")
+    logger.info(f"LLM-Konfiguration für Szenario '{scenario}': {config}")
 
 
 
