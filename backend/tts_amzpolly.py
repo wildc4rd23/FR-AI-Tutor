@@ -129,8 +129,8 @@ def synthesize_speech_amzpolly(text: str, output_path: str):
         # Validierung der erstellten Datei
         if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
             raise Exception("Amazon Polly TTS-Ausgabe ist leer oder konnte nicht gespeichert werden.")
-
-        logger.info(f"Audio erfolgreich mit {used_voice['VoiceId']} ({used_voice['Engine']}) gespeichert: {output_path} ({os.path.getsize(output_path)} bytes)")
+        #neu zentral in app.py:
+        #logger.info(f"Audio erfolgreich mit {used_voice['VoiceId']} ({used_voice['Engine']}) gespeichert: {output_path} ({os.path.getsize(output_path)} bytes)")
 
     except ClientError as e:
         error_code = e.response['Error']['Code']

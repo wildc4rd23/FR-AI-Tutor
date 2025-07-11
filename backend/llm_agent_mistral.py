@@ -212,17 +212,18 @@ def query_llm_mistral(prompt, history=None, max_tokens=150, temperature=0.7, sce
         "stop": [".", "!", "?", "\n\n"]
     }
     
-# NEU: Loggen der gesamten Konversation für Debugging/Überwachung
-    logger.info("🗣️ Komplette LLM-Konversation gesendet: %s", json.dumps(messages, indent=2, ensure_ascii=False))
+    #neu logging zentral in app.py:
+    # Loggen der gesamten Konversation für Debugging/Überwachung
+    #logger.info("🗣️ Komplette LLM-Konversation gesendet: %s", json.dumps(messages, indent=2, ensure_ascii=False))
 
     # Debugging: Nur erste und letzte Nachricht loggen (vom Benutzer bereitgestellt)
-    debug_messages = {
-        "system": messages[0]["content"][:100] + "...",
-        "last_user": messages[-1]["content"],
-        "history_length": len(messages) - 2,  # Ohne System und aktuellen Prompt
-        "scenario": scenario
-    }
-    logger.info("🧠 LLM Mistral Request Summary: %s", json.dumps(debug_messages, indent=2, ensure_ascii=False))
+    #debug_messages = {
+    #    "system": messages[0]["content"][:100] + "...",
+    #    "last_user": messages[-1]["content"],
+    #   "history_length": len(messages) - 2,  # Ohne System und aktuellen Prompt
+    #    "scenario": scenario
+    #}
+    #logger.info("🧠 LLM Mistral Request Summary: %s", json.dumps(debug_messages, indent=2, ensure_ascii=False))
 
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=30)

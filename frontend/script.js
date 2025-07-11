@@ -785,7 +785,6 @@ async function sendMessageToBackend(message) {
                 message: message,
                 userId: userId, 
                 scenario: currentScenario
-                // Entfernt: history Parameter
             }),
         });
 
@@ -940,6 +939,8 @@ elements.startBtn?.addEventListener('click', async () => {
     console.log('🚀 Starting conversation...');
 
     const scenario = elements.scenarioSelect?.value;
+    const forceReset = scenario !== currentScenario;
+    currentScenario = scenario;  // aktualisiere den Wert
     if (!scenario) {
         showStatus(elements.recordingStatus, "⚠️ Veuillez choisir un thème.", 'error');
         return;
@@ -973,7 +974,8 @@ elements.startBtn?.addEventListener('click', async () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     scenario: scenario,
-                    userId: userId
+                    userId: userId,
+                    force_reset: forceReset
                 })
             });
 
@@ -1114,7 +1116,7 @@ function debugConversationState() {
 if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     setInterval(debugConversationState, 30000);
 }
-    
+
 
   // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
