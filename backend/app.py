@@ -261,10 +261,11 @@ def serve_temp_audio(filename):
         abort(404)
     return send_from_directory(TEMP_AUDIO_DIR_ROOT, filename)
 
-@app.route('/', defaults={'path': ''})
+
+#@app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
-def catch_all(path):
-    return send_from_directory(app.static_folder, 'index.html')
+#def catch_all(path):
+ #   return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
     # Für Render deployment optimiert
