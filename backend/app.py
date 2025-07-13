@@ -264,6 +264,8 @@ def serve_temp_audio(filename):
 
 #@app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
+def static_files(path):
+    return send_from_directory(app.static_folder, path)
 #def catch_all(path):
  #   return send_from_directory(app.static_folder, 'index.html')
 
