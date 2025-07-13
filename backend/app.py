@@ -17,8 +17,8 @@ MAX_HISTORY_LENGTH = 20  # Begrenzt Historie auf Nachrichtenanzahl
 ACTIVE_TTS_PROVIDER = "AMAZON_POLLY" # <--- HIER KÖNNEN SIE DEN ANBIETER WECHSELN
 # =========================================================
 
-# Setup
-app = Flask(__name__, static_folder='../frontend')
+# Setup - KORRIGIERT für Render
+app = Flask(__name__, static_folder='../frontend', static_url_path='')
 CORS(app)
 
 # Optimiertes Logging für Render Free Tier
@@ -261,13 +261,34 @@ def serve_temp_audio(filename):
         abort(404)
     return send_from_directory(TEMP_AUDIO_DIR_ROOT, filename)
 
+# === KORRIGIERTE ROUTEN FÜR STATISCHE DATEIEN ===
 
-#@app.route('/', defaults={'path': ''})
+# Spezifische Route für statische Dateien im static Ordner
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    """Serviert Dateien aus dem static Ordner"""
+    static_dir = os.path.join(app.static_folder, 'static')
+    if os.path.exists(os.path.join(static_dir, filename)):
+        return send_from_directory(static_dir, filename)
+    abort(404)
+
+# Root Route für index.html
+@app.route('/')
+def index():
+    """Serviert die index.html Datei"""
+    return send_from_directory(app.static_folder, 'index.html')
+
+# Catch-all Route für SPA (Single Page Application)
 @app.route('/<path:path>')
-def static_files(path):
-    return send_from_directory(app.static_folder, path)
-#def catch_all(path):
- #   return send_from_directory(app.static_folder, 'index.html')
+def catch_all(path):
+    """Catch-all Route für SPA Routing"""
+    # Prüfe zuerst, ob es eine echte Datei ist
+    file_path = os.path.join(app.static_folder, path)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return send_from_directory(app.static_folder, path)
+    
+    # Ansonsten serviere index.html für SPA Routing
+    return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
     # Für Render deployment optimiert
