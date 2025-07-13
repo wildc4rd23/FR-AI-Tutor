@@ -1,4 +1,4 @@
-# backend/vosk_stt.py
+# backend/vosk_stt.py momentan nicht verwendet
 import os
 import wave
 import json

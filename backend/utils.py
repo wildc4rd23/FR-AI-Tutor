@@ -47,7 +47,7 @@ def get_user_temp_dir(user_id=None, base_dir=None):
     logger.info(f"Temporäres Verzeichnis erstellt: {full_temp_path}")
     return full_temp_path, user_id
 
-def cleanup_temp_dir(dir_path, exclude_file=None):
+def cleanup_temp_dir(dir_path, exclude_file=None):  # momentan nicht verwendet
     """
     Löscht alle Dateien und leere Unterverzeichnisse in einem gegebenen Pfad rekursiv,
     mit Ausnahme einer spezifischen Datei.
@@ -102,3 +102,17 @@ def cleanup_temp_dir(dir_path, exclude_file=None):
     except OSError as e:
         logger.error(f"Bereinigung: Fehler beim Löschen des Hauptverzeichnisses {dir_path}: {e}")
 
+def log_request(user_id, action, details=None):
+    """Minimales Logging für Render Free"""
+    if details:
+        logger.info(f"[{user_id}] {action}: {str(details)[:50]}...")
+    else:
+        logger.info(f"[{user_id}] {action}")
+
+def add_to_history(session, role, content):
+    """Fügt Nachricht zur Historie hinzu und begrenzt die Länge"""
+    session['history'].append({'role': role, 'content': content})
+    
+    # Behalte nur die letzten MAX_HISTORY_LENGTH Nachrichten
+    if len(session['history']) > MAX_HISTORY_LENGTH:
+        session['history'] = session['history'][-MAX_HISTORY_LENGTH:]

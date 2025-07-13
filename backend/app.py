@@ -8,6 +8,10 @@ import time
 import logging
 
 # =========================================================
+# LLM KONFIGURATION
+MAX_HISTORY_LENGTH = 20  # Begrenzt Historie auf Nachrichtenanzahl
+
+# =========================================================
 # TTS KONFIGURATION: Wählen Sie hier Ihren aktiven TTS-Anbieter
 # Mögliche Werte: "GOOGLE", "MINIMAX", "OPENAI", "AMAZON_POLLY"
 ACTIVE_TTS_PROVIDER = "AMAZON_POLLY" # <--- HIER KÖNNEN SIE DEN ANBIETER WECHSELN
@@ -16,13 +20,25 @@ ACTIVE_TTS_PROVIDER = "AMAZON_POLLY" # <--- HIER KÖNNEN SIE DEN ANBIETER WECHSE
 # Setup
 app = Flask(__name__, static_folder='../frontend')
 CORS(app)
-logging.basicConfig(level=logging.INFO)
+
+# Optimiertes Logging für Render Free Tier
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger(__name__)
+
+# Reduziere Logs für externe Bibliotheken
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+logging.getLogger('requests').setLevel(logging.WARNING)
+logging.getLogger('boto3').setLevel(logging.WARNING)
+logging.getLogger('botocore').setLevel(logging.WARNING)
 
 # === LLM & Hilfsmodule ===
 from llm_agent_mistral import query_llm_for_scenario, get_scenario_starter
-from utils import get_user_temp_dir, cleanup_temp_dir
-from transcribe_vosk import transcribe_audio_file
+from utils import get_user_temp_dir, log_request, add_to_history#, cleanup_temp_dir
+#from vosk_stt import transcribe_audio #momentan nicht verwendet
 
 # === Dummy-TTS (nur Fallback) ===
 def dummy_synthesize_tts(text, output_path):
@@ -53,51 +69,60 @@ PROJECT_ROOT = os.path.dirname(app.root_path)
 TEMP_AUDIO_DIR_ROOT = os.path.join(PROJECT_ROOT, 'temp_audio')
 os.makedirs(TEMP_AUDIO_DIR_ROOT, exist_ok=True)
 
-# === Hauptfunktion: LLM-Antwort + TTS ===
+# === Hilfsfunktionen: ===
+
+def safe_synthesize_tts(text, output_path, max_retries=2):
+    """TTS mit begrenzten Wiederholungsversuchen"""
+    for attempt in range(max_retries):
+        try:
+            synthesize_tts(text, output_path)
+            return True
+        except Exception as e:
+            logger.warning(f"TTS Versuch {attempt + 1} fehlgeschlagen: {str(e)[:100]}")
+            if attempt == max_retries - 1:
+                # Letzter Versuch - erstelle Dummy-Datei
+                with open(output_path, "wb") as f:
+                    f.write(b"Dummy Audio")
+                return False
+            time.sleep(1)  # Kurze Pause zwischen Versuchen
+    return False
+
+
+
+# === Hauptfunktion: LLM-Antwort + TTS optimized===
 def generate_llm_and_tts_response(user_id, scenario, prompt, is_user_message=True):
+    """Speicher-optimierte Version der Hauptfunktion"""
     session = user_sessions.setdefault(user_id, {
         'history': [], 'scenario': 'libre', 'created_at': datetime.now()
     })
-    logger.info(f"[{user_id}] Neues Szenario gestartet: {scenario}")
+    
     session['scenario'] = scenario
 
     if is_user_message:
-        session['history'].append({'role': 'user', 'content': prompt})
-
-        logger.info(f"[{user_id}] Prompt an LLM: {prompt}")
-    llm_response = query_llm_for_scenario(prompt, scenario, session['history'], max_tokens=160)
-    logger.info(f"[{user_id}] Antwort vom LLM: {llm_response}")
-    session['history'].append({'role': 'assistant', 'content': llm_response})
-
-    user_dir = get_user_temp_dir(user_id)
-    timestamp = int(time.time())
-    audio_url = None
+        add_to_history(session, 'user', prompt)
+        log_request(user_id, "User input", prompt)
 
     try:
-        output_path = os.path.join(user_dir, f"llm_{timestamp}.mp3")
-        try:
-            synthesize_tts(llm_response, output_path)
-        except Exception as primary_error:
-            logger.warning(f"TTS-Fehler mit {ACTIVE_TTS_PROVIDER}, Wiederholung...")
-            try:
-                synthesize_tts(llm_response, output_path)
-            except Exception as retry_error:
-                if ACTIVE_TTS_PROVIDER != "TACOTRON":
-                    logger.warning("Versuche Tacotron-Fallback...")
-                    fallback_path = os.path.join(user_dir, f"llm_tacotron_{timestamp}.mp3")
-                    with open(fallback_path, "wb") as f:
-                        f.write(b"Dummy Tacotron Audio")
-                    output_path = fallback_path
-                else:
-                    raise retry_error
-
-                if os.path.exists(output_path):
-            logger.info(f"[{user_id}] TTS erfolgreich gespeichert: {output_path}")
-            rel = os.path.relpath(output_path, TEMP_AUDIO_DIR_ROOT)
-            audio_url = f"/temp_audio/{rel.replace(os.sep, '/')}"
-
+        llm_response = query_llm_for_scenario(prompt, scenario, session['history'], max_tokens=160)
+        log_request(user_id, "LLM response", llm_response)
+        add_to_history(session, 'assistant', llm_response)
     except Exception as e:
-        logger.error(f"TTS endgültig fehlgeschlagen: {e}")
+        logger.error(f"[{user_id}] LLM Fehler: {str(e)[:100]}")
+        llm_response = "Désolé, je ne peux pas répondre maintenant."
+        add_to_history(session, 'assistant', llm_response)
+
+    # TTS nur wenn erfolgreich
+    audio_url = None
+    user_dir = get_user_temp_dir(user_id)
+    timestamp = int(time.time())
+    output_path = os.path.join(user_dir, f"llm_{timestamp}.mp3")
+    
+    if safe_synthesize_tts(llm_response, output_path):
+        rel = os.path.relpath(output_path, TEMP_AUDIO_DIR_ROOT)
+        audio_url = f"/temp_audio/{rel.replace(os.sep, '/')}"
+        log_request(user_id, "TTS success")
+    else:
+        log_request(user_id, "TTS failed")
 
     return {'response': llm_response, 'audio_url': audio_url}
 
@@ -159,6 +184,9 @@ def delete_audio():
     MAX_LLM_FILES = 2
     MAX_RECORDING_FILES = 2
 
+    if not os.path.exists(user_dir):
+        return jsonify({'deleted': deleted})
+
     all_files = os.listdir(user_dir)
 
     llm_files = sorted([f for f in all_files if f.startswith("llm")], key=lambda f: os.path.getmtime(os.path.join(user_dir, f)))
@@ -185,6 +213,9 @@ def transcribe():
         return jsonify({'error': 'Keine Audiodatei empfangen'}), 400
 
     user_id = request.form.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'User ID erforderlich'}), 400
+
     audio_file = request.files['audio']
     user_dir = get_user_temp_dir(user_id)
 
@@ -192,7 +223,8 @@ def transcribe():
     ext = os.path.splitext(audio_file.filename)[1] or '.webm'
     filename = f"recording_{timestamp}{ext}"
     path = os.path.join(user_dir, filename)
-        audio_file.save(path)
+    
+    audio_file.save(path)
     logger.info(f"[{user_id}] Aufnahme gespeichert: {filename}")
 
     return jsonify({
@@ -205,14 +237,22 @@ def transcribe():
 def reset_session():
     data = request.get_json()
     user_id = data.get('userId')
-        if user_id in user_sessions:
+    if not user_id:
+        return jsonify({'error': 'User ID erforderlich'}), 400
+        
+    if user_id in user_sessions:
         del user_sessions[user_id]
         logger.info(f"[{user_id}] Session zurückgesetzt.")
     return jsonify({'status': 'Session reset'})
 
 @app.route('/health')
 def health():
-    return jsonify({'status': 'healthy'})
+    return jsonify({
+        'status': 'healthy',
+        'active_sessions': len(user_sessions),
+        'tts_provider': ACTIVE_TTS_PROVIDER,
+        'memory_usage': f"{len(str(user_sessions))} chars"  # Grobe Schätzung
+    })
 
 @app.route('/temp_audio/<path:filename>')
 def serve_temp_audio(filename):
@@ -225,3 +265,8 @@ def serve_temp_audio(filename):
 @app.route('/<path:path>')
 def catch_all(path):
     return send_from_directory(app.static_folder, 'index.html')
+
+if __name__ == '__main__':
+    # Für Render deployment optimiert
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
