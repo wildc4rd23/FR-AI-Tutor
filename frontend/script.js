@@ -7,13 +7,11 @@ document.addEventListener('DOMContentLoaded', function() {
     startBtn: document.getElementById('startConversation'),
     newConvBtn: document.getElementById('newConversation'),
     showResponseBtn: document.getElementById('showResponseBtn'),
-
     userText: document.getElementById('userText'),
     responseText: document.getElementById('responseText'),
     audioPlayback: document.getElementById('audioPlayback'),
     userAudio: document.getElementById('userAudio'),
     //userAudioSection: document.getElementById('userAudioSection'),
-
     startSection: document.getElementById('startSection'),
     conversationSection: document.getElementById('conversationSection'),
     scenarioSelect: document.getElementById('scenario'),
