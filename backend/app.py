@@ -142,15 +142,55 @@ def start_conversation():
 
     if force_reset:
         session['history'] = []
-        starter_text = get_scenario_starter(scenario)
-        result = generate_llm_and_tts_response(user_id, scenario, starter_text, is_user_message=False)
-        if result.get('audio_url'):
+        session['scenario'] = scenario
+        
+        # KORRIGIERT: Verwende die neue Funktion für die erste LLM-Antwort
+        try:
+            from llm_agent_mistral import get_initial_llm_response_for_scenario
+            
+            # Generiere die erste LLM-Antwort für das Szenario
+            llm_response = get_initial_llm_response_for_scenario(scenario)
+            
+            # Füge die Antwort zur Historie hinzu
+            add_to_history(session, 'assistant', llm_response)
+            log_request(user_id, "Initial LLM response", llm_response)
+            
+            # Generiere TTS für die Antwort
+            audio_url = None
+            user_dir = get_user_temp_dir(user_id)
+            timestamp = int(time.time())
+            output_path = os.path.join(user_dir, f"llm_{timestamp}.mp3")
+            
+            if safe_synthesize_tts(llm_response, output_path):
+                rel = os.path.relpath(output_path, TEMP_AUDIO_DIR_ROOT)
+                audio_url = f"/temp_audio/{rel.replace(os.sep, '/')}"
+                log_request(user_id, "TTS success for initial response")
+            else:
+                log_request(user_id, "TTS failed for initial response")
+            
+            # Bereinige alte Audio-Dateien
             try:
                 app.test_client().post('/api/delete-audio', json={'userId': user_id})
             except Exception as e:
                 logger.warning(f"Fehler bei Audio-Bereinigung nach Start: {e}")
-        return jsonify(result)
+                
+            return jsonify({
+                'response': llm_response,
+                'audio_url': audio_url
+            })
+            
+        except Exception as e:
+            logger.error(f"[{user_id}] Fehler beim Generieren der ersten LLM-Antwort: {str(e)}")
+            # Fallback auf statischen Starter
+            from llm_agent_mistral import get_scenario_starter
+            starter_text = get_scenario_starter(scenario)
+            add_to_history(session, 'assistant', starter_text)
+            return jsonify({
+                'response': starter_text,
+                'audio_url': None
+            })
     else:
+        # Wenn kein Reset, zeige die letzte Assistent-Antwort
         last = next((m['content'] for m in reversed(session['history']) if m['role'] == 'assistant'), "Bonjour !")
         return jsonify({'response': last, 'audio_url': None})
 
