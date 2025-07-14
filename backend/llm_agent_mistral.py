@@ -6,13 +6,49 @@ import json
 
 logger = logging.getLogger(__name__)
 
-# Modifizierte get_scenario_system_prompt, um optional eine Anweisung für die erste Antwort zu akzeptieren
-
-def get_scenario_system_prompt(scenario, first_turn_instruction_example=None):
-
+# NEU: Vereinfachte Funktion für die erste LLM-Antwort
+def get_initial_llm_response_for_scenario(scenario):
     """
-    Erweiterte szenario-spezifische System-Prompts für bessere Gesprächsqualität.
-    Kann optional eine Anweisung für die erste Antwort enthalten.
+    Ruft die erste LLM-Antwort für ein neues Szenario ab.
+    Diese Funktion generiert eine natürliche erste Antwort basierend auf dem Szenario.
+    """
+    logger.info(f"Generiere erste LLM-Antwort für Szenario: {scenario}")
+    
+    # Spezifische Prompts für die erste Antwort je Szenario
+    initial_prompts = {
+        "restaurant": "Begrüße mich als Kellner in einem französischen Restaurant und frage nach meinen Wünschen.",
+        "faire_les_courses": "Begrüße mich als Verkäufer im Supermarkt und frage, womit du mir helfen kannst.",
+        "visite_chez_le_médecin": "Begrüße mich als Arzt und frage nach meinem Befinden.",
+        "loisirs": "Beginne ein Gespräch über Freizeit und Hobbys. Erzähle kurz von deinem eigenen Hobby und frage nach meinen.",
+        "travail": "Beginne ein Gespräch über Arbeit und Beruf. Stelle dich vor und frage nach meinem Beruf.",
+        "voyage": "Beginne ein Gespräch über Reisen in Frankreich. Empfehle eine Region und frage nach meinen Reiseplänen.",
+        "libre": "Beginne ein freundliches Gespräch auf Französisch und frage, über was wir sprechen möchten."
+    }
+    
+    initial_prompt = initial_prompts.get(scenario, initial_prompts["libre"])
+    
+    try:
+        # Generiere die erste Antwort mit dem LLM
+        response = query_llm_mistral(
+            prompt=initial_prompt,
+            history=None,  # Keine Historie für die erste Antwort
+            scenario=scenario,
+            max_tokens=120,
+            temperature=0.7
+        )
+        
+        logger.info(f"✅ Erste LLM-Antwort für {scenario} generiert: {len(response)} Zeichen")
+        return response
+        
+    except Exception as e:
+        logger.error(f"❌ Fehler bei der ersten LLM-Antwort für {scenario}: {str(e)}")
+        # Fallback auf statischen Starter
+        return get_scenario_starter(scenario)
+
+# Vereinfachte System-Prompt Funktion (ohne first_turn_instruction_example)
+def get_scenario_system_prompt(scenario):
+    """
+    Szenario-spezifische System-Prompts für bessere Gesprächsqualität.
     """
     base_prompt = """Tu es un professeur de français expérimenté qui aide des étudiants de niveau B1/B2. 
     
@@ -26,8 +62,7 @@ def get_scenario_system_prompt(scenario, first_turn_instruction_example=None):
     - Sois encourageant, patient et bienveillant
     - Agis comme un véritable partenaire de discussion
     """
-    logger.info(f"Base System Prompt geladen (Anfang): {base_prompt[:100]}...") # Loggen des Base Prompts
-
+    
     scenario_prompts = {
         "restaurant": base_prompt + """
         
@@ -44,13 +79,21 @@ def get_scenario_system_prompt(scenario, first_turn_instruction_example=None):
         "faire_les_courses": base_prompt + """
         
         CONTEXTE SPÉCIFIQUE - AU SUPERMARCHÉ:
-        - Tu joues le rôle d'un vendeur
+        - Tu joues le rôle d'un vendeur dans un supermarché français
+        - Aide l'étudiant à trouver des produits
+        - Introduis le vocabulaire des aliments et produits du quotidien
+        - Crée des situations réalistes (prix, quantités, promotions)
+        - Utilise des expressions typiques des commerces français
         """,
 
-         "visite_chez_le_médecin": base_prompt + """
+        "visite_chez_le_médecin": base_prompt + """
         
-        CONTEXTE SPÉCIFIQUE - VISITE CHEZ LE MÉDECIN        
-        - Tu joues le rôle d'un docteur
+        CONTEXTE SPÉCIFIQUE - VISITE CHEZ LE MÉDECIN:
+        - Tu joues le rôle d'un docteur français bienveillant
+        - L'étudiant est un patient qui décrit ses symptômes
+        - Introduis le vocabulaire médical de base
+        - Crée des situations réalistes (symptômes, examens, conseils)
+        - Utilise des expressions typiques des consultations médicales
         """,
         
         "loisirs": base_prompt + """
@@ -98,17 +141,63 @@ def get_scenario_system_prompt(scenario, first_turn_instruction_example=None):
     }
     
     selected_prompt = scenario_prompts.get(scenario, scenario_prompts["libre"])
-
-    if first_turn_instruction_example:
-
-        selected_prompt += f"\n\nVOTRE PREMIÈRE RÉPONSE DOIT RESSEMBLER À UN EXEMPLE COMME : « {first_turn_instruction_example} ». Votre réponse doit sembler naturelle et comme un début direct de conversation."
-        logger.info(f"Szenario-spezifischer Prompt mit Erst-Antwort-Anweisung (Anfang): {selected_prompt[:150]}...")
-
-    else:
-
-        logger.info(f"Szenario-spezifischer Prompt '{scenario}' ausgewählt (Anfang): {selected_prompt[:100]}...") # Loggen des Szenario Prompts
-
+    logger.info(f"Szenario-spezifischer Prompt '{scenario}' ausgewählt")
     return selected_prompt
+
+# Vereinfachte LLM-Abfrage ohne first_turn_instruction_example
+def query_llm_mistral(prompt, history=None, max_tokens=150, temperature=0.7, scenario="libre"):
+    """
+    Fragt Mistral LLM ab mit Längenbegrenzung und Konversationshistorie.
+    """
+    api_key = os.environ.get("MISTRAL_API_KEY")
+    if not api_key:
+        raise Exception("MISTRAL_API_KEY Umgebungsvariable fehlt")
+
+    url = "https://api.mistral.ai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
+    # System-Prompt für Szenario erstellen
+    system_prompt = get_scenario_system_prompt(scenario)
+    messages = [{"role": "system", "content": system_prompt}]
+
+    # Historie hinzufügen
+    if history:
+        messages.extend(history)
+    
+    messages.append({"role": "user", "content": prompt})
+
+    payload = {
+        "model": "mistral-small-latest",
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "top_p": 0.9,
+        "random_seed": 42,
+        "stop": [".", "!", "?", "\n\n"]
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        response.raise_for_status()
+        
+        result = response.json()
+        content = result["choices"][0]["message"]["content"].strip()
+        
+        # Nachbearbeitung für TTS
+        content = post_process_response(content, max_chars=200)
+        
+        logger.info(f"✅ Mistral response: {len(content)} characters")
+        return content
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"❌ Mistral API error: {str(e)}")
+        raise Exception(f"Mistral API Fehler: {str(e)}")
+    except KeyError as e:
+        logger.error(f"❌ Unexpected response format: {result}")
+        raise Exception("Unerwartetes Antwortformat von Mistral API")
 
 def get_scenario_starter(scenario):
     """
@@ -168,105 +257,7 @@ def post_process_response(text, max_chars=200):
     
     return text
 
-# Modifizierte query_llm_mistral, um das neue first_turn_instruction_example-Argument zu akzeptieren und weiterzugeben
-
-def query_llm_mistral(prompt, history=None, max_tokens=150, temperature=0.7, scenario="libre", first_turn_instruction_example=None):
-
-    """
-    Fragt Mistral LLM ab mit Längenbegrenzung und Konversationshistorie.
-    Kann optional eine Anweisung für die erste Antwort übergeben, die den System-Prompt ergänzt.
-    """
-
-    api_key = os.environ.get("MISTRAL_API_KEY")
-
-    if not api_key:
-
-        raise Exception("MISTRAL_API_KEY Umgebungsvariable fehlt")
-
-    url = "https://api.mistral.ai/v1/chat/completions"
-    headers = {
-
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-
-    # Erweiterten System-Prompt für Französisch-Tutor erstellen mit Beispiel je szenario
-    system_prompt = get_scenario_system_prompt(scenario, first_turn_instruction_example=first_turn_instruction_example)
-
-    logger.info(f"Finaler System Prompt für LLM (Anfang): {system_prompt[:100]}...") # Loggen des finalen System Prompts
-    messages = [{"role": "system", "content": system_prompt}]
-
-    # Sicherstellen, dass die Historie nicht den System-Prompt enthält, da dieser separat hinzugefügt wird
-    if history:
-        messages.extend(history)
-    
-    messages.append({"role": "user", "content": prompt})
-
-    payload = {
-        "model": "mistral-small-latest",
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "top_p": 0.9,
-        "random_seed": 42, # Für reproduzierbare Ergebnisse, optional
-        "stop": [".", "!", "?", "\n\n"]
-    }
-    
-    #neu logging zentral in app.py:
-    # Loggen der gesamten Konversation für Debugging/Überwachung
-    #logger.info("🗣️ Komplette LLM-Konversation gesendet: %s", json.dumps(messages, indent=2, ensure_ascii=False))
-
-    # Debugging: Nur erste und letzte Nachricht loggen (vom Benutzer bereitgestellt)
-    #debug_messages = {
-    #    "system": messages[0]["content"][:100] + "...",
-    #    "last_user": messages[-1]["content"],
-    #   "history_length": len(messages) - 2,  # Ohne System und aktuellen Prompt
-    #    "scenario": scenario
-    #}
-    #logger.info("🧠 LLM Mistral Request Summary: %s", json.dumps(debug_messages, indent=2, ensure_ascii=False))
-
-    try:
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        response.raise_for_status()
-        
-        result = response.json()
-        content = result["choices"][0]["message"]["content"].strip()
-        
-        # Nachbearbeitung für TTS (bestehende Funktion post_process_response wird genutzt)
-        content = post_process_response(content, max_chars=200)
-        
-        logger.info(f"✅ Mistral response: {len(content)} characters")
-        return content
-        
-    except requests.exceptions.RequestException as e:
-        logger.error(f"❌ Mistral API error: {str(e)}")
-        raise Exception(f"Mistral API Fehler: {str(e)}")
-    except KeyError as e:
-        logger.error(f"❌ Unexpected response format: {result}")
-        raise Exception("Unerwartetes Antwortformat von Mistral API")
-
-# NEU: Funktion zum Abrufen der ersten LLM-Antwort für ein Szenario
-
-def get_initial_llm_response_for_scenario(scenario):
-
-    """
-    Ruft die erste LLM-Antwort für ein neues Szenario ab,
-    indem der Starter-Text als Anweisung in den System-Prompt integriert wird.
-    """
-
-    initial_prompt_for_llm = "Bonjour ! Commençons notre conversation." 
-    starter_example = get_scenario_starter(scenario) 
-
-    first_llm_response = query_llm_mistral(
-
-        prompt=initial_prompt_for_llm,
-        history=None, 
-        scenario=scenario,
-        first_turn_instruction_example=starter_example 
-    )
-
-    return first_llm_response
-
+# unklar ob verwendet
 def query_llm_for_scenario(prompt, scenario="libre", history=None, max_tokens=160):
     """
     Szenario-spezifische LLM-Abfrage mit optimierten Parametern
