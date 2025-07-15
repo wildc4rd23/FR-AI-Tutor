@@ -136,6 +136,7 @@ def start_conversation():
     force_reset = data.get('force_reset', True)
 
     if not user_id:
+        logger.error("User ID fehlt in Start Conversation Request.")
         return jsonify({'error': 'User ID erforderlich'}), 400
 
     session = user_sessions.setdefault(user_id, {'history': [], 'scenario': scenario, 'created_at': datetime.now()})
@@ -143,56 +144,38 @@ def start_conversation():
     if force_reset:
         session['history'] = []
         session['scenario'] = scenario
+        logger.info(f"[{user_id}] Konversationshistorie und Szenario zurückgesetzt auf '{scenario}'.")
+
+    try:
+        from llm_agent_mistral import get_initial_llm_response_for_scenario, get_scenario_system_prompt
+        # get_scenario_system_prompt ist hier nur zum Importieren der Funktion für query_llm_for_scenario in chat route
         
-        # KORRIGIERT: Verwende die neue Funktion für die erste LLM-Antwort
-        try:
-            from llm_agent_mistral import get_initial_llm_response_for_scenario
-            
-            # Generiere die erste LLM-Antwort für das Szenario
-            llm_response = get_initial_llm_response_for_scenario(scenario)
-            
-            # Füge die Antwort zur Historie hinzu
-            add_to_history(session, 'assistant', llm_response)
-            log_request(user_id, "Initial LLM response", llm_response)
-            
-            # Generiere TTS für die Antwort
-            audio_url = None
-            user_dir = get_user_temp_dir(user_id)
-            timestamp = int(time.time())
-            output_path = os.path.join(user_dir, f"llm_{timestamp}.mp3")
-            
-            if safe_synthesize_tts(llm_response, output_path):
-                rel = os.path.relpath(output_path, TEMP_AUDIO_DIR_ROOT)
-                audio_url = f"/temp_audio/{rel.replace(os.sep, '/')}"
-                log_request(user_id, "TTS success for initial response")
-            else:
-                log_request(user_id, "TTS failed for initial response")
-            
-            # Bereinige alte Audio-Dateien
-            try:
-                app.test_client().post('/api/delete-audio', json={'userId': user_id})
-            except Exception as e:
-                logger.warning(f"Fehler bei Audio-Bereinigung nach Start: {e}")
-                
-            return jsonify({
-                'response': llm_response,
-                'audio_url': audio_url
-            })
-            
-        except Exception as e:
-            logger.error(f"[{user_id}] Fehler beim Generieren der ersten LLM-Antwort: {str(e)}")
-            # Fallback auf statischen Starter
-            from llm_agent_mistral import get_scenario_starter
-            starter_text = get_scenario_starter(scenario)
-            add_to_history(session, 'assistant', starter_text)
-            return jsonify({
-                'response': starter_text,
-                'audio_url': None
-            })
-    else:
-        # Wenn kein Reset, zeige die letzte Assistent-Antwort
-        last = next((m['content'] for m in reversed(session['history']) if m['role'] == 'assistant'), "Bonjour !")
-        return jsonify({'response': last, 'audio_url': None})
+        logger.info(f"[{user_id}] Anforderung der ersten inhaltlichen LLM-Antwort für Szenario '{scenario}'.")
+        llm_initial_response_data = get_initial_llm_response_for_scenario(scenario, user_id)
+        llm_initial_response_text = llm_initial_response_data.get('response', '')
+        
+        logger.info(f"[{user_id}] Erhaltene erste LLM-Antwort (Anfang): '{llm_initial_response_text[:100]}...'")
+        add_to_history(session, 'assistant', llm_initial_response_text)
+        
+        audio_url = None
+        user_dir, _ = get_user_temp_dir(user_id, TEMP_AUDIO_DIR_ROOT)
+        timestamp = int(time.time())
+        output_path = os.path.join(user_dir, f"llm_initial_{timestamp}.mp3")
+
+        logger.info(f"[{user_id}] Versuche, TTS für initiale Antwort zu generieren.")
+        if safe_synthesize_tts(llm_initial_response_text, output_path):
+            rel_path = os.path.relpath(output_path, TEMP_AUDIO_DIR_ROOT)
+            audio_url = f"/temp_audio/{rel_path.replace(os.sep, '/')}"
+            logger.info(f"[{user_id}] TTS für initiale Antwort erfolgreich: {audio_url}")
+        else:
+            logger.warning(f"[{user_id}] TTS für initiale Antwort fehlgeschlagen.")
+
+        return jsonify({'response': llm_initial_response_text, 'audio_url': audio_url, 'scenario': scenario})
+
+    except Exception as e:
+        logger.critical(f"[{user_id}] KRITISCHER FEHLER beim Starten der Konversation: {str(e)}", exc_info=True)
+        return jsonify({'error': f'Interner Serverfehler beim Starten der Konversation.'}), 500
+
 
 @app.route('/api/respond', methods=['POST'])
 def respond():

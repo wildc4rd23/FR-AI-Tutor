@@ -1,4 +1,5 @@
-# backend/llm_agent_mistral.py - Optimierte Version
+# backend/llm_agent_mistral.py
+
 import os
 import requests
 import logging
@@ -6,258 +7,228 @@ import json
 
 logger = logging.getLogger(__name__)
 
+# ENTFERNT: Die Funktion get_scenario_starter_examples wird nicht mehr benötigt.
+# Ihre Inhalte werden direkt in get_scenario_system_prompt integriert.
+
 def get_scenario_system_prompt(scenario):
     """
     Szenario-spezifische System-Prompts für bessere Gesprächsqualität.
+    Diese Funktion ist jetzt die EINZIGE Quelle für alle LLM-Anweisungen
+    und beinhaltet auch die Start-Beispiele.
     """
     base_prompt = """Tu es un professeur de français expérimenté qui aide des étudiants de niveau B1/B2. 
     
-    RÈGLES IMPORTANTES:
+    RÈGLES IMPORTANTES POUR TES RÉPONSES:
     - Réponds TOUJOURS en français
     - Garde tes réponses concises mais informatives (2-4 phrases maximum)
-    - NE réponds PAS par des phrases trop courtes ou des mots uniques
-    - Corrige gentiment les erreurs sans être condescendant
+    - NE réponds PAS par des phrases trop courtes ou des mots uniques (sauf si c'est une question très simple)
+    - Corrige gentiment les erreurs de l'étudiant sans être condescendant
     - Pose TOUJOURS une question ouverte pour relancer la conversation
     - Utilise un vocabulaire approprié au niveau B1/B2
     - Sois encourageant, patient et bienveillant
-    - Agis comme un véritable partenaire de discussion
+    - Agis comme un véritable partenaire de discussion.
     """
     
-    scenario_prompts = {
-        "restaurant": base_prompt + """
-        
-        CONTEXTE SPÉCIFIQUE - RESTAURANT:
-        - Tu joues le rôle d'un serveur français dans un restaurant traditionnel
-        - L'étudiant est un client qui veut commander
-        - Guide-le à travers l'expérience complète : accueil, menu, commande, paiement
-        - Introduis du vocabulaire culinaire français authentique
-        - Crée des situations réalistes (plats du jour, recommandations, allergies)
-        - Utilise des expressions typiques des serveurs français
-        - Propose des spécialités régionales françaises
-        """,
-
-        "faire_les_courses": base_prompt + """
-        
-        CONTEXTE SPÉCIFIQUE - AU SUPERMARCHÉ:
-        - Tu joues le rôle d'un vendeur dans un supermarché français
-        - Aide l'étudiant à trouver des produits
-        - Introduis le vocabulaire des aliments et produits du quotidien
-        - Crée des situations réalistes (prix, quantités, promotions)
-        - Utilise des expressions typiques des commerces français
-        """,
-
-        "visite_chez_le_médecin": base_prompt + """
-        
-        CONTEXTE SPÉCIFIQUE - VISITE CHEZ LE MÉDECIN:
-        - Tu joues le rôle d'un docteur français bienveillant
-        - L'étudiant est un patient qui décrit ses symptômes
-        - Introduis le vocabulaire médical de base
-        - Crée des situations réalistes (symptômes, examens, conseils)
-        - Utilise des expressions typiques des consultations médicales
-        """,
-        
-        "loisirs": base_prompt + """
-        
-        CONTEXTE SPÉCIFIQUE - LOISIRS:
-        - Explore ses passions et découvre de nouveaux hobbies ensemble
-        - Partage des anecdotes sur les loisirs populaires en France
-        - Introduis des activités culturelles françaises (pétanque, randonnée, festivals)
-        - Discute des différences culturelles dans les loisirs
-        - Encourage à partager ses expériences personnelles
-        - Propose des activités qu'il pourrait essayer en France
-        """,
-        
-        "travail": base_prompt + """
-        
-        CONTEXTE SPÉCIFIQUE - TRAVAIL:
-        - Joue le rôle d'un collègue français ou d'un recruteur bienveillant
-        - Discute des différences dans la culture du travail française
-        - Introduis le vocabulaire professionnel français
-        - Aborde les sujets : entretiens, réunions, congés, relations collègues
-        - Explique les spécificités du système français (35h, RTT, etc.)
-        - Aide à préparer des situations professionnelles réelles
-        """,
-        
-        "voyage": base_prompt + """
-        
-        CONTEXTE SPÉCIFIQUE - VOYAGE:
-        - Tu es un guide touristique français passionné
-        - Fais découvrir les régions françaises avec enthousiasme
-        - Partage des conseils pratiques et des secrets locaux
-        - Introduis la géographie, l'histoire et les traditions françaises
-        - Aide à planifier un voyage réaliste en France
-        - Raconte des anecdotes sur les destinations françaises
-        """,
-        
-        "libre": base_prompt + """
-        
-        CONTEXTE SPÉCIFIQUE - CONVERSATION LIBRE:
-        - Adapte-toi au sujet choisi par l'étudiant
-        - Enrichis la conversation avec des éléments culturels français
-        - Introduis naturellement du vocabulaire avancé
-        - Encourage l'expression d'opinions personnelles
-        - Crée des connexions avec l'actualité française
-        """
+    scenario_details = {
+        "restaurant": {
+            "context": """
+            CONTEXTE SPÉCIFIQUE - RESTAURANT:
+            - Tu joues le rôle d'un serveur français dans un restaurant traditionnel.
+            - L'étudiant est un client qui veut commander.
+            - Guide-le à travers l'expérience complète : accueil, menu, commande, paiement.
+            - Introduis du vocabulaire culinaire français authentique.
+            - Crée des situations réalistes (plats du jour, recommandations, allergies).
+            - Utilise des expressions typiques des serveurs français.
+            - Propose des spécialités régionales françaises.
+            """,
+            "starter_example": "Bonjour ! Bienvenue chez 'Le Délice Français'. Avez-vous une réservation ? Ou vous préférez une table pour combien de personnes ?"
+        },
+        "faire_les_courses": {
+            "context": """
+            CONTEXTE SPÉCIFIQUE - FAIRE LES COURSES:
+            - Tu joues le rôle d'un employé de supermarché ou d'un vendeur sur un marché français.
+            - L'étudiant est un client qui fait ses courses.
+            - Aide-le à trouver des produits, réponds à ses questions sur les articles, gère la caisse.
+            - Introduis du vocabulaire lié aux courses, aux produits alimentaires et non-alimentaires.
+            - Crée des situations réalistes (demander le prix, choisir des fruits, payer).
+            - Utilise des expressions courantes pour conseiller ou aider.
+            """,
+            "starter_example": "Bonjour ! Bienvenue au supermarché 'Au Bon Panier'. Puis-je vous aider à trouver quelque chose en particulier ? Ou vous cherchez des produits frais ?"
+        },
+        "visite_chez_le_médecin": {
+            "context": """
+            CONTEXTE SPÉCIFIQUE - VISITE CHEZ LE MÉDECIN:
+            - Tu joues le rôle d'un médecin généraliste français.
+            - L'étudiant est un patient qui vient en consultation pour un problème de santé.
+            - Pose des questions sur les symptômes, propose un diagnostic, explique un traitement ou un examen.
+            - Introduis du vocabulaire médical de base, des parties du corps, des maladies courantes.
+            - Crée des situations réalistes (décrire la douleur, prendre rendez-vous, comprendre une ordonnance).
+            - Utilise un ton professionnel et empathique.
+            """,
+            "starter_example": "Bonjour, entrez je vous en prie. Comment allez-vous aujourd'hui ? Qu'est-ce qui vous amène à consulter ?"
+        },
+        "loisirs": {
+            "context": """
+            CONTEXTE SPÉCIFIQUE - LOISIRS:
+            - Tu es un ami ou une connaissance de l'étudiant, qui discute de ses activités de loisirs.
+            - L'étudiant parle de ses hobbies, ses passions, ce qu'il aime faire pendant son temps libre.
+            - Pose des questions ouvertes sur les intérêts de l'étudiant, partage tes propres expériences.
+            - Introduis du vocabulaire lié aux activités culturelles, sportives, artistiques, voyages, etc.
+            - Crée une discussion fluide et naturelle sur des sujets personnels et divertissants.
+            - Sois curieux et encourage l'étudiant à s'exprimer sur ses préférences.
+            """,
+            "starter_example": "Salut ! Qu'est-ce que tu aimes faire pendant ton temps libre ? Tu as des hobbies ?"
+        },
+        "travail": {
+            "context": """
+            CONTEXTE SPÉCIFIQUE - TRAVAIL:
+            - Tu es un collègue ou un recruteur qui discute avec l'étudiant de son travail ou de sa carrière.
+            - L'étudiant parle de son emploi actuel, de ses expériences passées ou de ses aspirations professionnelles.
+            - Pose des questions sur ses missions, ses responsabilités, ses compétences, ses projets futurs.
+            - Introduis du vocabulaire professionnel, des expressions liées au monde du travail et de l'entreprise.
+            - Crée une discussion constructive sur le parcours professionnel de l'étudiant.
+            - Sois encourageant et donne des conseils si approprié.
+            """,
+            "starter_example": "Bonjour ! C'est un plaisir de vous rencontrer. Parlez-moi un peu de votre travail. Qu'est-ce qui vous passionne dans votre domaine ?"
+        },
+        "voyage": {
+            "context": """
+            CONTEXTE SPÉCIFIQUE - VOYAGE:
+            - Tu es un agent de voyage ou un ami qui discute des projets de voyage de l'étudiant.
+            - L'étudiant souhaite parler de ses expériences de voyage passées, de ses destinations rêvées ou de la planification d'un futur voyage.
+            - Pose des questions sur les lieux, les activités, les préparatifs, les impressions de voyage.
+            - Introduis du vocabulaire lié au tourisme, aux transports, à l'hébergement, aux cultures étrangères.
+            - Crée une conversation excitante et informative sur les différentes facettes du voyage.
+            - Partage des anecdotes ou des recommandations si pertinent.
+            """,
+            "starter_example": "Bonjour ! Prêt pour l'aventure ? Où aimeriez-vous voyager pour commencer ? Ou vous préférez explorer la France ?"
+        },
+        "libre": {
+            "context": """
+            CONTEXTE SPÉCIFIQUE - CONVERSATION LIBRE:
+            - Tu es un interlocuteur ouvert et amical pour une conversation générale.
+            - L'étudiant peut choisir n'importe quel sujet pour pratiquer son français.
+            - Suis le flux de la conversation et adapte-toi aux intérêts de l'étudiant.
+            - Maintiens une discussion fluide et naturelle, en posant des questions variées.
+            """,
+            "starter_example": "Bonjour ! Je suis là pour pratiquer ton français. Quel sujet t'intéresse aujourd'hui ? Nous pouvons parler de tout ce que tu veux !"
+        }
     }
     
-    selected_prompt = scenario_prompts.get(scenario, scenario_prompts["libre"])
-    logger.info(f"Szenario-spezifischer Prompt '{scenario}' ausgewählt")
-    return selected_prompt
+    # Standard-Szenario, falls nicht gefunden
+    current_scenario_detail = scenario_details.get(scenario, scenario_details["libre"])
 
-def get_scenario_starter(scenario):
-    """
-    Definiert szenario-spezifische Starter-Prompts (für Fallback).
-    """
-    starters = {
-        "restaurant": """Bonjour et bienvenue dans notre restaurant ! Je vois que vous regardez la carte. 
-        Puis-je vous expliquer nos spécialités du jour ? Nous avons un excellent coq au vin aujourd'hui. 
-        Avez-vous déjà goûté la cuisine française traditionnelle ?""",
-
-        "faire_les_courses": """Bonjour, comment puis-je vous aider? Vous cherchez quelque chose de spécifique?
-        Nous avons une offre spéciale aujourd'hui sur les fruits et légumes.""",
-
-        "visite_chez_le_médecin": """Bonjour ! Asseyez-vous, s'il vous plaît. Comment vous sentez-vous aujourd'hui ? 
-        Pouvez-vous me décrire vos symptômes ?""",
-        
-        "loisirs": """Salut ! J'adore découvrir ce que les gens font pendant leur temps libre. 
-        Moi, le weekend dernier, j'ai fait une randonnée dans les Alpes - c'était magnifique ! 
-        Et vous, qu'est-ce que vous aimez faire quand vous avez du temps libre ?""",
-        
-        "travail": """Bonjour ! Je suis ravi de vous rencontrer. Parlons un peu de votre parcours professionnel. 
-        Quel est votre domaine d'expertise ? Qu'est-ce qui vous motive le plus dans votre travail ?""",
-
-        "voyage": """Bonjour ! Si vous pouviez voyager n'importe où en France, quelle région choisiriez-vous ? 
-        Moi, je recommande toujours la Provence au printemps - les lavandes sont magnifiques !""",
-
-        "libre": """Bonjour ! Je suis là pour pratiquer le français avec vous. 
-        Quel sujet vous intéresse le plus aujourd'hui ?"""
-    }
+    full_system_prompt = f"{base_prompt}\n\n" \
+                         f"{current_scenario_detail['context']}\n\n" \
+                         f"MESSAGE DE DÉPART POUR TOI (PROFESSEUR): Lorsque l'étudiant initiera la conversation, \n" \
+                         f"réponds avec une phrase qui ressemble à ceci, adaptée au contexte:\n" \
+                         f"'{current_scenario_detail['starter_example']}'\n" \
+                         f"Attends que l'étudiant commence vraiment à parler pour t'engager."
     
-    selected_starter = starters.get(scenario, starters["libre"])
-    logger.info(f"Szenario-Starter '{scenario}' ausgewählt")
-    return selected_starter
+    return full_system_prompt
 
-def post_process_response(text, max_chars=200):
+def get_initial_llm_response_for_scenario(scenario, user_id=None):
     """
-    Verbesserte Nachbearbeitung für TTS-Optimierung
+    Generiert die erste LLM-Antwort für ein Szenario, um die Konversation zu starten.
+    Nutzt den umfassenden System-Prompt, um die erste Antwort des LLM zu steuern.
     """
-    text = " ".join(text.split())
-
-    if len(text) > max_chars:
-        sentences = text.split('. ')
-        result = ""
-
-        for sentence in sentences:
-            if len(result + sentence + '. ') <= max_chars:
-                result += sentence + '. '
-            else:
-                break
-
-        if not result.strip():
-            result = text[:max_chars-3] + "..."  
-        text = result.strip()
-    
-    if text and not text.endswith(('.', '!', '?')):
-        text += '.'
-    
-    return text
-
-def query_llm_mistral(prompt, history=None, max_tokens=150, temperature=0.7, scenario="libre"):
-    """
-    Fragt Mistral LLM ab mit Längenbegrenzung und Konversationshistorie.
-    """
-    api_key = os.environ.get("MISTRAL_API_KEY")
-    if not api_key:
-        raise Exception("MISTRAL_API_KEY Umgebungsvariable fehlt")
-
-    url = "https://api.mistral.ai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-
-    # System-Prompt für Szenario erstellen
-    system_prompt = get_scenario_system_prompt(scenario)
-    messages = [{"role": "system", "content": system_prompt}]
-
-    # Historie hinzufügen
-    if history:
-        messages.extend(history)
-    
-    messages.append({"role": "user", "content": prompt})
-
-    payload = {
-        "model": "mistral-small-latest",
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "top_p": 0.9,
-        "random_seed": 42,
-        "stop": [".", "!", "?", "\n\n"]
-    }
-
+    logger.info(f"Starte initiale LLM-Antwort für Szenario: {scenario}")
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        response.raise_for_status()
+        # Hier wird der umfassende System-Prompt erstellt.
+        system_prompt = get_scenario_system_prompt(scenario)
         
-        result = response.json()
-        content = result["choices"][0]["message"]["content"].strip()
+        # Die Messages-Liste enthält nur den System-Prompt. Das LLM generiert daraufhin seine
+        # erste Antwort basierend auf den Anweisungen im System-Prompt (inkl. Starter-Beispiel).
+        messages = [
+            {"role": "system", "content": system_prompt}
+        ]
         
-        # Nachbearbeitung für TTS
-        content = post_process_response(content, max_chars=200)
+        # Rufe das LLM auf, um seine erste Antwort zu erhalten.
+        response_text = query_llm(messages, max_tokens=150, temperature=0.7) # max_tokens kann angepasst werden
         
-        logger.info(f"✅ Mistral response: {len(content)} characters")
-        return content
-        
-    except requests.exceptions.RequestException as e:
-        logger.error(f"❌ Mistral API error: {str(e)}")
-        raise Exception(f"Mistral API Fehler: {str(e)}")
-    except KeyError as e:
-        logger.error(f"❌ Unexpected response format: {result}")
-        raise Exception("Unerwartetes Antwortformat von Mistral API")
-
-def get_initial_llm_response_for_scenario(scenario):
-    """
-    Ruft die erste LLM-Antwort für ein neues Szenario ab.
-    Diese Funktion generiert eine natürliche erste Antwort basierend auf dem Szenario.
-    """
-    logger.info(f"Generiere erste LLM-Antwort für Szenario: {scenario}")
-    
-    # Spezifische Prompts für die erste Antwort je Szenario
-    initial_prompts = {
-        "restaurant": "Salue-moi en tant que serveur dans un restaurant français et demande mes souhaits.",
-        "faire_les_courses": "Salue-moi en tant que vendeur au supermarché et demande ce que tu peux faire pour m'aider.",
-        "visite_chez_le_médecin": "Salue-moi en tant que médecin et demande comment je me sens.",
-        "loisirs": "Commence une conversation sur les loisirs et les hobbies. Parle brièvement de ton propre hobby et demande les miens.",
-        "travail": "Commence une conversation sur le travail et la profession. Présente-toi et demande ma profession.",
-        "voyage": "Commence une conversation sur les voyages en France. Recommande une région et demande mes projets de voyage.",
-        "libre": "Commence une conversation amicale en français et demande de quoi nous voulons parler."
-    }
-    
-    initial_prompt = initial_prompts.get(scenario, initial_prompts["libre"])
-    
-    try:
-        # Generiere die erste Antwort mit dem LLM
-        response = query_llm_mistral(
-            prompt=initial_prompt,
-            history=None,  # Keine Historie für die erste Antwort
-            scenario=scenario,
-            max_tokens=120,
-            temperature=0.7
-        )
-        
-        logger.info(f"✅ Erste LLM-Antwort für {scenario} generiert: {len(response)} Zeichen")
-        return response
+        if not response_text.strip():
+            logger.warning(f"LLM generierte leere Startantwort für {scenario}. Fallback auf statischen Starter.")
+            # Fallback verwendet jetzt den Starter-Beispieltext direkt aus get_scenario_system_prompt
+            # als Notlösung, falls das LLM keine Antwort liefert.
+            fallback_starter = get_scenario_system_prompt(scenario).split("MESSAGE DE DÉPART POUR TOI (PROFESSEUR):")[1].split("'")[1]
+            return {'response': fallback_starter}
+  
+        logger.info(f"✅ Erste LLM-Antwort für {scenario} generiert: {len(response_text)} Zeichen")
+        return {'response': response_text}
         
     except Exception as e:
         logger.error(f"❌ Fehler bei der ersten LLM-Antwort für {scenario}: {str(e)}")
-        # Fallback auf statischen Starter
-        return get_scenario_starter(scenario)
+        # Fallback auf den Beispiel-Starter-Text bei Fehler.
+        try:
+            fallback_starter = get_scenario_system_prompt(scenario).split("MESSAGE DE DÉPART POUR TOI (PROFESSEUR):")[1].split("'")[1]
+        except IndexError: # Falls das Parsing fehlschlägt
+            fallback_starter = "Bonjour ! Je suis prêt à pratiquer le français avec toi."
+        return {'response': fallback_starter}
 
+# Die Funktion query_llm bleibt wie im letzten Schritt mit den erweiterten Loggings.
+# Sie ist die generische Funktion für die LLM-Interaktion.
+def query_llm(messages, max_tokens=160, temperature=0.7):
+    mistral_api_key = os.environ.get("MISTRAL_API_KEY")
+    mistral_base_url = os.environ.get("MISTRAL_BASE_URL")
+    
+    if not mistral_api_key:
+        logger.error("MISTRAL_API_KEY environment variable not set.")
+        raise ValueError("Mistral API Key is not configured.")
+    if not mistral_base_url:
+        logger.error("MISTRAL_BASE_URL environment variable not set.")
+        raise ValueError("Mistral Base URL is not configured.")
+
+    logger.info(f"Mistral API Base URL: {mistral_base_url}")
+    logger.info(f"Mistral API Key (masked): {mistral_api_key[:4]}...{mistral_api_key[-4:]}")
+
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": f"Bearer {mistral_api_key}"
+    }
+
+    payload = {
+        "model": "mistral-tiny", # Oder Ihr gewähltes Modell
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "random_seed": 42
+    }
+
+    try:
+        logger.info(f"Sending request to Mistral API with payload: {json.dumps(payload)}")
+        response = requests.post(f"{mistral_base_url}/v1/chat/completions", headers=headers, json=payload, timeout=30)
+        response.raise_for_status()
+        
+        response_json = response.json()
+        logger.info(f"Received raw response from Mistral API: {json.dumps(response_json)}")
+
+        if 'choices' in response_json and len(response_json['choices']) > 0:
+            llm_content = response_json['choices'][0]['message']['content'].strip()
+            if not llm_content:
+                logger.warning("Mistral API returned empty content.")
+                return ""
+            return llm_content
+        else:
+            logger.error(f"Unexpected response structure from Mistral API: {response_json}")
+            raise ValueError("Unexpected response from LLM provider.")
+
+    except requests.exceptions.Timeout:
+        logger.error("Request to Mistral API timed out.")
+        raise ConnectionError("Mistral API request timed out.")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network or API error communicating with Mistral: {e}")
+        raise ConnectionError(f"Failed to connect to Mistral API: {e}")
+    except json.JSONDecodeError:
+        logger.error(f"Failed to decode JSON response from Mistral API. Raw response: {response.text}")
+        raise ValueError("Invalid JSON response from LLM provider.")
+    except Exception as e:
+        logger.critical(f"An unexpected error occurred in query_llm: {e}", exc_info=True)
+        raise
+
+# query_llm_for_scenario bleibt ebenfalls bestehen und nutzt query_llm intern.
+# Stellen Sie sicher, dass diese Funktion den System-Prompt korrekt in die Messages-Liste einfügt.
 def query_llm_for_scenario(prompt, scenario="libre", history=None, max_tokens=160):
-    """
-    Szenario-spezifische LLM-Abfrage mit optimierten Parametern
-    """
     scenario_configs = {
         "restaurant": {"max_tokens": 120, "temperature": 0.6},
         "faire_les_courses": {"max_tokens": 120, "temperature": 0.6},
@@ -271,15 +242,14 @@ def query_llm_for_scenario(prompt, scenario="libre", history=None, max_tokens=16
     config = scenario_configs.get(scenario, scenario_configs["libre"])
     logger.info(f"LLM-Konfiguration für Szenario '{scenario}': {config}")
 
-    return query_llm_mistral(
-        prompt, 
-        history=history, 
-        max_tokens=config["max_tokens"], 
-        temperature=config["temperature"],
-        scenario=scenario 
-    )
+    # Hier ist es entscheidend, dass der System-Prompt bei JEDER Abfrage mitgesendet wird.
+    system_prompt = get_scenario_system_prompt(scenario)
+    messages = [{"role": "system", "content": system_prompt}]
 
-# Alias für Rückwärtskompatibilität
-def get_intro_for_scenario(scenario):
-    """Alias für get_scenario_starter (für Rückwärtskompatibilität)"""
-    return get_scenario_starter(scenario)
+    if history:
+        for item in history:
+            messages.append({"role": item['role'], "content": item['content']})
+    
+    messages.append({"role": "user", "content": prompt})
+    
+    return query_llm(messages, config["max_tokens"], config["temperature"])
