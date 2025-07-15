@@ -6,46 +6,6 @@ import json
 
 logger = logging.getLogger(__name__)
 
-# NEU: Vereinfachte Funktion für die erste LLM-Antwort
-def get_initial_llm_response_for_scenario(scenario):
-    """
-    Ruft die erste LLM-Antwort für ein neues Szenario ab.
-    Diese Funktion generiert eine natürliche erste Antwort basierend auf dem Szenario.
-    """
-    logger.info(f"Generiere erste LLM-Antwort für Szenario: {scenario}")
-    
-    # Spezifische Prompts für die erste Antwort je Szenario
-    initial_prompts = {
-        "restaurant": "Begrüße mich als Kellner in einem französischen Restaurant und frage nach meinen Wünschen.",
-        "faire_les_courses": "Begrüße mich als Verkäufer im Supermarkt und frage, womit du mir helfen kannst.",
-        "visite_chez_le_médecin": "Begrüße mich als Arzt und frage nach meinem Befinden.",
-        "loisirs": "Beginne ein Gespräch über Freizeit und Hobbys. Erzähle kurz von deinem eigenen Hobby und frage nach meinen.",
-        "travail": "Beginne ein Gespräch über Arbeit und Beruf. Stelle dich vor und frage nach meinem Beruf.",
-        "voyage": "Beginne ein Gespräch über Reisen in Frankreich. Empfehle eine Region und frage nach meinen Reiseplänen.",
-        "libre": "Beginne ein freundliches Gespräch auf Französisch und frage, über was wir sprechen möchten."
-    }
-    
-    initial_prompt = initial_prompts.get(scenario, initial_prompts["libre"])
-    
-    try:
-        # Generiere die erste Antwort mit dem LLM
-        response = query_llm_mistral(
-            prompt=initial_prompt,
-            history=None,  # Keine Historie für die erste Antwort
-            scenario=scenario,
-            max_tokens=120,
-            temperature=0.7
-        )
-        
-        logger.info(f"✅ Erste LLM-Antwort für {scenario} generiert: {len(response)} Zeichen")
-        return response
-        
-    except Exception as e:
-        logger.error(f"❌ Fehler bei der ersten LLM-Antwort für {scenario}: {str(e)}")
-        # Fallback auf statischen Starter
-        return get_scenario_starter(scenario)
-
-# Vereinfachte System-Prompt Funktion (ohne first_turn_instruction_example)
 def get_scenario_system_prompt(scenario):
     """
     Szenario-spezifische System-Prompts für bessere Gesprächsqualität.
@@ -144,7 +104,64 @@ def get_scenario_system_prompt(scenario):
     logger.info(f"Szenario-spezifischer Prompt '{scenario}' ausgewählt")
     return selected_prompt
 
-# Vereinfachte LLM-Abfrage ohne first_turn_instruction_example
+def get_scenario_starter(scenario):
+    """
+    Definiert szenario-spezifische Starter-Prompts (für Fallback).
+    """
+    starters = {
+        "restaurant": """Bonjour et bienvenue dans notre restaurant ! Je vois que vous regardez la carte. 
+        Puis-je vous expliquer nos spécialités du jour ? Nous avons un excellent coq au vin aujourd'hui. 
+        Avez-vous déjà goûté la cuisine française traditionnelle ?""",
+
+        "faire_les_courses": """Bonjour, comment puis-je vous aider? Vous cherchez quelque chose de spécifique?
+        Nous avons une offre spéciale aujourd'hui sur les fruits et légumes.""",
+
+        "visite_chez_le_médecin": """Bonjour ! Asseyez-vous, s'il vous plaît. Comment vous sentez-vous aujourd'hui ? 
+        Pouvez-vous me décrire vos symptômes ?""",
+        
+        "loisirs": """Salut ! J'adore découvrir ce que les gens font pendant leur temps libre. 
+        Moi, le weekend dernier, j'ai fait une randonnée dans les Alpes - c'était magnifique ! 
+        Et vous, qu'est-ce que vous aimez faire quand vous avez du temps libre ?""",
+        
+        "travail": """Bonjour ! Je suis ravi de vous rencontrer. Parlons un peu de votre parcours professionnel. 
+        Quel est votre domaine d'expertise ? Qu'est-ce qui vous motive le plus dans votre travail ?""",
+
+        "voyage": """Bonjour ! Si vous pouviez voyager n'importe où en France, quelle région choisiriez-vous ? 
+        Moi, je recommande toujours la Provence au printemps - les lavandes sont magnifiques !""",
+
+        "libre": """Bonjour ! Je suis là pour pratiquer le français avec vous. 
+        Quel sujet vous intéresse le plus aujourd'hui ?"""
+    }
+    
+    selected_starter = starters.get(scenario, starters["libre"])
+    logger.info(f"Szenario-Starter '{scenario}' ausgewählt")
+    return selected_starter
+
+def post_process_response(text, max_chars=200):
+    """
+    Verbesserte Nachbearbeitung für TTS-Optimierung
+    """
+    text = " ".join(text.split())
+
+    if len(text) > max_chars:
+        sentences = text.split('. ')
+        result = ""
+
+        for sentence in sentences:
+            if len(result + sentence + '. ') <= max_chars:
+                result += sentence + '. '
+            else:
+                break
+
+        if not result.strip():
+            result = text[:max_chars-3] + "..."  
+        text = result.strip()
+    
+    if text and not text.endswith(('.', '!', '?')):
+        text += '.'
+    
+    return text
+
 def query_llm_mistral(prompt, history=None, max_tokens=150, temperature=0.7, scenario="libre"):
     """
     Fragt Mistral LLM ab mit Längenbegrenzung und Konversationshistorie.
@@ -199,71 +216,52 @@ def query_llm_mistral(prompt, history=None, max_tokens=150, temperature=0.7, sce
         logger.error(f"❌ Unexpected response format: {result}")
         raise Exception("Unerwartetes Antwortformat von Mistral API")
 
-def get_scenario_starter(scenario):
+def get_initial_llm_response_for_scenario(scenario):
     """
-    Definiert szenario-spezifische Starter-Prompts, die nun als Beispiele/Anweisungen dienen.
+    Ruft die erste LLM-Antwort für ein neues Szenario ab.
+    Diese Funktion generiert eine natürliche erste Antwort basierend auf dem Szenario.
     """
-    starters = {
-        "restaurant": """Bonjour et bienvenue dans notre restaurant ! Je vois que vous regardez la carte. 
-        Puis-je vous expliquer nos spécialités du jour ? Nous avons un excellent coq au vin aujourd'hui. 
-        Avez-vous déjà goûté la cuisine française traditionnelle ?""",
-
-        "faire_les_courses": """Bonjour, comment puis-je vous aider? Vous cherchez quelque chose de spécifique?
-        Nous vous proposons une offre spéciale aujourd'hui.""",
-
-         "visite_chez_le_médecin": """Bonjour! Comment va votre jambe aujourd'hui? Avez-vous mal au genou? 
-         Avez-vous besoin d'une ordonnance pour des médicaments?""",
-        
-        "loisirs": """Salut ! J'adore découvrir ce que les gens font pendant leur temps libre. 
-        Moi, le weekend dernier, j'ai fait une randonnée dans les Alpes - c'était magnifique ! 
-        Et vous, qu'est-ce que vous aimez faire quand vous avez du temps libre ?""",
-        
-        "travail": """Bonjour ! Je suis ravi de vous rencontrer. Parlons un peu de votre parcours professionnel. 
-        Quel est votre domaine d'expertise ? Qu'est-ce qui vous motive le plus dans votre travail ?""",
-
-        "voyage": """Bienvenue ! Si vous pouviez voyager n'importe où en France, quelle région choisiriez-vous et pourquoi ?""",
-
-        "libre": """Bonjour ! Je suis là pour pratiquer le français avec vous. Quel sujet aimeriez-vous aborder aujourd'hui ?"""
+    logger.info(f"Generiere erste LLM-Antwort für Szenario: {scenario}")
+    
+    # Spezifische Prompts für die erste Antwort je Szenario
+    initial_prompts = {
+        "restaurant": "Salue-moi en tant que serveur dans un restaurant français et demande mes souhaits.",
+        "faire_les_courses": "Salue-moi en tant que vendeur au supermarché et demande ce que tu peux faire pour m'aider.",
+        "visite_chez_le_médecin": "Salue-moi en tant que médecin et demande comment je me sens.",
+        "loisirs": "Commence une conversation sur les loisirs et les hobbies. Parle brièvement de ton propre hobby et demande les miens.",
+        "travail": "Commence une conversation sur le travail et la profession. Présente-toi et demande ma profession.",
+        "voyage": "Commence une conversation sur les voyages en France. Recommande une région et demande mes projets de voyage.",
+        "libre": "Commence une conversation amicale en français et demande de quoi nous voulons parler."
     }
     
-    selected_starter = starters.get(scenario, starters["libre"])
-    logger.info(f"Szenario-Starter '{scenario}' ausgewählt (Anfang): {selected_starter[:100]}...") # Loggen des Starters
-    return selected_starter
-
-def post_process_response(text, max_chars=200):
-
-    """
-    Verbesserte Nachbearbeitung für TTS-Optimierung
-
-    """
-    text = " ".join(text.split())
-
-    if len(text) > max_chars:
-        sentences = text.split('. ')
-        result = ""
-
-        for sentence in sentences:
-            if len(result + sentence + '. ') <= max_chars:
-                result += sentence + '. '
-            else:
-                break
-
-        if not result.strip():
-            result = text[:max_chars-3] + "..."  
-        text = result.strip()
+    initial_prompt = initial_prompts.get(scenario, initial_prompts["libre"])
     
-    if text and not text.endswith(('.', '!', '?')):
-        text += '.'
-    
-    return text
+    try:
+        # Generiere die erste Antwort mit dem LLM
+        response = query_llm_mistral(
+            prompt=initial_prompt,
+            history=None,  # Keine Historie für die erste Antwort
+            scenario=scenario,
+            max_tokens=120,
+            temperature=0.7
+        )
+        
+        logger.info(f"✅ Erste LLM-Antwort für {scenario} generiert: {len(response)} Zeichen")
+        return response
+        
+    except Exception as e:
+        logger.error(f"❌ Fehler bei der ersten LLM-Antwort für {scenario}: {str(e)}")
+        # Fallback auf statischen Starter
+        return get_scenario_starter(scenario)
 
-# unklar ob verwendet
 def query_llm_for_scenario(prompt, scenario="libre", history=None, max_tokens=160):
     """
     Szenario-spezifische LLM-Abfrage mit optimierten Parametern
     """
     scenario_configs = {
         "restaurant": {"max_tokens": 120, "temperature": 0.6},
+        "faire_les_courses": {"max_tokens": 120, "temperature": 0.6},
+        "visite_chez_le_médecin": {"max_tokens": 120, "temperature": 0.6},
         "loisirs": {"max_tokens": 160, "temperature": 0.8},
         "travail": {"max_tokens": 140, "temperature": 0.5},
         "voyage": {"max_tokens": 150, "temperature": 0.7},
@@ -273,22 +271,15 @@ def query_llm_for_scenario(prompt, scenario="libre", history=None, max_tokens=16
     config = scenario_configs.get(scenario, scenario_configs["libre"])
     logger.info(f"LLM-Konfiguration für Szenario '{scenario}': {config}")
 
-
-
     return query_llm_mistral(
-
         prompt, 
         history=history, 
         max_tokens=config["max_tokens"], 
         temperature=config["temperature"],
         scenario=scenario 
-
     )
 
-
-# Diese Funktion wird im neuen Setup nicht mehr direkt als Intro verwendet, 
-# sondern dient jetzt nur noch als Quelle für den Starter-Beispieltext.
-
+# Alias für Rückwärtskompatibilität
 def get_intro_for_scenario(scenario):
-
+    """Alias für get_scenario_starter (für Rückwärtskompatibilität)"""
     return get_scenario_starter(scenario)
