@@ -7,6 +7,16 @@ import logging # Hinzugefügt für Logging
 
 logger = logging.getLogger(__name__) # Logger initialisieren
 
+# Importiere MAX_HISTORY_LENGTH aus app.py
+# Dies setzt voraus, dass utils.py im selben Verzeichnis oder einem zugänglichen Pfad wie app.py liegt.
+# Eine Alternative wäre, MAX_HISTORY_LENGTH als Parameter an add_to_history zu übergeben.
+try:
+    from app import MAX_HISTORY_LENGTH
+except ImportError:
+    # Fallback, falls der Import fehlschlägt (z.B. bei unabhängigem Testen von utils.py)
+    logger.warning("Konnte MAX_HISTORY_LENGTH nicht aus app.py importieren. Verwende Standardwert.")
+    MAX_HISTORY_LENGTH = 20 # Standardwert
+
 def get_user_temp_dir(user_id=None, base_dir=None):
     """
     Erstellt ein temporäres Verzeichnis für einen Benutzer innerhalb des angegebenen Basisverzeichnisses.
@@ -110,9 +120,38 @@ def log_request(user_id, action, details=None):
         logger.info(f"[{user_id}] {action}")
 
 def add_to_history(session, role, content):
-    """Fügt Nachricht zur Historie hinzu und begrenzt die Länge"""
-    session['history'].append({'role': role, 'content': content})
+    """
+    Fügt eine Nachricht zur Historie hinzu und begrenzt deren Länge basierend auf MAX_HISTORY_LENGTH.
+    System-Nachrichten am Anfang der Historie werden dabei beibehalten.
+    """
+    # Stelle sicher, dass der 'history'-Schlüssel in der Session existiert
+    if 'history' not in session:
+        session['history'] = []
+
+    # Füge die neue Nachricht hinzu
+    session['history'].append({"role": role, "content": content})
+
+    # Ermittle, ob eine System-Nachricht vorhanden ist (und sie sollte die erste sein)
+    system_message = None
+    if session['history'] and session['history'][0]['role'] == 'system':
+        system_message = session['history'][0]
+        # Entferne die System-Nachricht temporär für die Längenbegrenzung des restlichen Dialogs
+        dialog_history = session['history'][1:] 
+    else:
+        dialog_history = session['history']
     
-    # Behalte nur die letzten MAX_HISTORY_LENGTH Nachrichten
-    if len(session['history']) > MAX_HISTORY_LENGTH:
-        session['history'] = session['history'][-MAX_HISTORY_LENGTH:]
+    # Begrenze die Dialoghistorie (ohne System-Nachricht) auf MAX_HISTORY_LENGTH Einträge
+    if len(dialog_history) > MAX_HISTORY_LENGTH:
+        logger.info(f"Historie für Benutzer {session.get('user_id', 'unbekannt')} ist zu lang "
+                    f"({len(dialog_history)} Nachrichten, Limit: {MAX_HISTORY_LENGTH}). "
+                    f"Kürze sie, um die neuesten Interaktionen zu behalten.")
+        # Behalte die letzten MAX_HISTORY_LENGTH Nachrichten der Dialoghistorie
+        dialog_history = dialog_history[-MAX_HISTORY_LENGTH:]
+
+    # Setze die gesamte Historie neu zusammen: System-Nachricht (falls vorhanden) + gekürzte Dialoghistorie
+    if system_message:
+        session['history'] = [system_message] + dialog_history
+    else:
+        session['history'] = dialog_history
+
+    logger.debug(f"Aktuelle Historie-Länge nach Hinzufügen und Kürzen: {len(session['history'])}")

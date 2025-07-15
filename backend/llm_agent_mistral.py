@@ -7,8 +7,8 @@ import json
 
 logger = logging.getLogger(__name__)
 
-# ENTFERNT: Die Funktion get_scenario_starter_examples wird nicht mehr benötigt.
-# Ihre Inhalte werden direkt in get_scenario_system_prompt integriert.
+# LLM URL
+MISTRAL_BASE_URL = "https://api.mistral.ai/v1/chat/completions"
 
 def get_scenario_system_prompt(scenario):
     """
