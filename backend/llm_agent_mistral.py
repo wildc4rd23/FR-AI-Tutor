@@ -138,24 +138,24 @@ def get_initial_llm_response_for_scenario(scenario, user_id=None):
     """
     logger.info(f"Starte initiale LLM-Antwort für Szenario: {scenario}")
     try:
-    # Rufe get_scenario_system_prompt auf, um das Dictionary zu erhalten
-    prompt_data = get_scenario_system_prompt(scenario)
-    system_prompt = prompt_data["system_prompt_content"]
-    starter_fallback_text = prompt_data["starter_example_text"] # Direkter Zugriff auf den Fallback-Text
-    
-    messages = [
-        {"role": "system", "content": system_prompt}
-    ]
-    
-    # Versuche, die LLM-Antwort zu erhalten
-    response_text = query_llm(messages, max_tokens=150, temperature=0.7)
-    
-    if not response_text.strip():
-        logger.warning(f"LLM generierte leere Startantwort für {scenario}. Fallback auf statischen Starter.")
-        return {'response': starter_fallback_text} # Nutze den vorbereiteten Fallback
-
-    logger.info(f"✅ Erste LLM-Antwort für {scenario} generiert: {len(response_text)} Zeichen")
-    return {'response': response_text}
+        # Rufe get_scenario_system_prompt auf, um das Dictionary zu erhalten
+        prompt_data = get_scenario_system_prompt(scenario)
+        system_prompt = prompt_data["system_prompt_content"]
+        starter_fallback_text = prompt_data["starter_example_text"] # Direkter Zugriff auf den Fallback-Text
+        
+        messages = [
+            {"role": "system", "content": system_prompt}
+        ]
+        
+        # Versuche, die LLM-Antwort zu erhalten
+        response_text = query_llm(messages, max_tokens=150, temperature=0.7)
+        
+        if not response_text.strip():
+            logger.warning(f"LLM generierte leere Startantwort für {scenario}. Fallback auf statischen Starter.")
+            return {'response': starter_fallback_text} # Nutze den vorbereiteten Fallback
+  
+        logger.info(f"✅ Erste LLM-Antwort für {scenario} generiert: {len(response_text)} Zeichen")
+        return {'response': response_text}
         
     except Exception as e:
         logger.error(f"❌ Fehler bei der ersten LLM-Antwort für {scenario}: {str(e)}")
