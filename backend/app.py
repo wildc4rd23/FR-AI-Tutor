@@ -36,7 +36,7 @@ logging.getLogger('boto3').setLevel(logging.WARNING)
 logging.getLogger('botocore').setLevel(logging.WARNING)
 
 # === LLM & Hilfsmodule ===
-from llm_agent_mistral import query_llm_for_scenario, get_scenario_starter
+from llm_agent_mistral import query_llm_for_scenario
 from utils import get_user_temp_dir, log_request, add_to_history#, cleanup_temp_dir
 #from vosk_stt import transcribe_audio #momentan nicht verwendet
 
