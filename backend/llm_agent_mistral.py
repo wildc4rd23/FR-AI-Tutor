@@ -125,7 +125,11 @@ def get_scenario_system_prompt(scenario):
                          f"'{current_scenario_detail['starter_example']}'\n" \
                          f"Attends que l'étudiant commence vraiment à parler pour t'engager."
     
-    return full_system_prompt
+    # Gib ein Dictionary zurück, das den System-Prompt und den Beispiel-Starter enthält
+    return {
+        "system_prompt_content": full_system_prompt,
+        "starter_example_text": current_scenario_detail['starter_example']
+    }
 
 def get_initial_llm_response_for_scenario(scenario, user_id=None):
     """
@@ -133,43 +137,44 @@ def get_initial_llm_response_for_scenario(scenario, user_id=None):
     Nutzt den umfassenden System-Prompt, um die erste Antwort des LLM zu steuern.
     """
     logger.info(f"Starte initiale LLM-Antwort für Szenario: {scenario}")
-    try:
-        # Hier wird der umfassende System-Prompt erstellt.
-        system_prompt = get_scenario_system_prompt(scenario)
+        try:
+        # Rufe get_scenario_system_prompt auf, um das Dictionary zu erhalten
+        prompt_data = get_scenario_system_prompt(scenario)
+        system_prompt = prompt_data["system_prompt_content"]
+        starter_fallback_text = prompt_data["starter_example_text"] # Direkter Zugriff auf den Fallback-Text
         
-        # Die Messages-Liste enthält nur den System-Prompt. Das LLM generiert daraufhin seine
-        # erste Antwort basierend auf den Anweisungen im System-Prompt (inkl. Starter-Beispiel).
         messages = [
             {"role": "system", "content": system_prompt}
         ]
         
-        # Rufe das LLM auf, um seine erste Antwort zu erhalten.
-        response_text = query_llm(messages, max_tokens=150, temperature=0.7) # max_tokens kann angepasst werden
+        # Versuche, die LLM-Antwort zu erhalten
+        response_text = query_llm(messages, max_tokens=150, temperature=0.7)
         
         if not response_text.strip():
             logger.warning(f"LLM generierte leere Startantwort für {scenario}. Fallback auf statischen Starter.")
-            # Fallback verwendet jetzt den Starter-Beispieltext direkt aus get_scenario_system_prompt
-            # als Notlösung, falls das LLM keine Antwort liefert.
-            fallback_starter = get_scenario_system_prompt(scenario).split("MESSAGE DE DÉPART POUR TOI (PROFESSEUR):")[1].split("'")[1]
-            return {'response': fallback_starter}
+            return {'response': starter_fallback_text} # Nutze den vorbereiteten Fallback
   
         logger.info(f"✅ Erste LLM-Antwort für {scenario} generiert: {len(response_text)} Zeichen")
         return {'response': response_text}
         
     except Exception as e:
         logger.error(f"❌ Fehler bei der ersten LLM-Antwort für {scenario}: {str(e)}")
-        # Fallback auf den Beispiel-Starter-Text bei Fehler.
+        # Im Fehlerfall wird direkt der korrekte Starter-Text als Fallback verwendet.
+        # Ein zusätzlicher try/except ist hier nicht mehr nötig, da starter_fallback_text immer definiert ist.
         try:
-            fallback_starter = get_scenario_system_prompt(scenario).split("MESSAGE DE DÉPART POUR TOI (PROFESSEUR):")[1].split("'")[1]
-        except IndexError: # Falls das Parsing fehlschlägt
-            fallback_starter = "Bonjour ! Je suis prêt à pratiquer le français avec toi."
-        return {'response': fallback_starter}
+            # Versuche, den Fallback-Text erneut abzurufen, falls der Fehler VOR der Definition aufgetreten wäre
+            # (was hier nicht der Fall sein sollte, aber zur Robustheit)
+            final_fallback_text = get_scenario_system_prompt(scenario)["starter_example_text"]
+        except Exception:
+            final_fallback_text = "Bonjour ! Je suis prêt à pratiquer le français avec toi." # Letzter Notfall-Fallback
+            
+        return {'response': final_fallback_text}
 
 # Die Funktion query_llm bleibt wie im letzten Schritt mit den erweiterten Loggings.
 # Sie ist die generische Funktion für die LLM-Interaktion.
 def query_llm(messages, max_tokens=160, temperature=0.7):
     mistral_api_key = os.environ.get("MISTRAL_API_KEY")
-    mistral_base_url = os.environ.get("MISTRAL_BASE_URL")
+    mistral_base_url = MISTRAL_BASE_URL
     
     if not mistral_api_key:
         logger.error("MISTRAL_API_KEY environment variable not set.")
