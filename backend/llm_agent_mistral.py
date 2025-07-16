@@ -202,7 +202,7 @@ def query_llm(messages, max_tokens=160, temperature=0.7):
 
     try:
         logger.info(f"Sending request to Mistral API with payload: {json.dumps(payload)}")
-        response = requests.post(f"{mistral_base_url}/v1/chat/completions", headers=headers, json=payload, timeout=30)
+        response = requests.post(f"{mistral_base_url}", headers=headers, json=payload, timeout=30)
         response.raise_for_status()
         
         response_json = response.json()

@@ -19,7 +19,8 @@ except ImportError:
 
 def get_user_temp_dir(user_id=None, base_dir=None):
     """
-    Erstellt ein temporäres Verzeichnis für einen Benutzer innerhalb des angegebenen Basisverzeichnisses.
+    Erstellt ein temporäres Verzeichnis für einen Benutzer unterhalb des Basisverzeichnisses,
+    direkt benannt nach der Benutzer-ID.
 
     Args:
         user_id (str, optional): Die ID des Benutzers. Wenn None, wird eine neue UUID generiert.
@@ -28,34 +29,29 @@ def get_user_temp_dir(user_id=None, base_dir=None):
                                   Wenn None, wird ein Fallback-Pfad verwendet.
 
     Returns:
-        tuple: (full_temp_path: str, user_id: str) - Der vollständige Pfad zum Benutzer-Temp-Verzeichnis und die Benutzer-ID.
+        tuple: (full_user_path: str, user_id: str)
+               Der vollständige Pfad zum Benutzer-Temp-Verzeichnis und die Benutzer-ID.
     """
-    if base_dir is None:
-        # Fallback, wenn base_dir nicht übergeben wird. Dies sollte idealerweise nicht passieren,
-        # da app.py TEMP_AUDIO_DIR_ROOT übergeben sollte.
-        # Annahme: utils.py ist in backend/, Projekt-Root ist zwei Ebenen darüber.
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        base_dir = os.path.join(project_root, 'temp_audio')
-        logger.warning(f"get_user_temp_dir wurde ohne base_dir aufgerufen. Verwende Fallback: {base_dir}")
-    
-    os.makedirs(base_dir, exist_ok=True) # Stelle sicher, dass das Basisverzeichnis existiert
-
     if user_id is None:
         user_id = str(uuid.uuid4())
 
-    # Ein Zeitstempel-Präfix, um eine eindeutige Sitzung für den Benutzer zu erstellen.
-    # Dies hilft, Konflikte zu vermeiden und die Bereinigung zu erleichtern.
-    timestamp_prefix = f"session_{int(time.time() * 1000)}" 
-    
-    # Der temporäre Ordner für den spezifischen Benutzer innerhalb dieser Sitzung
-    user_temp_dir_name = f"user_{user_id}"
-    
-    # Der vollständige absolute Pfad zum temporären Ordner des Benutzers
-    full_temp_path = os.path.join(base_dir, timestamp_prefix, user_temp_dir_name)
+    if base_dir is None:
+        logger.warning("get_user_temp_dir wurde ohne base_dir aufgerufen. Verwende Fallback: /opt/render/project/src/temp_audio")
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        base_dir = os.path.join(project_root, 'temp_audio')
 
-    os.makedirs(full_temp_path, exist_ok=True)
-    logger.info(f"Temporäres Verzeichnis erstellt: {full_temp_path}")
-    return full_temp_path, user_id
+    # NEU: Das Verzeichnis ist direkt der user_id untergeordnet
+    user_dir_path = os.path.join(base_dir, f"user_{user_id}")
+
+    try:
+        os.makedirs(user_dir_path, exist_ok=True)
+        logger.info(f"Temporäres Verzeichnis erstellt: {user_dir_path}")
+    except OSError as e:
+        logger.error(f"Fehler beim Erstellen des Verzeichnisses {user_dir_path}: {e}")
+        raise
+
+    # KEIN timestamp mehr im Return-Wert
+    return user_dir_path, user_id
 
 def cleanup_temp_dir(dir_path, exclude_file=None):  # momentan nicht verwendet
     """
