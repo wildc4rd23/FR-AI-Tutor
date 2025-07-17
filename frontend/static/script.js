@@ -11,7 +11,6 @@ document.addEventListener('DOMContentLoaded', function() {
     responseText: document.getElementById('responseText'),
     audioPlayback: document.getElementById('audioPlayback'),
     userAudio: document.getElementById('userAudio'),
-    //userAudioSection: document.getElementById('userAudioSection'),
     startSection: document.getElementById('startSection'),
     conversationSection: document.getElementById('conversationSection'),
     scenarioSelect: document.getElementById('scenario'),
@@ -25,7 +24,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let recordedAudioBlob = null;
   let currentAudioStream = null;
   let currentUserId = null;
-  let currentResponse = null;
+  let currentResponse = null; // Speichert die gesamte Antwort vom Backend
   let audioHasBeenPlayed = false;
   let isTextCurrentlyVisible = false;
   let isRealTimeMode = true;
@@ -33,15 +32,24 @@ document.addEventListener('DOMContentLoaded', function() {
   let recognitionTimeout;
   let finalTranscript = '';
   let isRecognitionRestarting = false;
-  let userId = Date.now().toString();
+  let userId = Date.now().toString(); // Initialisierung der userId
   let currentScenario = 'libre';
   let autoSendAfterRecording = false; // Konfig automatisches Senden der UserAufnahme
   let isRecording = false; // Status-Tracker
   let isPaused = false; // Neuer Status für Pause
+  let isPlaybackInProgress = false; // Um Audio-Wiedergabestatus zu verfolgen
   // NEU: Konversationshistorie
   let conversationHistory = []; // Speichert Nachrichten als {role: 'user'/'assistant', content: 'text'}
 
   const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
+
+  // Initialer Zustand der UI-Elemente
+  elements.stopBtn.classList.add('hidden');
+  elements.sendMessage.classList.add('hidden');
+  elements.userAudio.classList.add('hidden');
+  elements.audioPlayback.classList.add('hidden'); // LLM-Antwort Audio
+  elements.responseText.classList.add('hidden'); // LLM-Antwort Text
+  elements.showResponseBtn.classList.add('hidden'); // Button zum Anzeigen/Verbergen des Textes
 
   // === VERBESSERTE Spracherkennung ===
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -101,14 +109,14 @@ document.addEventListener('DOMContentLoaded', function() {
         case 'no-speech':
           console.log('No speech detected, will restart...');
           shouldRestart = true;
-          errorMessage = null;
+          errorMessage = null; // No error message for no-speech, just restart
           break;
         case 'network':
           errorMessage = '🌐 Erreur réseau';
           shouldRestart = true;
           break;
         case 'aborted':
-          return;
+          return; // Do not show error or restart if aborted manually
         default:
           shouldRestart = true;
           break;
@@ -120,10 +128,11 @@ document.addEventListener('DOMContentLoaded', function() {
         showStatus(elements.recordingStatus, errorMessage, 'error');
       }
       
+      // KORREKTUR: Sicherstellen, dass nur neu gestartet wird, wenn nicht manuell gestoppt oder pausiert
       if (shouldRestart && !isRecognitionRestarting && isRecording && !isPaused) {
             setTimeout(() => {
               if (!isRecognitionRestarting && isRecording && !isPaused) {
-                startRecognition();
+                startRecognition(); // Rekursiver Aufruf
               }
             }, 1000);
           }
@@ -132,10 +141,11 @@ document.addEventListener('DOMContentLoaded', function() {
         recognition.onend = () => {
           console.log('Speech recognition ended');
           recognitionActive = false;
+          // KORREKTUR: Sicherstellen, dass nur neu gestartet wird, wenn nicht manuell gestoppt oder pausiert
           if (!isRecognitionRestarting && isRecording && !isPaused) {
             setTimeout(() => {
               if (!isRecognitionRestarting && !recognitionActive && isRecording && !isPaused) {
-                startRecognition();
+                startRecognition(); // Rekursiver Aufruf
               }
             }, 500);
           }
@@ -177,7 +187,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         setTimeout(() => {
           console.log('Recognition active after start:', recognitionActive);
-        }, 200); // HIER GEÄNDERT
+        }, 200);
         
       } catch (e) {
         console.error('Could not start recognition:', e);
@@ -295,6 +305,7 @@ document.addEventListener('DOMContentLoaded', function() {
     element.classList.add('hidden');
   }
 
+  // showProgressStatus Funktion jeder Schritt visuell dargestellt
   function showProgressStatus(step, message) {
     const progressBarHTML = `
       <div style="margin-bottom: 15px;">
@@ -307,30 +318,25 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (elements.responseText) {
       elements.responseText.innerHTML = progressBarHTML;
-      isTextCurrentlyVisible = false;
+      elements.responseText.classList.remove('hidden'); // Ensure progress bar is visible
+      isTextCurrentlyVisible = false; // Progress bar is not the final text
     }
+    // Hide the showResponseBtn when showing progress
+    elements.showResponseBtn.classList.add('hidden');
   }
 
 // Erweiterte showResponseText() mit Audio-Validierung
 function showResponseText() {
     if (currentResponse && elements.responseText) {
-        // KRITISCH: Nur anzeigen wenn Audio abgespielt wurde
-        if (audioHasBeenPlayed) {
-            elements.responseText.innerHTML = currentResponse;
-            isTextCurrentlyVisible = true;
-            updateShowResponseButton();
-            console.log('✅ Text angezeigt nach Audio-Wiedergabe');
-        } else {
-            console.warn('⚠️ Text-Anzeige blockiert: Audio noch nicht abgespielt');
-            // Zeige stattdessen Aufforderung zum Audio-Hören
-            elements.responseText.innerHTML = `
-                <div style="text-align: center; padding: 20px; color: #7f8c8d; font-style: italic;">
-                    🔊 Veuillez d'abord écouter l'audio pour voir le texte
-                </div>
-            `;
-            isTextCurrentlyVisible = false;
-            updateShowResponseButton();
-        }
+        // KORREKTUR: Text wird immer angezeigt, wenn diese Funktion aufgerufen wird.
+        // Die Logik, ob Audio abgespielt wurde, wird VOR dem Aufruf dieser Funktion gehandhabt.
+        elements.responseText.innerHTML = currentResponse;
+        elements.responseText.classList.remove('hidden');
+        isTextCurrentlyVisible = true;
+        updateShowResponseButton(); // Aktualisiere den Button-Zustand
+        console.log('✅ Text angezeigt nach Audio-Wiedergabe');
+        // Hide audio playback controls when text is shown
+        //elements.audioPlayback.classList.add('hidden');   //trotzdem zeigen!
     }
 }
 
@@ -346,36 +352,42 @@ function setResponseSafely(responseText) {
                 🎵 Audio prêt - Cliquez pour écouter
             </div>
         `;
+        elements.responseText.classList.remove('hidden'); // Zeige diesen Hinweis an
         isTextCurrentlyVisible = false;
     }
-    updateShowResponseButton();
+    updateShowResponseButton(); // Aktualisiere den Button-Zustand
 }
 
   function hideResponseText() {
-    showProgressStatus(4, '✅ Texte masqué. Cliquez pour afficher.');
+    // KORREKTUR: showProgressStatus ist hier nicht direkt passend, da es um das Verbergen des Textes geht
+    // Stattdessen den Textbereich leeren oder ausblenden
+    elements.responseText.innerHTML = '';
+    elements.responseText.classList.add('hidden');
     isTextCurrentlyVisible = false;
-    updateShowResponseButton();
+    updateShowResponseButton(); // Aktualisiere den Button-Zustand
   }
 
 // Verbesserte updateShowResponseButton()
 function updateShowResponseButton() {
     if (!elements.showResponseBtn) return;
     
-    if (audioHasBeenPlayed && currentResponse) {
-        elements.showResponseBtn.classList.remove('hidden');
+    // KORREKTUR: Logik für den Button
+    if (currentResponse) { // Nur wenn eine Antwort vorhanden ist
+        elements.showResponseBtn.classList.remove('hidden'); // Zeige den Button
+        elements.showResponseBtn.style.opacity = '1';
+        elements.showResponseBtn.style.cursor = 'pointer';
+
         if (isTextCurrentlyVisible) {
             elements.showResponseBtn.innerHTML = '🙈 Masquer la réponse';
-        } else {
+        } else if (audioHasBeenPlayed) { // Audio abgespielt, Text aber nicht sichtbar
             elements.showResponseBtn.innerHTML = '👁️ Afficher la réponse';
+        } else { // Audio nicht abgespielt, Text nicht sichtbar
+            elements.showResponseBtn.innerHTML = '🔊 Écoutez d\'abord l\'audio';
+            elements.showResponseBtn.style.opacity = '0.6'; // Dimmen
+            elements.showResponseBtn.style.cursor = 'not-allowed'; // Zeiger ändern
         }
-    } else if (currentResponse && !audioHasBeenPlayed) {
-        // Zeige Button, aber mit Hinweis
-        elements.showResponseBtn.classList.remove('hidden');
-        elements.showResponseBtn.innerHTML = '🔊 Écoutez d\'abord l\'audio';
-        elements.showResponseBtn.style.opacity = '0.6';
-        elements.showResponseBtn.style.cursor = 'not-allowed';
     } else {
-        elements.showResponseBtn.classList.add('hidden');
+        elements.showResponseBtn.classList.add('hidden'); // Verstecke den Button, wenn keine Antwort
     }
 }
 
@@ -421,8 +433,10 @@ function updateShowResponseButton() {
       elements.userText.classList.add('placeholder');
       elements.userText.dataset.isPlaceholder = 'true';
     }
+    // KORREKTUR: responseText beim Reset leeren und ausblenden
     if (elements.responseText) {
-      elements.responseText.textContent = '...';
+      elements.responseText.innerHTML = '';
+      elements.responseText.classList.add('hidden');
     }
     
     if (elements.audioPlayback) {
@@ -435,23 +449,21 @@ function updateShowResponseButton() {
       elements.userAudio.classList.add('hidden');
     }
     
-    //elements.userAudioSection?.classList.add('hidden');
-    elements.showResponseBtn?.classList.add('hidden');
+    elements.showResponseBtn?.classList.add('hidden'); // Button verstecken
     
-    updateRecordButton();
+    updateRecordButton(); // Aktualisiere den Aufnahme-Button
     
-    currentUserId = null;
+    currentUserId = null; // Setze User ID zurück
     recordedAudioBlob = null;
-    currentResponse = null;
+    currentResponse = null; // Setze aktuelle Antwort zurück
     audioHasBeenPlayed = false;
     isTextCurrentlyVisible = false;
     finalTranscript = '';
     audioChunks = []; // Reset audio chunks
-    conversationHistory = []; // NEU: Konversationshistorie zurücksetzen
+    conversationHistory = []; // Konversationshistorie zurücksetzen
 
     hideStatus(elements.recordingStatus);
     hideStatus(elements.audioStatus);
-    hideStatus(elements.recordingStatus);
   }
 
   // Pause/Resume Funktionalität für Aufnahme
@@ -707,7 +719,7 @@ function hasAudioContent(audioBlob) {
           
           resolve(hasSound);
         })
-        .catch(() => resolve(false));
+        .catch(() => resolve(false)); // Bei Fehler beim Dekodieren, annehmen, dass kein Inhalt
     };
     
     fileReader.readAsArrayBuffer(audioBlob);
@@ -813,6 +825,12 @@ async function sendMessageToBackend(message) {
     showProgressStatus(1, '🚀 Message en cours d\'envoi...');
     elements.sendBtn.disabled = true;
     elements.recordBtn.disabled = true;
+    elements.stopBtn.disabled = true; // KORREKTUR: Stop-Button auch deaktivieren
+
+    // Hide previous response text and audio player
+    elements.responseText.classList.add('hidden');
+    elements.audioPlayback.classList.add('hidden');
+    elements.showResponseBtn.classList.add('hidden'); // Hide text button for new response
 
     try {
         const response = await fetch('/api/respond', {
@@ -831,8 +849,9 @@ async function sendMessageToBackend(message) {
         }
 
         const data = await response.json();
-        console.log('✅ Backend response received');
-        
+        console.log('✅ Backend response received:', data); // KORREKTUR: data loggen
+        console.log('Empfangene audio_url (Chat):', data.audio_url); // Hinzugefügtes Log
+
         // Lokale Historie nur zur Anzeige
         conversationHistory.push(
             { role: 'user', content: message },
@@ -840,51 +859,54 @@ async function sendMessageToBackend(message) {
         );
         
         // KRITISCH: Verwende setResponseSafely() statt showResponseText()
-        setResponseSafely(data.response);
+        setResponseSafely(data.response); // Setzt currentResponse und zeigt Hinweis an
 
-        if (data.audio_url) {
+        if (data.audio_url) { // KORREKTUR: 'audio_url' statt 'audio_url'
             elements.audioPlayback.src = data.audio_url;
+            elements.audioPlayback.load();
             elements.audioPlayback.classList.remove('hidden');
             audioHasBeenPlayed = false; // Wichtig: Audio noch nicht abgespielt
-            updateShowResponseButton();
-            showProgressStatus(4, '🔊 Audio prêt - Cliquez pour écouter!');  
-        } else {
-            console.warn('⚠️ No audio URL received, starting retry...');
-            showProgressStatus(3, '⚠️ Audio manquant - Nouvelle tentative...');
-            
-            setTimeout(async () => {
-                try {
-                    const retryResponse = await fetch('/api/respond', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            message: message,
-                            userId: userId, 
-                            scenario: currentScenario,
-                            retry_audio: true
-                        }),
-                    });
+            updateShowResponseButton(); // Aktualisiere den Button-Zustand
 
-                    if (!retryResponse.ok) {
-                        throw new Error('Retry failed');
-                    }
-                    
-                    const retryData = await retryResponse.json();
-                    
-                    if (retryData.audio_url) {
-                        console.log('🔄 Audio retry successful');
-                        elements.audioPlayback.src = retryData.audio_url;
-                        elements.audioPlayback.classList.remove('hidden');
-                        audioHasBeenPlayed = false; // Wichtig: Audio noch nicht abgespielt
-                        showProgressStatus(4, '🔊 Audio prêt - Cliquez pour écouter!');
-                    } else {
-                        throw new Error('No audio in retry');
-                    }
-                } catch (retryError) {
-                    console.error('❌ Audio retry failed:', retryError);
-                    showAudioRetryOptions();
+            elements.audioPlayback.oncanplaythrough = async () => {
+                showProgressStatus(3, 'Audio prêt à jouer.');
+                try {
+                    await elements.audioPlayback.play();
+                    audioHasBeenPlayed = true;
+                    console.log('✅ Audio abgespielt nach Chat-Nachricht');
+                    showResponseText(); // Show text ONLY AFTER successful audio playback
+                    elements.showResponseBtn.textContent = 'Masquer le texte';
+                    showProgressStatus(4, '✅ Prêt ! Écoutez la réponse et commencez à parler.'); // Letzter Fortschrittsstatus
+                } catch (e) {
+                    console.error('❌ Fehler beim Abspielen des Audios nach Chat-Nachricht:', e);
+                    showStatus(elements.audioStatus, 'Erreur de lecture audio. Texte disponible.', 'error');
+                    audioHasBeenPlayed = false;
+                    elements.showResponseBtn.classList.remove('hidden');
+                    elements.showResponseBtn.textContent = 'Afficher le texte';
+                    elements.responseText.classList.add('hidden');
+                    elements.audioPlayback.classList.add('hidden');
+                    showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable manuellement.');
                 }
-            }, 2000);
+            };
+            elements.audioPlayback.onerror = (e) => {
+                console.error('❌ Fehler beim Laden/Wiedergeben des Audios nach Chat-Nachricht:', e);
+                showStatus(elements.audioStatus, 'Erreur audio. Texte disponible.', 'error');
+                audioHasBeenPlayed = false;
+                elements.showResponseBtn.classList.remove('hidden');
+                elements.showResponseBtn.textContent = 'Afficher le texte';
+                elements.responseText.classList.add('hidden');
+                elements.audioPlayback.classList.add('hidden');
+                showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable manuellement.');
+            };
+        } else {
+            console.warn('⚠️ No audio URL received for chat response');
+            showStatus(elements.audioStatus, 'Aucun audio disponible. Texte disponible.', 'warning');
+            audioHasBeenPlayed = false; // Audio wurde nicht abgespielt
+            elements.showResponseBtn.classList.remove('hidden'); // Button zum Anzeigen des Textes
+            elements.showResponseBtn.textContent = 'Afficher le texte';
+            elements.responseText.classList.add('hidden'); // Text bleibt versteckt
+            elements.audioPlayback.classList.add('hidden'); // Audio-Player verstecken
+            showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable manuellement.');
         }
 
         showStatus(elements.recordingStatus, '✅ Réponse reçue', 'success');
@@ -894,19 +916,24 @@ async function sendMessageToBackend(message) {
         showStatus(elements.recordingStatus, `❌ Erreur: ${error.message}`, 'error');
         
         // FEHLER-HANDLING: Auch hier keine direkte Text-Anzeige
-        currentResponse = `Erreur de communication: ${error.message}`;
+        currentResponse = `Erreur de communication: ${error.message}`; // Setze Fehlertext als currentResponse
         if (elements.responseText) {
             elements.responseText.innerHTML = `
                 <div style="text-align: center; padding: 20px; color: #e74c3c;">
-                    ❌ Erreur de communication
+                    ❌ Erreur de communication: ${error.message}
                 </div>
             `;
+            elements.responseText.classList.remove('hidden'); // Zeige Fehlermeldung an
         }
-        isTextCurrentlyVisible = false;
-        updateShowResponseButton();
+        isTextCurrentlyVisible = true; // Fehlermeldung ist sofort sichtbar
+        elements.showResponseBtn.classList.add('hidden'); // Button verstecken bei Fehler
+        elements.audioPlayback.classList.add('hidden'); // Audio-Player verstecken
+        audioHasBeenPlayed = false; // Kein Audio abgespielt
     } finally {
         elements.sendBtn.disabled = false;
         elements.recordBtn.disabled = false;
+        elements.stopBtn.disabled = false;
+        hideStatus(elements.recordingStatus); // Status ausblenden
     }
 }
 
@@ -922,7 +949,7 @@ async function sendMessageToBackend(message) {
     const fileName = `recording.${fileExtension}`;
     
     formData.append('audio', audioBlob, fileName);
-    formData.append('user_id', userId);
+    formData.append('user_id', userId); // KORREKTUR: user_id für FormData beibehalten
     
     console.log(`Uploading audio blob: ${audioBlob.size} bytes, type: ${mimeType}, filename: ${fileName}`);
 
@@ -965,28 +992,41 @@ function showAudioRetryOptions() {
                 </button>
             </div>
         `;
-        isTextCurrentlyVisible = false;
+        elements.responseText.classList.remove('hidden'); // Zeige diese Optionen an
+        isTextCurrentlyVisible = true; // Optionen sind sichtbar
+        elements.showResponseBtn.classList.add('hidden'); // Button verstecken, da Optionen angezeigt werden
     }
 }
 
-    function retryAudio() {
+    // KORREKTUR: retryAudio und continueWithoutAudio müssen global verfügbar sein oder über Event-Delegation aufgerufen werden
+    // Für Einfachheit, machen wir sie hier global, in einer größeren App würde man Event-Delegation nutzen.
+    window.retryAudio = function() {
         console.log('Manueller Audio-Retry gestartet');
         showProgressStatus(3, '🔄 Nouvel essai...');
-        // Nutzt die bestehende sendMessageToBackend Funktion
-        sendMessageToBackend(elements.userText.textContent || finalTranscript);
-    }
+        // Nutzt die bestehende sendMessageToBackend Funktion mit dem letzten gesendeten User-Prompt
+        // Annahme: der letzte User-Prompt ist in conversationHistory verfügbar
+        const lastUserMessage = conversationHistory.findLast(msg => msg.role === 'user');
+        if (lastUserMessage) {
+            sendMessageToBackend(lastUserMessage.content);
+        } else {
+            console.error('Keine letzte Benutzernachricht für Retry gefunden.');
+            showStatus(elements.recordingStatus, 'Erreur: Impossible de réessayer l\'audio sans message précédent.', 'error');
+        }
+    };
 
 // Korrigierte continueWithoutAudio() 
-function continueWithoutAudio() {
-    console.log('Benutzer wählt: ohne Audio fortfahren');
-    
-    // KRITISCH: Setze audioHasBeenPlayed auf true, da Benutzer explizit ohne Audio fortfahren möchte
-    audioHasBeenPlayed = true;
-    
-    // Jetzt kann der Text sicher angezeigt werden
-    showResponseText();
-    showProgressStatus(4, '✅ Texte prêt - 100% terminé!');
-}
+    window.continueWithoutAudio = function() {
+        console.log('Benutzer wählt: ohne Audio fortfahren');
+        
+        // KRITISCH: Setze audioHasBeenPlayed auf true, da Benutzer explizit ohne Audio fortfahren möchte
+        audioHasBeenPlayed = true;
+        
+        // Jetzt kann der Text sicher angezeigt werden
+        showResponseText(); // Zeigt den Text an
+        showStatus(elements.audioStatus, 'Texte affiché sans audio.', 'info'); // Status aktualisieren
+        showProgressStatus(4, '✅ Texte prêt - 100% terminé!');
+    };
+
 
   // === Event Listeners ===
 // === OPTIMIERTE KONVERSATIONS-STARTER ===
@@ -994,8 +1034,9 @@ elements.startBtn?.addEventListener('click', async () => {
     console.log('🚀 Starting conversation...');
 
     const scenario = elements.scenarioSelect?.value;
-    const forceReset = scenario !== currentScenario;
-    currentScenario = scenario;
+    // KORREKTUR: forceReset basierend auf Szenario-Wechsel ODER wenn currentUserId noch nicht gesetzt ist
+    const forceReset = currentUserId === null || scenario !== currentScenario;
+    currentScenario = scenario; // Aktualisiere das aktuelle Szenario
     
     if (!scenario) {
         showStatus(elements.recordingStatus, "⚠️ Veuillez choisir un thème.", 'error');
@@ -1004,13 +1045,33 @@ elements.startBtn?.addEventListener('click', async () => {
 
     elements.startSection?.classList.add('hidden');
     elements.conversationSection?.classList.remove('hidden');
-    currentUserId = userId;
     
+    // KORREKTUR: currentUserId wird in startConversation gesetzt, aber hier für den Fetch-Call benötigt
+    // Wenn currentUserId noch null ist, wird er im Backend generiert und zurückgegeben.
+    // Falls er bereits existiert, wird er wiederverwendet.
+    if (!currentUserId) {
+        currentUserId = 'user_' + Date.now(); // Temporäre ID für den ersten Request
+        console.log('Temporäre User ID für Start generiert:', currentUserId);
+    }
+    
+    // UI-Elemente für neue Antwort zurücksetzen
+    elements.responseText.innerHTML = '';
+    elements.responseText.classList.add('hidden');
+    elements.audioPlayback.src = '';
+    elements.audioPlayback.classList.add('hidden');
+    elements.showResponseBtn.classList.add('hidden');
+    currentResponse = null;
+    audioHasBeenPlayed = false;
+    isTextCurrentlyVisible = false;
+
+
     const currentScenarioDisplay = document.getElementById('currentScenarioDisplay');
     if (currentScenarioDisplay) {
         const scenarioNames = {
             "libre": "Conversation libre",
             "restaurant": "Au restaurant",
+            "faire_les_courses": "Faire les courses", // Hinzugefügt
+            "visite_chez_le_médecin": "Visite chez le médecin", // Hinzugefügt
             "loisirs": "Loisirs et hobbies", 
             "travail": "Monde du travail",
             "voyage": "Voyage en France"
@@ -1027,64 +1088,95 @@ elements.startBtn?.addEventListener('click', async () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     scenario: scenario,
-                    userId: userId,
+                    userId: currentUserId, // KORREKTUR: Verwende currentUserId
                     force_reset: forceReset
                 })
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const errorData = await response.json();
+                throw new Error(`HTTP error! status: ${response.status} - ${errorData.error}`);
             }
 
             const data = await response.json();
-            console.log('🎯 Conversation started successfully');
+            console.log('🎯 Conversation started successfully:', data);
             
+            currentUserId = data.userId; // KORREKTUR: Aktualisiere currentUserId mit der vom Backend erhaltenen ID
             conversationHistory = [{ role: 'assistant', content: data.response }];
             
             showProgressStatus(2, '📝 Conversation préparée...');
             
-            if (data.audio_url) {
-                // KRITISCH: Verwende setResponseSafely() statt direkter Text-Anzeige
-                setResponseSafely(data.response);
+            if (data.audio_url) { // KORREKTUR: 'audio_url'
+                setResponseSafely(data.response); // Setzt currentResponse und zeigt Hinweis an
                 
                 elements.audioPlayback.src = data.audio_url;
+                elements.audioPlayback.load();
                 elements.audioPlayback.classList.remove('hidden');
                 audioHasBeenPlayed = false; // Wichtig: Audio noch nicht abgespielt
-                showProgressStatus(4, '🔊 Prêt! Cliquez pour écouter.');
+                updateShowResponseButton(); // Aktualisiere den Button-Zustand
+                showProgressStatus(3, 'Chargement de l\'audio...');
                 
                 // Event Listener für Audio-Ende
-                elements.audioPlayback.addEventListener('ended', function handler() {
-                    audioHasBeenPlayed = true;
-                    showProgressStatus(4, '✅ À vous maintenant!');
-                    updateShowResponseButton();
-                    elements.audioPlayback.removeEventListener('ended', handler);
-                }, { once: true });
+                elements.audioPlayback.oncanplaythrough = async () => {
+                    showProgressStatus(4, 'Audio prêt à jouer.');
+                    try {
+                        await elements.audioPlayback.play();
+                        audioHasBeenPlayed = true;
+                        console.log('✅ Audio abgespielt für Konversationsstart');
+                        showResponseText(); // Show text ONLY AFTER successful audio playback
+                        elements.showResponseBtn.textContent = 'Masquer le texte';
+                        showProgressStatus(4, '✅ Prêt ! Écoutez la réponse et commencez à parler.');
+                    } catch (e) {
+                        console.error('❌ Fehler beim Abspielen des initialen Audios:', e);
+                        showStatus(elements.audioStatus, 'Erreur de lecture audio. Texte disponible.', 'error');
+                        audioHasBeenPlayed = false;
+                        elements.showResponseBtn.classList.remove('hidden');
+                        elements.showResponseBtn.textContent = 'Afficher le texte';
+                        elements.responseText.classList.add('hidden');
+                        elements.audioPlayback.classList.add('hidden');
+                        showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable manuellement.');
+                    }
+                };
+                elements.audioPlayback.onerror = (e) => {
+                    console.error('❌ Fehler beim Laden/Wiedergeben des initialen Audios:', e);
+                    showStatus(elements.audioStatus, 'Erreur audio. Texte disponible.', 'error');
+                    audioHasBeenPlayed = false;
+                    elements.showResponseBtn.classList.remove('hidden');
+                    elements.showResponseBtn.textContent = 'Afficher le texte';
+                    elements.responseText.classList.add('hidden');
+                    elements.audioPlayback.classList.add('hidden');
+                    showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable manuellement.');
+                };
+
             } else {
                 // FALLBACK: Kein Audio verfügbar
                 console.warn('⚠️ No audio available for conversation start');
-                currentResponse = data.response;
-                audioHasBeenPlayed = true; // Fallback: Erlaube Text-Anzeige
-                if (elements.responseText) {
-                    elements.responseText.innerHTML = `
-                        <div style="text-align: center; padding: 20px; color: #f39c12;">
-                            ⚠️ Audio non disponible - Texte affiché
-                        </div>
-                    `;
-                    setTimeout(() => {
-                        showResponseText();
-                    }, 2000);
-                }
+                currentResponse = data.response; // Setze die Antwort
+                audioHasBeenPlayed = false; // Kein Audio abgespielt
+                elements.showResponseBtn.classList.remove('hidden'); // Button zum Anzeigen des Textes
+                elements.showResponseBtn.textContent = 'Afficher le texte';
+                elements.responseText.classList.add('hidden'); // Text bleibt versteckt
+                elements.audioPlayback.classList.add('hidden'); // Audio-Player verstecken
+                showStatus(elements.audioStatus, 'Aucun audio disponible. Texte disponible.', 'warning');
+                showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable manuellement.');
             }
             
         } catch (err) {
             console.error('❌ Error starting conversation:', err);
             showStatus(elements.recordingStatus, `❌ Erreur: ${err.message}`, 'error');
+            // Bei Fehler zurück zum Startbildschirm
+            elements.startSection.classList.remove('hidden');
+            elements.conversationSection.classList.add('hidden');
+        } finally {
+            // Status-Anzeige nach Abschluss des Startvorgangs ausblenden
+            hideStatus(elements.recordingStatus);
         }
     } else {
-        // Freie Konversation
+        // Freie Konversation (kein Backend-Aufruf für initialen Text)
         currentResponse = "🎯 Conversation libre - parlez de ce qui vous intéresse!";
         audioHasBeenPlayed = true; // Freie Konversation = sofortige Text-Anzeige erlaubt
-        showResponseText();
+        showResponseText(); // Text sofort anzeigen
+        hideStatus(elements.recordingStatus); // Status ausblenden
     }
 });
 
@@ -1111,9 +1203,9 @@ elements.audioPlayback?.addEventListener('play', () => {
 
 elements.audioPlayback?.addEventListener('ended', () => {
     console.log('✅ Audio playback ended');
-    audioHasBeenPlayed = true;
+    audioHasBeenPlayed = true; // Bestätige, dass Audio abgespielt wurde
     showProgressStatus(4, '✅ Audio terminé - Texte disponible!');
-    updateShowResponseButton();
+    updateShowResponseButton(); // Aktualisiere den Button-Zustand, um Text anzuzeigen/verbergen
     
     // Jetzt kann der Text sicher angezeigt werden, wenn gewünscht
     if (currentResponse && !isTextCurrentlyVisible) {
@@ -1154,19 +1246,24 @@ elements.audioPlayback?.addEventListener('ended', () => {
 
 
   elements.showResponseBtn?.addEventListener('click', () => {
-    if (currentResponse && audioHasBeenPlayed) {
-      if (isTextCurrentlyVisible) {
-        hideResponseText();
-      } else {
-        showResponseText();
-      }
-    } 
-    else if (currentResponse && !audioHasBeenPlayed) {
-        elements.showResponseBtn?.classList.add('hidden');
-    }
-    else if (!audioHasBeenPlayed) {
-      showStatus(elements.recordingStatus, '⚠️ Veuillez d\'abord écouter l\'audio', 'error');
-      setTimeout(() => hideStatus(elements.recordingStatus), 3000);
+    // KORREKTUR: Logik für den Button-Klick
+    if (currentResponse) { // Nur wenn eine Antwort vorhanden ist
+        if (isTextCurrentlyVisible) {
+            hideResponseText();
+            elements.showResponseBtn.textContent = 'Afficher le texte';
+        } else {
+            // Wenn Text noch nicht sichtbar und Audio abgespielt wurde ODER kein Audio da war
+            if (audioHasBeenPlayed || !elements.audioPlayback.src) { // KORREKTUR: Überprüfe audioPlayback.src
+                showResponseText();
+                elements.showResponseBtn.textContent = 'Masquer le texte';
+            } else {
+                showStatus(elements.recordingStatus, '⚠️ Veuillez d\'abord écouter l\'audio', 'error');
+                setTimeout(() => hideStatus(elements.recordingStatus), 3000);
+            }
+        }
+    } else {
+        // Sollte nicht passieren, wenn der Button sichtbar ist, aber zur Sicherheit
+        console.warn('showResponseBtn geklickt, aber keine currentResponse.');
     }
   });
 
