@@ -85,9 +85,11 @@ document.addEventListener('DOMContentLoaded', function() {
       }
 
       const displayText = (finalTranscript + interimTranscript).trim();
-      elements.userText && displayText ? elements.userText.textContent = displayText : null; // KORREKTUR: mit ?.
-      elements.userText?.classList.remove('placeholder'); // KORREKTUR: mit ?.
-      elements.userText?.setAttribute('data-is-placeholder', 'false'); // KORREKTUR: mit ?.
+      if (elements.userText && displayText) {
+          elements.userText.textContent = displayText;
+      }
+      elements.userText?.classList.remove('placeholder');
+      elements.userText?.setAttribute('data-is-placeholder', 'false');
 
       const statusText = interimTranscript ? 
         `🎤 Écoute... "${interimTranscript}"` : 
