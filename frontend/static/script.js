@@ -887,17 +887,22 @@ async function sendMessageToBackend(message) {
             }
         } else {
             console.warn('⚠️ No audio URL received for chat response');
-            // KORREKTUR: Nur showProgressStatus verwenden, und nur "Text affichable" wenn Text da ist
+            elements.audioPlayback && elements.audioPlayback.classList.add('hidden'); // Ensure audio player is hidden
+
             if (data.response && data.response.trim()) {
-                showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable manuellement.');
+                currentResponse = data.response; // Setze die Antwort
+                audioHasBeenPlayed = true; // Behandle es so, als wäre Audio "abgespielt" für die Button-Logik
+                showResponseText(); // Dies zeigt den Text an und setzt isTextCurrentlyVisible = true
+                elements.showResponseBtn && (elements.showResponseBtn.textContent = '🙈 Masquer la réponse'); // Stelle sicher, dass der Button "ausblenden" anzeigt
+                showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable.');
             } else {
-                showProgressStatus(4, '⚠️ Aucun audio ou texte disponible.'); // Wenn beides fehlt
+                currentResponse = null; // Kein Antworttext vorhanden
+                audioHasBeenPlayed = false; // Kein Audio, kein Text
+                isTextCurrentlyVisible = false; // Kein Text sichtbar
+                elements.showResponseBtn && elements.showResponseBtn.classList.add('hidden'); // Button ausblenden
+                elements.responseText && elements.responseText.classList.add('hidden'); // Textbereich ausblenden
+                showProgressStatus(4, '⚠️ Aucun audio ou texte disponible.');
             }
-            audioHasBeenPlayed = false; // Audio wurde nicht abgespielt
-            elements.showResponseBtn && elements.showResponseBtn.classList.remove('hidden');
-            elements.showResponseBtn && (elements.showResponseBtn.textContent = 'Afficher le texte');
-            elements.responseText && elements.responseText.classList.add('hidden');
-            elements.audioPlayback && elements.audioPlayback.classList.add('hidden');
         }
     } catch (error) {
       console.error('❌ Error sending message:', error);
@@ -1136,21 +1141,24 @@ elements.startBtn && elements.startBtn.addEventListener('click', async () => {
 
             } else {
                 // FALLBACK: Kein Audio verfügbar
-                console.warn('⚠️ No audio available for conversation start');
-                currentResponse = data.response; // Setze die Antwort
-                audioHasBeenPlayed = false; // Kein Audio abgespielt
-                elements.showResponseBtn && elements.showResponseBtn.classList.remove('hidden');
-                elements.showResponseBtn && (elements.showResponseBtn.textContent = 'Afficher le texte');
-                elements.responseText && elements.responseText.classList.add('hidden');
-                elements.audioPlayback && elements.audioPlayback.classList.add('hidden');
-                // KORREKTUR: Nur showProgressStatus verwenden, und nur "Text affichable" wenn Text da ist
+                elements.audioPlayback && elements.audioPlayback.classList.add('hidden'); // Ensure audio player is hidden
+
+                // KORREKTUR: Wenn Text vorhanden ist, diesen anzeigen und Button aktivieren
                 if (data.response && data.response.trim()) {
-                    showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable manuellement.');
+                    currentResponse = data.response; // Setze die Antwort
+                    audioHasBeenPlayed = true; // Behandle es so, als wäre Audio "abgespielt" für die Button-Logik
+                    showResponseText(); // Dies zeigt den Text an und setzt isTextCurrentlyVisible = true
+                    elements.showResponseBtn && (elements.showResponseBtn.textContent = '🙈 Masquer la réponse'); // Stelle sicher, dass der Button "ausblenden" anzeigt
+                    showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable.');
                 } else {
-                    showProgressStatus(4, '⚠️ Aucun audio ou texte disponible.'); // Wenn beides fehlt
+                    currentResponse = null; // Kein Antworttext vorhanden
+                    audioHasBeenPlayed = false; // Kein Audio, kein Text
+                    isTextCurrentlyVisible = false; // Kein Text sichtbar
+                    elements.showResponseBtn && elements.showResponseBtn.classList.add('hidden'); // Button ausblenden
+                    elements.responseText && elements.responseText.classList.add('hidden'); // Textbereich ausblenden
+                    showProgressStatus(4, '⚠️ Aucun audio ou texte disponible.');
                 }
             }
-            
         } catch (err) {
             console.error('❌ Error starting conversation:', err);
             showStatus(elements.recordingStatus, `❌ Erreur: ${err.message}`, 'error');
