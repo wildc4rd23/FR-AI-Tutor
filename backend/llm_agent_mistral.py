@@ -143,8 +143,11 @@ def get_initial_llm_response_for_scenario(scenario, user_id=None):
         system_prompt = prompt_data["system_prompt_content"]
         starter_fallback_text = prompt_data["starter_example_text"] # Direkter Zugriff auf den Fallback-Text
         
+        # KORREKTUR: Mistral API benötigt mindestens eine User-Message
+        # Wir fügen eine einfache Starter-Message hinzu, um die Konversation zu beginnen
         messages = [
-            {"role": "system", "content": system_prompt}
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": "Bonjour ! Commençons la conversation."}
         ]
         
         # Versuche, die LLM-Antwort zu erhalten
@@ -160,10 +163,8 @@ def get_initial_llm_response_for_scenario(scenario, user_id=None):
     except Exception as e:
         logger.error(f"❌ Fehler bei der ersten LLM-Antwort für {scenario}: {str(e)}")
         # Im Fehlerfall wird direkt der korrekte Starter-Text als Fallback verwendet.
-        # Ein zusätzlicher try/except ist hier nicht mehr nötig, da starter_fallback_text immer definiert ist.
         try:
             # Versuche, den Fallback-Text erneut abzurufen, falls der Fehler VOR der Definition aufgetreten wäre
-            # (was hier nicht der Fall sein sollte, aber zur Robustheit)
             final_fallback_text = get_scenario_system_prompt(scenario)["starter_example_text"]
         except Exception:
             final_fallback_text = "Bonjour ! Je suis prêt à pratiquer le français avec toi." # Letzter Notfall-Fallback
