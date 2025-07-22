@@ -1130,7 +1130,7 @@ elements.startBtn && elements.startBtn.addEventListener('click', async () => {
                     elements.audioPlayback.onerror = (e) => {
                         console.error('❌ Fehler beim Laden/Wiedergeben des initialen Audios:', e);
                         // KORREKTUR: showProgressStatus statt showStatus
-                        showProgressStatus(4, '⚠️ Erreur audio. Texte disponible.');
+                        showProgressStatus(4, '⚠️ Erreur audio. Texte disponible. 1133');
                         audioHasBeenPlayed = false;
                         elements.showResponseBtn && elements.showResponseBtn.classList.remove('hidden');
                         elements.showResponseBtn && (elements.showResponseBtn.textContent = 'Afficher le texte');
@@ -1149,7 +1149,7 @@ elements.startBtn && elements.startBtn.addEventListener('click', async () => {
                     audioHasBeenPlayed = true; // Behandle es so, als wäre Audio "abgespielt" für die Button-Logik
                     showResponseText(); // Dies zeigt den Text an und setzt isTextCurrentlyVisible = true
                     elements.showResponseBtn && (elements.showResponseBtn.textContent = '🙈 Masquer la réponse'); // Stelle sicher, dass der Button "ausblenden" anzeigt
-                    showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable.');
+                    showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable. 1152');
                 } else {
                     currentResponse = null; // Kein Antworttext vorhanden
                     audioHasBeenPlayed = false; // Kein Audio, kein Text
