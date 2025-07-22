@@ -170,8 +170,6 @@ def get_initial_llm_response_for_scenario(scenario, user_id=None):
             
         return {'response': final_fallback_text}
 
-# Die Funktion query_llm bleibt wie im letzten Schritt mit den erweiterten Loggings.
-# Sie ist die generische Funktion für die LLM-Interaktion.
 def query_llm(messages, max_tokens=160, temperature=0.7):
     mistral_api_key = os.environ.get("MISTRAL_API_KEY")
     mistral_base_url = MISTRAL_BASE_URL
@@ -201,12 +199,18 @@ def query_llm(messages, max_tokens=160, temperature=0.7):
     }
 
     try:
-        logger.info(f"Sending request to Mistral API with payload: {json.dumps(payload)}")
-        response = requests.post(f"{mistral_base_url}", headers=headers, json=payload, timeout=30)
+        logger.info(f"Sending request to Mistral API with payload: {json.dumps(payload, indent=2)}")
+        response = requests.post(mistral_base_url, headers=headers, json=payload, timeout=30)
+        
+        # Logge die Antwort vor dem raise_for_status
+        logger.info(f"HTTP Status Code: {response.status_code}")
+        logger.info(f"Response Headers: {dict(response.headers)}")
+        logger.info(f"Response Text: {response.text}")
+        
         response.raise_for_status()
         
         response_json = response.json()
-        logger.info(f"Received raw response from Mistral API: {json.dumps(response_json)}")
+        logger.info(f"Received parsed JSON response from Mistral API: {json.dumps(response_json, indent=2)}")
 
         if 'choices' in response_json and len(response_json['choices']) > 0:
             llm_content = response_json['choices'][0]['message']['content'].strip()
@@ -224,16 +228,17 @@ def query_llm(messages, max_tokens=160, temperature=0.7):
     except requests.exceptions.RequestException as e:
         logger.error(f"Network or API error communicating with Mistral: {e}")
         raise ConnectionError(f"Failed to connect to Mistral API: {e}")
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
         logger.error(f"Failed to decode JSON response from Mistral API. Raw response: {response.text}")
         raise ValueError("Invalid JSON response from LLM provider.")
     except Exception as e:
         logger.critical(f"An unexpected error occurred in query_llm: {e}", exc_info=True)
         raise
 
-# query_llm_for_scenario bleibt ebenfalls bestehen und nutzt query_llm intern.
-# Stellen Sie sicher, dass diese Funktion den System-Prompt korrekt in die Messages-Liste einfügt.
 def query_llm_for_scenario(prompt, scenario="libre", history=None, max_tokens=160):
+    """
+    Diese Funktion wurde korrigiert - sie holt jetzt den System-Prompt richtig ab.
+    """
     scenario_configs = {
         "restaurant": {"max_tokens": 120, "temperature": 0.6},
         "faire_les_courses": {"max_tokens": 120, "temperature": 0.6},
@@ -247,9 +252,11 @@ def query_llm_for_scenario(prompt, scenario="libre", history=None, max_tokens=16
     config = scenario_configs.get(scenario, scenario_configs["libre"])
     logger.info(f"LLM-Konfiguration für Szenario '{scenario}': {config}")
 
-    # Hier ist es entscheidend, dass der System-Prompt bei JEDER Abfrage mitgesendet wird.
-    system_prompt = get_scenario_system_prompt(scenario)
-    messages = [{"role": "system", "content": system_prompt}]
+    # KORREKTUR: Hier war der Fehler - wir müssen den "system_prompt_content" String extrahieren
+    prompt_data = get_scenario_system_prompt(scenario)
+    system_prompt_content = prompt_data["system_prompt_content"]  # String extrahieren
+    
+    messages = [{"role": "system", "content": system_prompt_content}]
 
     if history:
         for item in history:
