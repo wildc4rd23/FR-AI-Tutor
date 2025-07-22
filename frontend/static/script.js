@@ -325,7 +325,7 @@ document.addEventListener('DOMContentLoaded', function() {
     elements.responseText && elements.responseText.classList.remove('hidden');
     isTextCurrentlyVisible = false; // Progress bar is not the final text
     
-    elements.showResponseBtn && elements.showResponseBtn.classList.add('hidden');
+    //elements.showResponseBtn && elements.showResponseBtn.classList.add('hidden');
   }
 
 // Erweiterte showResponseText() mit Audio-Validierung
