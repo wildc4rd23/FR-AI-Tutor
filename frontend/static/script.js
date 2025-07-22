@@ -896,7 +896,7 @@ async function sendMessageToBackend(message) {
                 isTextCurrentlyVisible = false; // KRITISCH: Text ist NICHT sofort sichtbar
                 elements.responseText && elements.responseText.classList.add('hidden'); // Sicherstellen, dass Textbereich versteckt ist
                 updateShowResponseButton(); // Aktualisiere den Button-Zustand (sollte "Afficher" anzeigen)
-                showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable via bouton.'); // Angepasste Meldung
+                showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable 899.'); // Angepasste Meldung
             } else {
                 currentResponse = null; // Kein Antworttext vorhanden
                 audioHasBeenPlayed = false; // Kein Audio, kein Text
@@ -1150,7 +1150,7 @@ elements.startBtn && elements.startBtn.addEventListener('click', async () => {
                     isTextCurrentlyVisible = false; // KRITISCH: Text ist NICHT sofort sichtbar
                     elements.responseText && elements.responseText.classList.add('hidden'); // Sicherstellen, dass Textbereich versteckt ist
                     updateShowResponseButton(); // Aktualisiere den Button-Zustand (sollte "Afficher" anzeigen)
-                    showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable via bouton.'); // Angepasste Meldung
+                    showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable 1153.'); // Angepasste Meldung
                 } else {
                     currentResponse = null; // Kein Antworttext vorhanden
                     audioHasBeenPlayed = false; // Kein Audio, kein Text
