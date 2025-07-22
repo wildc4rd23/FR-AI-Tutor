@@ -260,7 +260,8 @@ def transcribe():
         return jsonify({'error': 'User ID erforderlich'}), 400
 
     audio_file = request.files['audio']
-    user_dir_path, current_user_id = get_user_temp_dir(user_id_from_request, TEMP_AUDIO_DIR_ROOT)
+    # KORREKTUR: user_id verwenden, nicht user_id_from_request
+    user_dir_path, current_user_id, _ = get_user_temp_dir(user_id, TEMP_AUDIO_DIR_ROOT)
 
     timestamp_for_filename = int(time.time())
     ext = os.path.splitext(audio_file.filename)[1] or '.webm'
