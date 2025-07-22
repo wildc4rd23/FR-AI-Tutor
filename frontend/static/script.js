@@ -889,12 +889,14 @@ async function sendMessageToBackend(message) {
             console.warn('⚠️ No audio URL received for chat response');
             elements.audioPlayback && elements.audioPlayback.classList.add('hidden'); // Ensure audio player is hidden
 
+            // KORREKTUR: Wenn Text vorhanden ist, diesen setzen, aber NICHT sofort anzeigen. Nur den Button aktivieren.
             if (data.response && data.response.trim()) {
                 currentResponse = data.response; // Setze die Antwort
                 audioHasBeenPlayed = true; // Behandle es so, als wäre Audio "abgespielt" für die Button-Logik
-                showResponseText(); // Dies zeigt den Text an und setzt isTextCurrentlyVisible = true
-                elements.showResponseBtn && (elements.showResponseBtn.textContent = '🙈 Masquer la réponse'); // Stelle sicher, dass der Button "ausblenden" anzeigt
-                showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable.');
+                isTextCurrentlyVisible = false; // KRITISCH: Text ist NICHT sofort sichtbar
+                elements.responseText && elements.responseText.classList.add('hidden'); // Sicherstellen, dass Textbereich versteckt ist
+                updateShowResponseButton(); // Aktualisiere den Button-Zustand (sollte "Afficher" anzeigen)
+                showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable via bouton.'); // Angepasste Meldung
             } else {
                 currentResponse = null; // Kein Antworttext vorhanden
                 audioHasBeenPlayed = false; // Kein Audio, kein Text
@@ -1118,7 +1120,6 @@ elements.startBtn && elements.startBtn.addEventListener('click', async () => {
                             showProgressStatus(4, '✅ Prêt ! Écoutez la réponse et commencez à parler.');
                         } catch (e) {
                             console.error('❌ Fehler beim Abspielen des initialen Audios:', e);
-                            // KORREKTUR: showProgressStatus statt showStatus
                             showProgressStatus(4, '⚠️ Erreur de lecture audio. Texte disponible.');
                             audioHasBeenPlayed = false;
                             elements.showResponseBtn && elements.showResponseBtn.classList.remove('hidden');
@@ -1129,7 +1130,6 @@ elements.startBtn && elements.startBtn.addEventListener('click', async () => {
                     };
                     elements.audioPlayback.onerror = (e) => {
                         console.error('❌ Fehler beim Laden/Wiedergeben des initialen Audios:', e);
-                        // KORREKTUR: showProgressStatus statt showStatus
                         showProgressStatus(4, '⚠️ Erreur audio. Texte disponible. 1133');
                         audioHasBeenPlayed = false;
                         elements.showResponseBtn && elements.showResponseBtn.classList.remove('hidden');
@@ -1143,13 +1143,14 @@ elements.startBtn && elements.startBtn.addEventListener('click', async () => {
                 // FALLBACK: Kein Audio verfügbar
                 elements.audioPlayback && elements.audioPlayback.classList.add('hidden'); // Ensure audio player is hidden
 
-                // KORREKTUR: Wenn Text vorhanden ist, diesen anzeigen und Button aktivieren
+                // KORREKTUR: Wenn Text vorhanden ist, diesen setzen, aber NICHT sofort anzeigen. Nur den Button aktivieren.
                 if (data.response && data.response.trim()) {
                     currentResponse = data.response; // Setze die Antwort
                     audioHasBeenPlayed = true; // Behandle es so, als wäre Audio "abgespielt" für die Button-Logik
-                    showResponseText(); // Dies zeigt den Text an und setzt isTextCurrentlyVisible = true
-                    elements.showResponseBtn && (elements.showResponseBtn.textContent = '🙈 Masquer la réponse'); // Stelle sicher, dass der Button "ausblenden" anzeigt
-                    showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable. 1152');
+                    isTextCurrentlyVisible = false; // KRITISCH: Text ist NICHT sofort sichtbar
+                    elements.responseText && elements.responseText.classList.add('hidden'); // Sicherstellen, dass Textbereich versteckt ist
+                    updateShowResponseButton(); // Aktualisiere den Button-Zustand (sollte "Afficher" anzeigen)
+                    showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable via bouton.'); // Angepasste Meldung
                 } else {
                     currentResponse = null; // Kein Antworttext vorhanden
                     audioHasBeenPlayed = false; // Kein Audio, kein Text
