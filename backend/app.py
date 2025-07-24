@@ -141,7 +141,7 @@ def generate_llm_and_tts_response(user_id, scenario, prompt, is_user_message=Tru
     
     if safe_synthesize_tts(llm_response, output_path, user_id):
         #  URL-Konstruktion, die user_id beinhaltet
-        audio_url_path = f"user_{user_id}/{output_filename}"
+        audio_url_path = f"{user_id}/{output_filename}"
         audio_url = f"/temp_audio/{audio_url_path}"
         log_request(user_id, "TTS success", {'url': audio_url})
     else:
