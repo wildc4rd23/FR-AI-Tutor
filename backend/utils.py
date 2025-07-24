@@ -40,8 +40,11 @@ def get_user_temp_dir(user_id=None, base_dir=None):
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         base_dir = os.path.join(project_root, 'temp_audio')
 
-    # NEU: Das Verzeichnis ist direkt der user_id untergeordnet
-    user_dir_path = os.path.join(base_dir, f"user_{user_id}")
+    # Prüfe ob user_id bereits mit "user_" beginnt
+    if user_id.startswith("user_"):
+        user_dir_path = os.path.join(base_dir, user_id)
+    else:
+        user_dir_path = os.path.join(base_dir, f"user_{user_id}")
 
     try:
         os.makedirs(user_dir_path, exist_ok=True)
