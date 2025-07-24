@@ -18,29 +18,30 @@ except ImportError:
     MAX_HISTORY_LENGTH = 20 # Standardwert
 
 def get_user_temp_dir(user_id=None, base_dir=None):
-
-    if user_id is None:
-        user_id = str(uuid.uuid4())
+    # Use the provided user_id, or generate a new one if None
+    current_user_id = user_id if user_id else str(uuid.uuid4())
+    
+    # The directory name, which will include the "user_" prefix for URL consistency
+    user_dir_name = current_user_id
+    if not user_dir_name.startswith("user_"):
+        user_dir_name = f"user_{current_user_id}"
 
     if base_dir is None:
-        logger.warning("get_user_temp_dir wurde ohne base_dir aufgerufen. Verwende Fallback: /opt/render/project/src/temp_audio")
+        logger.warning(f"[{current_user_id}] get_user_temp_dir wurde ohne base_dir aufgerufen. Verwende Fallback: /opt/render/project/src/temp_audio")
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         base_dir = os.path.join(project_root, 'temp_audio')
 
-    # Prüfe ob user_id bereits mit "user_" beginnt
-    if not user_id.startswith("user_"):
-        user_id = f"user_{user_id}"
-    user_dir_path = os.path.join(base_dir, user_id)
+    user_dir_path = os.path.join(base_dir, user_dir_name)
 
     try:
         os.makedirs(user_dir_path, exist_ok=True)
-        logger.info(f"Temporäres Verzeichnis erstellt: {user_dir_path}")
+        logger.info(f"[{current_user_id}] Temporäres Verzeichnis erstellt: {user_dir_path}")
     except OSError as e:
-        logger.error(f"Fehler beim Erstellen des Verzeichnisses {user_dir_path}: {e}")
+        logger.error(f"[{current_user_id}] Fehler beim Erstellen des Verzeichnisses {user_dir_path}: {e}")
         raise
 
-    # KEIN timestamp mehr im Return-Wert
-    return user_dir_path, user_id
+    # Return only the path and the directory name (for URL)
+    return user_dir_path, user_dir_name
 
 def cleanup_temp_dir(dir_path, exclude_file=None):  # momentan nicht verwendet
     """

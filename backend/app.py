@@ -131,21 +131,20 @@ def generate_llm_and_tts_response(user_id, scenario, prompt, is_user_message=Tru
         add_to_history(session, 'assistant', llm_response)
 
     # TTS nur wenn erfolgreich
-    # KORREKTUR: Entpacke alle Rückgabewerte von get_user_temp_dir
-    user_dir_path, _ = get_user_temp_dir(user_id, TEMP_AUDIO_DIR_ROOT) 
+    # KORREKTUR: Entpacke user_dir_path und user_dir_name
+    user_dir_path, user_dir_name = get_user_temp_dir(user_id, TEMP_AUDIO_DIR_ROOT) 
     
     audio_url = None
     timestamp_for_filename = int(time.time())
     output_filename = f"llm_{timestamp_for_filename}.mp3"
     output_path = os.path.join(user_dir_path, output_filename)
     
-    if safe_synthesize_tts(llm_response, output_path, user_id):
-        #  URL-Konstruktion, die user_id beinhaltet
-        audio_url_path = f"{user_id}/{output_filename}"
-        audio_url = f"/temp_audio/{audio_url_path}"
-        log_request(user_id, "TTS success", {'url': audio_url})
+    if safe_synthesize_tts(llm_response, output_path, user_id): # Nutze user_id für TTS-Logging
+        #  URL-Konstruktion, die user_dir_name beinhaltet
+        audio_url = f"/temp_audio/{user_dir_name}/{output_filename}"
+        log_request(user_id, "TTS success", {'url': audio_url}) # Nutze user_id für Logging
     else:
-        log_request(user_id, "TTS failed", {'response_text': llm_response[:50]})
+        log_request(user_id, "TTS failed", {'response_text': llm_response[:50]}) # Nutze user_id für Logging
 
     return {'response': llm_response, 'audio_url': audio_url}
 
@@ -162,11 +161,10 @@ def start_conversation():
         logger.error("User ID fehlt in Start Conversation Request.")
         return jsonify({'error': 'User ID erforderlich'}), 400
 
-    # KORREKTUR: Entpacke alle Rückgabewerte von get_user_temp_dir
-    user_dir_path, current_user_id_for_dir = get_user_temp_dir(user_id, TEMP_AUDIO_DIR_ROOT)
-    # Nutze current_user_id_for_dir, um sicherzustellen, dass die ID aus dem Pfad verwendet wird
-    # Dies ist wichtig, wenn user_id ursprünglich None war und eine neue generiert wurde.
-    user_id = current_user_id_for_dir 
+    # KORREKTUR: Entpacke user_dir_path und user_dir_name
+    user_dir_path, user_dir_name = get_user_temp_dir(user_id, TEMP_AUDIO_DIR_ROOT)
+    # Nutze user_id direkt für die Session und Logging
+    # user_id bleibt die saubere ID vom Frontend
 
     # Initialisiere Session
     session = user_sessions.setdefault(user_id, {'history': [], 'scenario': scenario, 'created_at': datetime.now()})
@@ -176,9 +174,9 @@ def start_conversation():
         session['scenario'] = scenario
         logger.info(f"[{user_id}] Konversationshistorie und Szenario zurückgesetzt auf '{scenario}'.")
 
+    #from llm_agent_mistral import get_initial_llm_response_for_scenario, get_scenario_system_prompt
+    
     try:
-        #from llm_agent_mistral import get_initial_llm_response_for_scenario, get_scenario_system_prompt
-        
         logger.info(f"[{user_id}] Anforderung der ersten inhaltlichen LLM-Antwort für Szenario '{scenario}'.")
         llm_initial_response_data = get_initial_llm_response_for_scenario(scenario, user_id)
         llm_initial_response_text = llm_initial_response_data.get('response', 'Bonjour !') # Sicherstellen, dass Text vorhanden ist
@@ -193,9 +191,8 @@ def start_conversation():
 
         logger.info(f"[{user_id}] Versuche, TTS für initiale Antwort zu generieren.")
         if safe_synthesize_tts(llm_initial_response_text, output_path, user_id):
-            # KORREKTUR: URL-Konstruktion ohne session_timestamp
-            audio_url_path = f"{user_id}/{output_filename}"
-            audio_url = f"/temp_audio/{audio_url_path}"
+            # KORREKTUR: URL-Konstruktion mit user_dir_name
+            audio_url = f"/temp_audio/{user_dir_name}/{output_filename}"
             logger.info(f"[{user_id}] TTS für initiale Antwort erfolgreich: {audio_url}")
         else:
             logger.warning(f"[{user_id}] TTS für initiale Antwort fehlgeschlagen.")
@@ -234,7 +231,8 @@ def delete_audio():
     if not user_id:
         return jsonify({'error': 'User ID erforderlich'}), 400
 
-    user_dir_path, _ = get_user_temp_dir(user_id, TEMP_AUDIO_DIR_ROOT)
+    # KORREKTUR: Entpacke user_dir_path und user_dir_name
+    user_dir_path, user_dir_name = get_user_temp_dir(user_id, TEMP_AUDIO_DIR_ROOT)
 
     deleted = []
     MAX_LLM_FILES = 2
@@ -251,7 +249,7 @@ def delete_audio():
             os.remove(os.path.join(user_dir_path, f))
             deleted.append(f)
         except Exception as e:
-            logger.warning(f"Fehler beim Löschen von {f}: {e}")
+            logger.warning(f"[{user_id}] Fehler beim Löschen von {f}: {e}") # Nutze user_id für Logging
 
     recording_files = sorted([f for f in all_files if f.startswith("recording")], key=lambda f: os.path.getmtime(os.path.join(user_dir_path, f)))
     for f in recording_files[:-MAX_RECORDING_FILES]:
@@ -259,7 +257,7 @@ def delete_audio():
             os.remove(os.path.join(user_dir_path, f))
             deleted.append(f)
         except Exception as e:
-            logger.warning(f"Fehler beim Löschen von {f}: {e}")
+            logger.warning(f"[{user_id}] Fehler beim Löschen von {f}: {e}") # Nutze user_id für Logging
 
     return jsonify({'deleted': deleted})
 
@@ -275,8 +273,8 @@ def transcribe():
         return jsonify({'error': 'User ID erforderlich'}), 400
 
     audio_file = request.files['audio']
-    # KORREKTUR: user_id verwenden, nicht user_id_from_request
-    user_dir_path, current_user_id = get_user_temp_dir(user_id, TEMP_AUDIO_DIR_ROOT) # Korrigiert: Erwartet 2 Werte
+    # KORREKTUR: Entpacke user_dir_path und user_dir_name
+    user_dir_path, user_dir_name = get_user_temp_dir(user_id, TEMP_AUDIO_DIR_ROOT) 
 
     timestamp_for_filename = int(time.time())
     ext = os.path.splitext(audio_file.filename)[1] or '.webm'
@@ -284,7 +282,7 @@ def transcribe():
     path = os.path.join(user_dir_path, filename)
     
     audio_file.save(path)
-    logger.info(f"[{current_user_id}] Aufnahme gespeichert: {filename} im Pfad: {user_dir_path}")
+    logger.info(f"[{user_id}] Aufnahme gespeichert: {filename} im Pfad: {user_dir_path}") # Nutze user_id für Logging
 
     transcription_text = ""
     try:
@@ -292,18 +290,19 @@ def transcribe():
         transcription_text = "Platzhalter Transkription: Bitte implementieren Sie Ihre STT-Logik hier." 
         # ---------------------------------------------------------------------
         
-        logger.info(f"[{current_user_id}] Transkription erfolgreich (Platzhalter): {transcription_text[:50]}...")
-        log_request(current_user_id, 'Transkription erfolgreich', {'text': transcription_text[:50]})
+        logger.info(f"[{user_id}] Transkription erfolgreich (Platzhalter): {transcription_text[:50]}...") # Nutze user_id für Logging
+        log_request(user_id, 'Transkription erfolgreich', {'text': transcription_text[:50]}) # Nutze user_id für Logging
 
     except Exception as e:
-        logger.critical(f"[{current_user_id}] KRITISCHER FEHLER bei Transkription: {str(e)}", exc_info=True)
+        logger.critical(f"[{user_id}] KRITISCHER FEHLER bei Transkription: {str(e)}", exc_info=True) # Nutze user_id für Logging
         transcription_text = "Fehler bei der Transkription." 
 
-    audio_url_path = f"{current_user_id}/{filename}"
+    # KORREKTUR: URL-Konstruktion mit user_dir_name
+    audio_url_path = f"{user_dir_name}/{filename}"
 
     return jsonify({
         'message': 'Audio gespeichert und transkribiert.',
-        'user_id': current_user_id,
+        'user_id': user_dir_name, # Sende den Verzeichnisnamen als user_id zurück
         'audio_path': f"/temp_audio/{audio_url_path}",
         'transcription': transcription_text
     })
