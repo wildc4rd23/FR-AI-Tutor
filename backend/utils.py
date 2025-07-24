@@ -28,10 +28,9 @@ def get_user_temp_dir(user_id=None, base_dir=None):
         base_dir = os.path.join(project_root, 'temp_audio')
 
     # Prüfe ob user_id bereits mit "user_" beginnt
-    if user_id.startswith("user_"):
-        user_dir_path = os.path.join(base_dir, user_id)
-    else:
-        user_dir_path = os.path.join(base_dir, f"user_{user_id}")
+    if not user_id.startswith("user_"):
+        user_id = f"user_{user_id}"
+    user_dir_path = os.path.join(base_dir, user_id)
 
     try:
         os.makedirs(user_dir_path, exist_ok=True)
@@ -41,7 +40,7 @@ def get_user_temp_dir(user_id=None, base_dir=None):
         raise
 
     # KEIN timestamp mehr im Return-Wert
-    return user_dir_path, f"user_{user_id}"
+    return user_dir_path, user_id
 
 def cleanup_temp_dir(dir_path, exclude_file=None):  # momentan nicht verwendet
     """
