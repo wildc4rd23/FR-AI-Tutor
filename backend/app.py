@@ -117,8 +117,8 @@ def generate_llm_and_tts_response(user_id, scenario, prompt, is_user_message=Tru
 
     # TTS nur wenn erfolgreich
     # KORREKTUR: Entpacke alle Rückgabewerte von get_user_temp_dir
-    user_dir_path, _, session_timestamp = get_user_temp_dir(user_id, TEMP_AUDIO_DIR_ROOT)
-
+    user_dir_path, _ = get_user_temp_dir(user_id, TEMP_AUDIO_DIR_ROOT) 
+    
     audio_url = None
     timestamp_for_filename = int(time.time())
     output_filename = f"llm_{timestamp_for_filename}.mp3"
@@ -261,7 +261,7 @@ def transcribe():
 
     audio_file = request.files['audio']
     # KORREKTUR: user_id verwenden, nicht user_id_from_request
-    user_dir_path, current_user_id, _ = get_user_temp_dir(user_id, TEMP_AUDIO_DIR_ROOT)
+    user_dir_path, current_user_id = get_user_temp_dir(user_id, TEMP_AUDIO_DIR_ROOT) # Korrigiert: Erwartet 2 Werte
 
     timestamp_for_filename = int(time.time())
     ext = os.path.splitext(audio_file.filename)[1] or '.webm'

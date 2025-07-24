@@ -328,7 +328,6 @@ document.addEventListener('DOMContentLoaded', function() {
     //elements.showResponseBtn && elements.showResponseBtn.classList.add('hidden');
   }
 
-// Erweiterte showResponseText() mit Audio-Validierung
 function showResponseText() {
     if (currentResponse && elements.responseText) {
         // KORREKTUR: Text wird immer angezeigt, wenn diese Funktion aufgerufen wird.
@@ -337,9 +336,7 @@ function showResponseText() {
         elements.responseText.classList.remove('hidden');
         isTextCurrentlyVisible = true;
         updateShowResponseButton(); // Aktualisiere den Button-Zustand
-        console.log('✅ Text angezeigt nach Audio-Wiedergabe');
-        // Hide audio playback controls when text is shown
-        //elements.audioPlayback && elements.audioPlayback.classList.add('hidden');  //trotzdem zeigen!
+        console.log('✅ LLM Text angezeigt');
     }
 }
 
