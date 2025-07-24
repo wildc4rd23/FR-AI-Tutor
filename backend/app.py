@@ -175,7 +175,7 @@ def start_conversation():
         logger.info(f"[{user_id}] Konversationshistorie und Szenario zurückgesetzt auf '{scenario}'.")
 
     #from llm_agent_mistral import get_initial_llm_response_for_scenario, get_scenario_system_prompt
-    
+
     try:
         logger.info(f"[{user_id}] Anforderung der ersten inhaltlichen LLM-Antwort für Szenario '{scenario}'.")
         llm_initial_response_data = get_initial_llm_response_for_scenario(scenario, user_id)
@@ -368,4 +368,4 @@ def catch_all(path):
 if __name__ == '__main__':
     # Für Render deployment optimiert
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=False)
