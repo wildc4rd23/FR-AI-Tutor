@@ -76,19 +76,34 @@ from utils import get_user_temp_dir, log_request, add_to_history#, cleanup_temp_
 
 def safe_synthesize_tts(text, output_path, user_id, max_retries=2):
     """TTS mit begrenzten Wiederholungsversuchen"""
+    logger.info(f"[{user_id}] TTS starten für Text: '{text[:50]}...'")
+    logger.info(f"[{user_id}] Ausgabepfad: {output_path}")
+    
     for attempt in range(max_retries):
         try:
             synthesize_tts(text, output_path)
-            return True
+            
+            # Prüfen, ob Datei wirklich erstellt wurde und groß genug ist
+            if os.path.exists(output_path):
+                file_size = os.path.getsize(output_path)
+                logger.info(f"[{user_id}] TTS-Datei erstellt - Größe: {file_size} bytes")
+                
+                # Dummy-Dateien sind sehr klein (nur "Dummy Audio" = ~11 bytes)
+                if file_size > 100:  # Echte Audio-Dateien sind größer
+                    return True
+                else:
+                    logger.warning(f"[{user_id}] TTS-Datei zu klein ({file_size} bytes) - wahrscheinlich Dummy")
+            else:
+                logger.warning(f"[{user_id}] TTS-Datei nicht erstellt")
+                
         except Exception as e:
             logger.warning(f"[{user_id}] TTS Versuch {attempt + 1} fehlgeschlagen: {str(e)}")
             if attempt == max_retries - 1:
-                # Letzter Versuch - erstelle Dummy-Datei und logge Fehler
                 with open(output_path, "wb") as f:
                     f.write(b"Dummy Audio")
-                logger.error(f"[{user_id}] Alle TTS Versuche fehlgeschlagen für '{text[:50]}...'. Dummy-Datei erstellt.")
+                logger.error(f"[{user_id}] Alle TTS Versuche fehlgeschlagen. Dummy-Datei erstellt.")
                 return False
-            time.sleep(1)  # Kurze Pause zwischen Versuchen
+            time.sleep(1)
     return False # Sollte nie erreicht werden, aber zur Sicherheit
 
 
@@ -179,7 +194,7 @@ def start_conversation():
         logger.info(f"[{user_id}] Versuche, TTS für initiale Antwort zu generieren.")
         if safe_synthesize_tts(llm_initial_response_text, output_path, user_id):
             # KORREKTUR: URL-Konstruktion ohne session_timestamp
-            audio_url_path = f"user_{user_id}/{output_filename}"
+            audio_url_path = f"{user_id}/{output_filename}"
             audio_url = f"/temp_audio/{audio_url_path}"
             logger.info(f"[{user_id}] TTS für initiale Antwort erfolgreich: {audio_url}")
         else:
@@ -284,7 +299,7 @@ def transcribe():
         logger.critical(f"[{current_user_id}] KRITISCHER FEHLER bei Transkription: {str(e)}", exc_info=True)
         transcription_text = "Fehler bei der Transkription." 
 
-    audio_url_path = f"user_{current_user_id}/{filename}"
+    audio_url_path = f"{current_user_id}/{filename}"
 
     return jsonify({
         'message': 'Audio gespeichert und transkribiert.',
