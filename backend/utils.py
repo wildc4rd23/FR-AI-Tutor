@@ -18,20 +18,7 @@ except ImportError:
     MAX_HISTORY_LENGTH = 20 # Standardwert
 
 def get_user_temp_dir(user_id=None, base_dir=None):
-    """
-    Erstellt ein temporäres Verzeichnis für einen Benutzer unterhalb des Basisverzeichnisses,
-    direkt benannt nach der Benutzer-ID.
 
-    Args:
-        user_id (str, optional): Die ID des Benutzers. Wenn None, wird eine neue UUID generiert.
-        base_dir (str, optional): Das Basisverzeichnis, in dem die temporären Ordner erstellt werden sollen.
-                                  Dies sollte das von Flask's app.py festgelegte TEMP_AUDIO_DIR_ROOT sein.
-                                  Wenn None, wird ein Fallback-Pfad verwendet.
-
-    Returns:
-        tuple: (full_user_path: str, user_id: str)
-               Der vollständige Pfad zum Benutzer-Temp-Verzeichnis und die Benutzer-ID.
-    """
     if user_id is None:
         user_id = str(uuid.uuid4())
 
@@ -54,7 +41,7 @@ def get_user_temp_dir(user_id=None, base_dir=None):
         raise
 
     # KEIN timestamp mehr im Return-Wert
-    return user_dir_path, user_id
+    return user_dir_path, f"user_{user_id}"
 
 def cleanup_temp_dir(dir_path, exclude_file=None):  # momentan nicht verwendet
     """
