@@ -434,6 +434,12 @@ function updateShowResponseButton() {
     elements.responseText && elements.responseText.classList.add('hidden');
     
     elements.audioPlayback && (elements.audioPlayback.src = '');
+
+    // KORREKTUR: Event-Listener entfernen, bevor src geleert wird
+    if (elements.audioPlayback) {
+        elements.audioPlayback.oncanplaythrough = null;
+        elements.audioPlayback.onerror = null;
+    }
     elements.audioPlayback && elements.audioPlayback.classList.add('hidden');
     
     elements.userAudio && (elements.userAudio.src = '');
