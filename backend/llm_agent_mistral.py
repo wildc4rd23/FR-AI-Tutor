@@ -121,7 +121,7 @@ def get_scenario_system_prompt(scenario):
     full_system_prompt = f"{base_prompt}\n\n" \
                          f"{current_scenario_detail['context']}\n\n" \
                          f"MESSAGE DE DÉPART POUR TOI (PROFESSEUR): Lorsque l'étudiant initiera la conversation, \n" \
-                         f"réponds avec une phrase qui ressemble à ceci, adaptée au contexte:\n" \
+                         f"réponds avec une phrase qui s'inspire de cet exemple, mais ne le répète pas mot für mot:\n" \
                          f"'{current_scenario_detail['starter_example']}'\n" \
                          f"Attends que l'étudiant commence vraiment à parler pour t'engager."
     
@@ -195,9 +195,12 @@ def query_llm(messages, max_tokens=160, temperature=0.7):
         "model": "mistral-tiny", # Oder Ihr gewähltes Modell
         "messages": messages,
         "temperature": temperature,
-        "max_tokens": max_tokens,
         "random_seed": 42
     }
+    # Nur max_tokens hinzufügen, wenn es nicht None ist
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
+
 
     try:
         logger.info(f"Sending request to Mistral API with payload: {json.dumps(payload, indent=2)}")
