@@ -299,7 +299,7 @@ document.addEventListener('DOMContentLoaded', function() {
     element.className = `status-message status-${type}`;
     element.innerHTML = message;
     element.classList.remove('hidden');
-    console.log(`Status [${type}]:`, message);
+    console.log(`Status [${type}]: ${message}`);
   }
 
   function hideStatus(element) {
@@ -434,7 +434,6 @@ function updateShowResponseButton() {
     elements.responseText && elements.responseText.classList.add('hidden');
     
     elements.audioPlayback && (elements.audioPlayback.src = '');
-
     // KORREKTUR: Event-Listener entfernen, bevor src geleert wird
     if (elements.audioPlayback) {
         elements.audioPlayback.oncanplaythrough = null;
@@ -860,15 +859,25 @@ async function sendMessageToBackend(message) {
                 elements.audioPlayback.oncanplaythrough = async () => {
                     showProgressStatus(3, 'Audio prêt à jouer.');
                     try {
-                        await elements.audioPlayback.play();
-                        audioHasBeenPlayed = true;
-                        console.log('✅ Audio abgespielt nach Nachricht');
-                        showResponseText(); // Show text ONLY AFTER successful audio playback
-                        elements.showResponseBtn && (elements.showResponseBtn.textContent = 'Masquer le texte');
-                        showProgressStatus(4, '✅ Prêt ! Écoutez la réponse et commencez à parler.'); // Letzter Fortschrittsstatus
+                        await elements.audioPlayback.play()
+                            .then(() => {
+                                audioHasBeenPlayed = true;
+                                console.log('✅ Audio abgespielt nach Nachricht');
+                                showResponseText(); // Show text ONLY AFTER successful audio playback
+                                elements.showResponseBtn && (elements.showResponseBtn.textContent = 'Masquer le texte');
+                                showProgressStatus(4, '✅ Prêt ! Écoutez la réponse et commencez à parler.'); // Letzter Fortschrittsstatus
+                            })
+                            .catch(e => {
+                                console.error('❌ Fehler beim Abspielen des Audios nach Chat-Nachricht (Promise Rejection):', e);
+                                showProgressStatus(4, '⚠️ Erreur de lecture audio. Texte disponible.');
+                                audioHasBeenPlayed = false;
+                                elements.showResponseBtn && elements.showResponseBtn.classList.remove('hidden');
+                                elements.showResponseBtn && (elements.showResponseBtn.textContent = 'Afficher le texte');
+                                elements.responseText && elements.responseText.classList.add('hidden');
+                                elements.audioPlayback && elements.audioPlayback.classList.add('hidden');
+                            });
                     } catch (e) {
-                        console.error('❌ Fehler beim Abspielen des Audios nach Chat-Nachricht:', e);
-                        // KORREKTUR: showProgressStatus statt showStatus
+                        console.error('❌ Fehler beim Abspielen des Audios nach Chat-Nachricht (Synchroner Fehler):', e);
                         showProgressStatus(4, '⚠️ Erreur de lecture audio. Texte disponible.');
                         audioHasBeenPlayed = false;
                         elements.showResponseBtn && elements.showResponseBtn.classList.remove('hidden');
@@ -879,7 +888,6 @@ async function sendMessageToBackend(message) {
                 };
                 elements.audioPlayback.onerror = (e) => {
                     console.error('❌ Fehler beim Laden/Wiedergeben des Audios nach Nachricht:', e);
-                    // KORREKTUR: showProgressStatus statt showStatus
                     showProgressStatus(4, '⚠️ Erreur audio. Texte disponible.');
                     audioHasBeenPlayed = false;
                     elements.showResponseBtn && elements.showResponseBtn.classList.remove('hidden');
@@ -899,7 +907,7 @@ async function sendMessageToBackend(message) {
                 isTextCurrentlyVisible = false; // KRITISCH: Text ist NICHT sofort sichtbar
                 elements.responseText && elements.responseText.classList.add('hidden'); // Sicherstellen, dass Textbereich versteckt ist
                 updateShowResponseButton(); // Aktualisiere den Button-Zustand (sollte "Afficher" anzeigen)
-                showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable 902.'); // Angepasste Meldung
+                showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable 910.'); // Angepasste Meldung
             } else {
                 currentResponse = null; // Kein Antworttext vorhanden
                 audioHasBeenPlayed = false; // Kein Audio, kein Text
@@ -1113,16 +1121,30 @@ elements.startBtn && elements.startBtn.addEventListener('click', async () => {
                 // Event Listener für Audio-Ende
                 if (elements.audioPlayback) {
                     elements.audioPlayback.oncanplaythrough = async () => {
+                        console.log('oncanplaythrough triggered for initial audio. ReadyState:', elements.audioPlayback.readyState, 'NetworkState:', elements.audioPlayback.networkState);
                         showProgressStatus(4, 'Audio prêt à jouer.');
                         try {
-                            await elements.audioPlayback.play();
-                            audioHasBeenPlayed = true;
-                            console.log('✅ Audio abgespielt für Konversationsstart');
-                            showResponseText(); // Show text ONLY AFTER successful audio playback
-                            elements.showResponseBtn && (elements.showResponseBtn.textContent = 'Masquer le texte');
-                            showProgressStatus(4, '✅ Prêt ! Écoutez la réponse et commencez à parler.');
+                            // Diagnostische Verzögerung: Testet, ob ein kleiner Puffer hilft
+                            await new Promise(resolve => setTimeout(resolve, 100)); 
+                            await elements.audioPlayback.play()
+                                .then(() => {
+                                    audioHasBeenPlayed = true;
+                                    console.log('✅ Initial audio played successfully.');
+                                    showResponseText(); // Show text ONLY AFTER successful audio playback
+                                    elements.showResponseBtn && (elements.showResponseBtn.textContent = 'Masquer le texte');
+                                    showProgressStatus(4, '✅ Prêt ! Écoutez la réponse et commencez à parler.');
+                                })
+                                .catch(e => {
+                                    console.error('❌ Fehler beim Abspielen des initialen Audios (Promise Rejection):', e);
+                                    showProgressStatus(4, '⚠️ Erreur de lecture audio. Texte disponible.');
+                                    audioHasBeenPlayed = false;
+                                    elements.showResponseBtn && elements.showResponseBtn.classList.remove('hidden');
+                                    elements.showResponseBtn && (elements.showResponseBtn.textContent = 'Afficher le texte');
+                                    elements.responseText && elements.responseText.classList.add('hidden');
+                                    elements.audioPlayback && elements.audioPlayback.classList.add('hidden');
+                                });
                         } catch (e) {
-                            console.error('❌ Fehler beim Abspielen des initialen Audios:', e);
+                            console.error('❌ Fehler beim Abspielen des initialen Audios (Synchroner Fehler):', e);
                             showProgressStatus(4, '⚠️ Erreur de lecture audio. Texte disponible.');
                             audioHasBeenPlayed = false;
                             elements.showResponseBtn && elements.showResponseBtn.classList.remove('hidden');
@@ -1133,7 +1155,8 @@ elements.startBtn && elements.startBtn.addEventListener('click', async () => {
                     };
                     elements.audioPlayback.onerror = (e) => {
                         console.error('❌ Fehler beim Laden/Wiedergeben des initialen Audios:', e);
-                        showProgressStatus(4, '⚠️ Erreur audio. Texte disponible. 1133');
+                        console.error('Audio error event:', e); // Zusätzliches Log für das Event-Objekt
+                        showProgressStatus(4, '⚠️ Erreur audio. Texte disponible.');
                         audioHasBeenPlayed = false;
                         elements.showResponseBtn && elements.showResponseBtn.classList.remove('hidden');
                         elements.showResponseBtn && (elements.showResponseBtn.textContent = 'Afficher le texte');
@@ -1153,7 +1176,7 @@ elements.startBtn && elements.startBtn.addEventListener('click', async () => {
                     isTextCurrentlyVisible = false; // KRITISCH: Text ist NICHT sofort sichtbar
                     elements.responseText && elements.responseText.classList.add('hidden'); // Sicherstellen, dass Textbereich versteckt ist
                     updateShowResponseButton(); // Aktualisiere den Button-Zustand (sollte "Afficher" anzeigen)
-                    showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable 1153.'); // Angepasste Meldung
+                    showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable 1179.'); // Angepasste Meldung
                 } else {
                     currentResponse = null; // Kein Antworttext vorhanden
                     audioHasBeenPlayed = false; // Kein Audio, kein Text
