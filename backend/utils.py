@@ -23,8 +23,8 @@ def get_user_temp_dir(user_id=None, base_dir=None):
     
     # The directory name, which will include the "user_" prefix for URL consistency
     user_dir_name = current_user_id
-    if not user_dir_name.startswith("user_"):
-        user_dir_name = f"user_{current_user_id}"
+   # if not user_dir_name.startswith("user_"):
+   #     user_dir_name = f"user_{current_user_id}"
 
     if base_dir is None:
         logger.warning(f"[{current_user_id}] get_user_temp_dir wurde ohne base_dir aufgerufen. Verwende Fallback: /opt/render/project/src/temp_audio")

@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let recognitionTimeout;
   let finalTranscript = '';
   let isRecognitionRestarting = false;
-  let userId = Date.now().toString(); // Initialisierung der userId
+  //let userId = Date.now().toString(); // Initialisierung der userId
   let currentScenario = 'libre';
   let autoSendAfterRecording = false; // Konfig automatisches Senden der UserAufnahme
   let isRecording = false; // Status-Tracker
@@ -824,7 +824,7 @@ async function sendMessageToBackend(message) {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 message: message,
-                userId: userId, 
+                userId: currentUserId, // KORREKTUR: Verwende currentUserId
                 scenario: currentScenario
             }),
         });
@@ -951,8 +951,7 @@ async function sendMessageToBackend(message) {
     const fileName = `recording.${fileExtension}`;
     
     formData.append('audio', audioBlob, fileName);
-    formData.append('user_id', userId); // KORREKTUR: user_id für FormData beibehalten
-    
+    formData.append('user_id', currentUserId); // KORREKTUR: currentUserId für FormData beibehalten
     console.log(`Uploading audio blob: ${audioBlob.size} bytes, type: ${mimeType}, filename: ${fileName}`);
 
     try {
@@ -1051,7 +1050,7 @@ elements.startBtn && elements.startBtn.addEventListener('click', async () => {
     // Wenn currentUserId noch null ist, wird er im Backend generiert und zurückgegeben.
     // Falls er bereits existiert, wird er wiederverwendet.
     if (!currentUserId) {
-        currentUserId = 'user_' + Date.now(); // Temporäre ID für den ersten Request
+        currentUserId = Date.now().toString(); // Generiere eine saubere ID
         console.log('Temporäre User ID für Start generiert:', currentUserId);
     }
     
@@ -1301,7 +1300,7 @@ elements.audioPlayback && elements.audioPlayback.addEventListener('ended', () =>
 // === VERBESSERTES DEBUGGING ===
 function debugConversationState() {
     console.log('=== CONVERSATION STATE DEBUG ===');
-    console.log('🆔 User ID:', userId);
+    console.log('🆔 User ID:', currentUserId); // KORREKTUR: userId zu currentUserId geändert
     console.log('🎭 Current Scenario:', currentScenario);
     console.log('📝 Current Response:', currentResponse ? 'Set' : 'Not set');
     console.log('🎵 Audio played:', audioHasBeenPlayed);
