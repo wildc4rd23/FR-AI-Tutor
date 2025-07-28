@@ -302,7 +302,7 @@ def transcribe():
 
     return jsonify({
         'message': 'Audio gespeichert und transkribiert.',
-        'user_id': user_dir_name, # Sende den Verzeichnisnamen als user_id zurück
+        'user_id': user_id, 
         'audio_path': f"/temp_audio/{audio_url_path}",
         'transcription': transcription_text
     })
@@ -367,5 +367,5 @@ def catch_all(path):
 
 if __name__ == '__main__':
     # Für Render deployment optimiert
-    port = int(os.environ.get('PORT', 10000))
+    port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
