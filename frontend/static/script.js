@@ -992,6 +992,13 @@ async function playLlmAudio(audioUrl) {
         };
 
         elements.llmAudioPlayback.onerror = (e) => {
+            // KORREKTUR: Nur Fehler protokollieren, wenn tatsächlich eine src gesetzt ist
+
+            if (!elements.llmAudioPlayback.src) {
+                console.log("LLM Audio playback error (ignored, no src set):", e);
+                resolve(); // Wichtig: Auch hier auflösen, da kein echter Fehler vorliegt
+                return;
+            }
             console.error("Error playing LLM audio:", e);
             audioHasBeenPlayed = false; // Mark as not played successfully
             isLlmAudioPlaying = false; // Audio ist beendet (Fehlerfall)
@@ -1162,6 +1169,11 @@ elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('ended',
 });
 
 elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('error', (e) => {
+    // KORREKTUR: Nur Fehler protokollieren, wenn tatsächlich eine src gesetzt ist
+    if (!elements.llmAudioPlayback.src) {
+        console.log("LLM Audio playback error (ignored, no src set):", e);
+        return;
+    }
     console.error('❌ LLM Audio playback error:', e);
     audioHasBeenPlayed = false; // Mark as not played successfully
     isLlmAudioPlaying = false; // Audio ist beendet (Fehlerfall)
