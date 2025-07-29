@@ -432,11 +432,16 @@ function updateShowResponseButton() {
     elements.responseText && (elements.responseText.innerHTML = '');
     elements.responseText && elements.responseText.classList.add('hidden');
     
-    elements.llmAudioPlayback && (elements.llmAudioPlayback.src = '');
-    // KORREKTUR: Event-Listener entfernen, bevor src geleert wird
+    // KORREKTUR: Event-Listener UND src zurücksetzen in korrekter Reihenfolge
     if (elements.llmAudioPlayback) {
+        elements.llmAudioPlayback.pause(); // Stoppe Audio falls es läuft
         elements.llmAudioPlayback.oncanplaythrough = null;
         elements.llmAudioPlayback.onerror = null;
+        elements.llmAudioPlayback.onended = null;
+        elements.llmAudioPlayback.onloadstart = null;
+        elements.llmAudioPlayback.src = ''; // Erst nach Event-Listener cleanup
+        elements.llmAudioPlayback.load(); // Reset des Audio-Elements
+        elements.llmAudioPlayback.classList.add('hidden');
     }
     elements.llmAudioPlayback && elements.llmAudioPlayback.classList.add('hidden');
     
@@ -992,26 +997,23 @@ async function playLlmAudio(audioUrl) {
         };
 
         elements.llmAudioPlayback.onerror = (e) => {
-            // KORREKTUR: Nur Fehler protokollieren, wenn tatsächlich eine src gesetzt ist
-            // NETWORK_EMPTY (0) bedeutet, dass das Audio-Element keine Quelle hat oder die Quelle zurückgesetzt wurde.
-
-            // In diesem Fall ist der Fehler beim Neuladen der Seite oder beim initialen Reset normal und sollte ignoriert werden.
-
-            if (elements.llmAudioPlayback.networkState === HTMLMediaElement.NETWORK_EMPTY || !elements.llmAudioPlayback.src) {
-
-                console.log("LLM Audio playback error (ignored, no src or network empty):", e);
-                resolve(); // Wichtig: Auch hier auflösen, da kein echter Fehler vorliegt
+            // KORREKTUR: Fehler beim Reload ignorieren (leere src oder network empty)
+            if (!elements.llmAudioPlayback.src || 
+                elements.llmAudioPlayback.src === '' || 
+                elements.llmAudioPlayback.networkState === HTMLMediaElement.NETWORK_EMPTY) {
+                console.log("LLM Audio error ignored (no source set)");
+                resolve();
                 return;
             }
+            
             console.error("Error playing LLM audio:", e);
-            audioHasBeenPlayed = false; // Mark as not played successfully
-            isLlmAudioPlaying = false; // Audio ist beendet (Fehlerfall)
+            audioHasBeenPlayed = false;
+            isLlmAudioPlaying = false;
             showProgressStatus(4, '⚠️ Erreur de lecture audio. Texte disponible.');
-            // showResponseText(); // REMOVED: Text wird nicht mehr automatisch bei Audio-Fehler angezeigt
-            elements.responseText && elements.responseText.classList.add('hidden'); // Sicherstellen, dass Textbereich versteckt ist
-            isTextCurrentlyVisible = false; // Sicherstellen, dass dies false ist
-            updateShowResponseButton(); // Button aktualisieren
-            resolve(); // Auflösen, auch bei Fehler, damit der Prozess weitergeht
+            elements.responseText && elements.responseText.classList.add('hidden');
+            isTextCurrentlyVisible = false;
+            updateShowResponseButton();
+            resolve();
         };
         
         console.log("Attempting to play LLM audio:", audioUrl);
@@ -1102,16 +1104,18 @@ elements.startBtn && elements.startBtn.addEventListener('click', async () => {
             }
 
             const data = await response.json();
-            console.log('🎯 Conversation started successfully:', data);
-            
-            currentUserId = data.userId; // Aktualisiere currentUserId mit der vom Backend erhaltenen ID
-            conversationHistory = [{ role: 'assistant', content: data.response }];
-            
-            setResponseSafely(data.response); // Setzt currentResponse und zeigt Hinweis an
-            showProgressStatus(2, '📝 Conversation préparée...');
-            
-            if (data.audio_url) { 
-                await playLlmAudio(data.audio_url); // Call playLlmAudio
+console.log('🎯 Conversation started successfully:', data);
+
+currentUserId = data.userId;
+conversationHistory = [{ role: 'assistant', content: data.response }];
+
+setResponseSafely(data.response);
+showProgressStatus(2, '📝 Conversation préparée...');
+
+            // KORREKTUR: Backend sendet 'audioUrl', nicht 'audio_url'
+            if (data.audioUrl) { 
+                console.log('Audio URL erhalten:', data.audioUrl);
+                await playLlmAudio(data.audioUrl);
             } else {
                 console.warn('⚠️ No audio URL received for initial response.');
                 elements.llmAudioPlayback && elements.llmAudioPlayback.classList.add('hidden');
@@ -1173,17 +1177,18 @@ elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('ended',
 });
 
 elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('error', (e) => {
-    // KORREKTUR: Nur Fehler protokollieren, wenn tatsächlich eine src gesetzt ist
-    if (elements.llmAudioPlayback.networkState === HTMLMediaElement.NETWORK_EMPTY || !elements.llmAudioPlayback.src) {
-
-        console.log("LLM Audio playback error (ignored, no src or network empty):", e);
+    // KORREKTUR: Fehler beim Reload ignorieren (leere src oder network empty)
+    if (!elements.llmAudioPlayback.src || 
+        elements.llmAudioPlayback.src === '' || 
+        elements.llmAudioPlayback.networkState === HTMLMediaElement.NETWORK_EMPTY) {
+        console.log("LLM Audio error ignored (no source set)");
         return;
     }
     console.error('❌ LLM Audio playback error:', e);
-    audioHasBeenPlayed = false; // Mark as not played successfully
-    isLlmAudioPlaying = false; // Audio ist beendet (Fehlerfall)
+    audioHasBeenPlayed = false;
+    isLlmAudioPlaying = false;
     showProgressStatus(4, '⚠️ Erreur de lecture audio. Texte disponible.');
-    updateShowResponseButton(); // Update button state
+    updateShowResponseButton();
 });
 
 
