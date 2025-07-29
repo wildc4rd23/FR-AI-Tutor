@@ -993,9 +993,13 @@ async function playLlmAudio(audioUrl) {
 
         elements.llmAudioPlayback.onerror = (e) => {
             // KORREKTUR: Nur Fehler protokollieren, wenn tatsächlich eine src gesetzt ist
+            // NETWORK_EMPTY (0) bedeutet, dass das Audio-Element keine Quelle hat oder die Quelle zurückgesetzt wurde.
 
-            if (!elements.llmAudioPlayback.src) {
-                console.log("LLM Audio playback error (ignored, no src set):", e);
+            // In diesem Fall ist der Fehler beim Neuladen der Seite oder beim initialen Reset normal und sollte ignoriert werden.
+
+            if (elements.llmAudioPlayback.networkState === HTMLMediaElement.NETWORK_EMPTY || !elements.llmAudioPlayback.src) {
+
+                console.log("LLM Audio playback error (ignored, no src or network empty):", e);
                 resolve(); // Wichtig: Auch hier auflösen, da kein echter Fehler vorliegt
                 return;
             }
@@ -1170,8 +1174,9 @@ elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('ended',
 
 elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('error', (e) => {
     // KORREKTUR: Nur Fehler protokollieren, wenn tatsächlich eine src gesetzt ist
-    if (!elements.llmAudioPlayback.src) {
-        console.log("LLM Audio playback error (ignored, no src set):", e);
+    if (elements.llmAudioPlayback.networkState === HTMLMediaElement.NETWORK_EMPTY || !elements.llmAudioPlayback.src) {
+
+        console.log("LLM Audio playback error (ignored, no src or network empty):", e);
         return;
     }
     console.error('❌ LLM Audio playback error:', e);
