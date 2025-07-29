@@ -971,8 +971,25 @@ function showAudioRetryOptions() {
         showProgressStatus(4, '✅ Texte affiché sans audio.');
     };
 
-// NEUE playLlmAudio Funktion
+// NEUE playLlmAudio Funktion mit log
 async function playLlmAudio(audioUrl) {
+    console.log('=== PLAY LLM AUDIO DEBUG ===');
+    console.log('Received audioUrl:', audioUrl);
+    console.log('audioUrl type:', typeof audioUrl);
+    console.log('audioUrl length:', audioUrl ? audioUrl.length : 'N/A');
+    console.log('Audio element exists:', !!elements.llmAudioPlayback);
+    console.log('Audio element src before:', elements.llmAudioPlayback ? elements.llmAudioPlayback.src : 'N/A');
+    
+    if (!audioUrl || audioUrl.trim() === '') {
+        console.error('❌ Invalid audio URL provided to playLlmAudio');
+        return Promise.resolve();
+    }
+    
+    if (!elements.llmAudioPlayback) {
+        console.error('❌ Audio playback element not found');
+        return Promise.resolve();
+    }
+    
     return new Promise((resolve) => {
         elements.llmAudioPlayback.src = audioUrl;
         elements.llmAudioPlayback.load(); // Lädt das neue Audio
@@ -1112,10 +1129,9 @@ conversationHistory = [{ role: 'assistant', content: data.response }];
 setResponseSafely(data.response);
 showProgressStatus(2, '📝 Conversation préparée...');
 
-            // KORREKTUR: Backend sendet 'audioUrl', nicht 'audio_url'
-            if (data.audioUrl) { 
-                console.log('Audio URL erhalten:', data.audioUrl);
-                await playLlmAudio(data.audioUrl);
+            if (data.audio_url) { 
+                console.log('Audio URL erhalten:', data.audio_url);
+                await playLlmAudio(data.audio_url);
             } else {
                 console.warn('⚠️ No audio URL received for initial response.');
                 elements.llmAudioPlayback && elements.llmAudioPlayback.classList.add('hidden');
