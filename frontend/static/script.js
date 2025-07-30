@@ -432,19 +432,35 @@ function updateShowResponseButton() {
     elements.responseText && (elements.responseText.innerHTML = '');
     elements.responseText && elements.responseText.classList.add('hidden');
     
-    // KORREKTUR: Event-Listener UND src zurücksetzen in korrekter Reihenfolge
-    if (elements.llmAudioPlayback) {
-        elements.llmAudioPlayback.pause(); // Stoppe Audio falls es läuft
-        elements.llmAudioPlayback.oncanplaythrough = null;
-        elements.llmAudioPlayback.onerror = null;
-        elements.llmAudioPlayback.onended = null;
-        elements.llmAudioPlayback.onloadstart = null;
-        elements.llmAudioPlayback.src = ''; // Erst nach Event-Listener cleanup
-        elements.llmAudioPlayback.load(); // Reset des Audio-Elements
-        elements.llmAudioPlayback.classList.add('hidden');
+    // KORREKTUR: Vollständiger Audio-Reset ohne Fehler
+if (elements.llmAudioPlayback) {
+    // Audio stoppen falls es läuft
+    if (!elements.llmAudioPlayback.paused) {
+        elements.llmAudioPlayback.pause();
     }
-    elements.llmAudioPlayback && elements.llmAudioPlayback.classList.add('hidden');
     
+    // ALLE Event-Listener entfernen
+    elements.llmAudioPlayback.oncanplaythrough = null;
+    elements.llmAudioPlayback.onerror = null;
+    elements.llmAudioPlayback.onended = null;
+    elements.llmAudioPlayback.onloadstart = null;
+    elements.llmAudioPlayback.onplay = null;
+    elements.llmAudioPlayback.onpause = null;
+    elements.llmAudioPlayback.onloadeddata = null;
+    elements.llmAudioPlayback.onloadedmetadata = null;
+    
+    // src zurücksetzen (löst keine Events aus da Listener entfernt sind)
+    elements.llmAudioPlayback.src = '';
+    elements.llmAudioPlayback.removeAttribute('src');
+    
+    // Element neu laden (sauberer Reset)
+    elements.llmAudioPlayback.load();
+    
+    // Verstecken
+    elements.llmAudioPlayback.classList.add('hidden');
+    
+    console.log('🔄 Audio element completely reset');
+
     elements.userAudio && (elements.userAudio.src = '');
     elements.userAudio && elements.userAudio.classList.add('hidden');
     
@@ -1008,19 +1024,28 @@ async function playLlmAudio(audioUrl) {
     }
     
     return new Promise((resolve) => {
-        // KORREKTUR: Event-Listener vor dem Setzen der src hinzufügen
         const audioElement = elements.llmAudioPlayback;
+        let resolved = false;
         
-        // Cleanup vorherige Event-Listener
+        // KORREKTUR: Komplett alle Event-Listener entfernen vor Neuzuweisung
         audioElement.oncanplaythrough = null;
         audioElement.onerror = null;
         audioElement.onended = null;
         audioElement.onloadstart = null;
         audioElement.onplay = null;
+        audioElement.onpause = null;
+        audioElement.onloadeddata = null;
+        audioElement.onloadedmetadata = null;
         
-        let resolved = false; // Verhindert mehrfaches Auflösen
+        // Hilfsfunktion für saubere Auflösung
+        function resolveOnce() {
+            if (!resolved) {
+                resolved = true;
+                resolve();
+            }
+        }
         
-        // KORREKTUR: oncanplaythrough Event für bessere Kompatibilität
+        // Event Handler: Audio kann abgespielt werden
         audioElement.oncanplaythrough = () => {
             console.log('✅ Audio can play through, attempting to play');
             
@@ -1032,103 +1057,105 @@ async function playLlmAudio(audioUrl) {
                     showProgressStatus(4, '🎵 Écoute en cours...');
                 })
                 .catch(playError => {
-                    console.error('❌ Play prevented:', playError);
-                    audioHasBeenPlayed = false;
+                    console.error('❌ Play prevented by browser:', playError.name, playError.message);
+                    audioHasBeenPlayed = false; // Benutzer kann manuell abspielen
                     isLlmAudioPlaying = false;
-                    showProgressStatus(4, '⚠️ Lecture audio empêchée. Texte disponible.');
+                    showProgressStatus(4, '⚠️ Cliquez sur le bouton play pour écouter l\'audio');
+                    
+                    // Audio-Player sichtbar lassen für manuelles Abspielen
+                    audioElement.classList.remove('hidden');
                     elements.responseText && elements.responseText.classList.add('hidden');
                     isTextCurrentlyVisible = false;
                     updateShowResponseButton();
                     
-                    if (!resolved) {
-                        resolved = true;
-                        resolve();
-                    }
+                    resolveOnce();
                 });
         };
 
+        // Event Handler: Audio beendet
         audioElement.onended = () => {
             console.log('✅ LLM Audio ended successfully');
             audioHasBeenPlayed = true;
             isLlmAudioPlaying = false;
             showProgressStatus(4, '✅ Audio terminé - Texte disponible!');
             updateShowResponseButton();
-            
-            if (!resolved) {
-                resolved = true;
-                resolve();
-            }
+            resolveOnce();
+        };
+        
+        // Event Handler: Play-Event (für automatisches und manuelles Abspielen)
+        audioElement.onplay = () => {
+            console.log('🎵 Audio play event triggered');
+            isLlmAudioPlaying = true;
+            updateShowResponseButton();
+            showProgressStatus(4, '🎵 Écoute en cours...');
+        };
+        
+        // Event Handler: Pause-Event
+        audioElement.onpause = () => {
+            console.log('⏸️ Audio paused');
+            isLlmAudioPlaying = false;
+            updateShowResponseButton();
         };
 
+        // Event Handler: Fehler beim Laden/Abspielen
         audioElement.onerror = (e) => {
-            // KORREKTUR: Bessere Fehlerbehandlung
-            if (!audioElement.src || 
-                audioElement.src === '' || 
-                audioElement.networkState === HTMLMediaElement.NETWORK_EMPTY) {
-                console.log('LLM Audio error ignored (no source set)');
-                if (!resolved) {
-                    resolved = true;
-                    resolve();
-                }
-                return;
-            }
-            
-            console.error('❌ Error loading/playing LLM audio:', e);
-            console.error('Audio element error details:', {
+            console.error('❌ Error loading/playing LLM audio');
+            console.error('Audio element state:', {
                 error: audioElement.error,
                 networkState: audioElement.networkState,
                 readyState: audioElement.readyState,
                 src: audioElement.src
             });
             
+            // Detaillierte Fehleranalyse
+            if (audioElement.error) {
+                const errorMessages = {
+                    1: 'MEDIA_ERR_ABORTED - Audio wurde abgebrochen',
+                    2: 'MEDIA_ERR_NETWORK - Netzwerkfehler beim Laden',
+                    3: 'MEDIA_ERR_DECODE - Fehler beim Dekodieren der Audio-Datei',
+                    4: 'MEDIA_ERR_SRC_NOT_SUPPORTED - Audio-Format nicht unterstützt'
+                };
+                console.error('Error details:', errorMessages[audioElement.error.code] || 'Unbekannter Fehler');
+            }
+            
             audioHasBeenPlayed = false;
             isLlmAudioPlaying = false;
-            showProgressStatus(4, '⚠️ Erreur de lecture audio. Texte disponible.');
-            elements.responseText && elements.responseText.classList.add('hidden');
-            isTextCurrentlyVisible = false;
+            showProgressStatus(4, '⚠️ Erreur audio - Texte disponible maintenant');
+            
+            // Bei Fehler: Text sofort verfügbar machen
+            audioHasBeenPlayed = true; // Setze auf true damit Text angezeigt werden kann
             updateShowResponseButton();
             
-            if (!resolved) {
-                resolved = true;
-                resolve();
-            }
+            resolveOnce();
         };
         
-        // KORREKTUR: Audio-Element vorbereiten
+        // Audio-Element konfigurieren
         audioElement.preload = 'auto';
         audioElement.volume = 1.0;
         
-        // Textbereich vor dem Laden ausblenden
+        // UI vorbereiten
         elements.responseText && elements.responseText.classList.add('hidden');
         isTextCurrentlyVisible = false;
-
-        // Audio-Player anzeigen
         audioElement.classList.remove('hidden');
         
-        // JETZT src setzen und laden
-        console.log('Setting audio src to:', audioUrl);
+        // Audio laden
+        console.log('Setting audio src and loading:', audioUrl);
         audioElement.src = audioUrl;
         audioElement.load();
         
-        console.log('Audio element after setup:', {
-            src: audioElement.src,
-            networkState: audioElement.networkState,
-            readyState: audioElement.readyState,
-            preload: audioElement.preload
-        });
+        console.log('Audio setup complete, waiting for events...');
         
-        // Timeout für den Fall, dass Events nicht gefeuert werden
+        // Sicherheits-Timeout (15 Sekunden)
         setTimeout(() => {
             if (!resolved) {
-                console.warn('⚠️ Audio loading timeout - resolving anyway');
-                audioHasBeenPlayed = false;
+                console.warn('⚠️ Audio loading timeout (15s) - making text available');
+                audioHasBeenPlayed = true; // Text verfügbar machen
                 isLlmAudioPlaying = false;
-                showProgressStatus(4, '⚠️ Timeout audio. Texte disponible.');
+                showProgressStatus(4, '⚠️ Timeout - Texte maintenant disponible');
                 updateShowResponseButton();
-                resolved = true;
-                resolve();
+                resolveOnce();
             }
-        }, 10000); // 10 Sekunden Timeout
+        }, 15000);
     });
 }
 
@@ -1291,6 +1318,8 @@ elements.recordBtn && elements.recordBtn.addEventListener('click', () => {
 });
 
 // Verbesserte Audio Event Listener
+/* !!!!!!!! playLlmAudio() behandelt bereits alle Events !!!!!!!!!!
+
 elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('play', () => {
     console.log('🎵 LLM Audio playback started (global listener)');
     // Nur setzen wenn nicht bereits durch playLlmAudio gesetzt
@@ -1329,7 +1358,7 @@ elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('error',
         updateShowResponseButton();
     }
 });
-
+*/
 
   elements.stopBtn && elements.stopBtn.addEventListener('click', () => {
     stopRealTimeSpeech();
