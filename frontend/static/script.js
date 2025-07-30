@@ -839,8 +839,19 @@ async function sendMessageToBackend(message) {
         }
 
         const data = await response.json();
-        console.log('✅ Backend response received:', data);
-        console.log('Empfangene audio_url (Chat):', data.audio_url);
+        console.log('=== CHAT RESPONSE DEBUG ===');
+        console.log('Full response:', JSON.stringify(data, null, 2));
+        console.log('Response keys:', Object.keys(data));
+        console.log('audio_url value:', data.audio_url);
+        console.log('audio_url type:', typeof data.audio_url);
+        console.log('audio_url truthy:', !!data.audio_url);
+
+        // Test audio URL if present
+        if (data.audio_url) {
+            console.log('Testing audio URL accessibility...');
+            await testAudioUrl(data.audio_url);
+        }
+        console.log('=== END DEBUG ===');
 
         // Lokale Historie nur zur Anzeige
         conversationHistory.push(
@@ -971,7 +982,7 @@ function showAudioRetryOptions() {
         showProgressStatus(4, '✅ Texte affiché sans audio.');
     };
 
-// NEUE playLlmAudio Funktion mit log
+// KORRIGIERTE playLlmAudio Funktion mit log
 async function playLlmAudio(audioUrl) {
     console.log('=== PLAY LLM AUDIO DEBUG ===');
     console.log('Received audioUrl:', audioUrl);
@@ -982,72 +993,175 @@ async function playLlmAudio(audioUrl) {
     
     if (!audioUrl || audioUrl.trim() === '') {
         console.error('❌ Invalid audio URL provided to playLlmAudio');
+        audioHasBeenPlayed = false;
+        isLlmAudioPlaying = false;
+        updateShowResponseButton();
         return Promise.resolve();
     }
     
     if (!elements.llmAudioPlayback) {
         console.error('❌ Audio playback element not found');
+        audioHasBeenPlayed = false;
+        isLlmAudioPlaying = false;
+        updateShowResponseButton();
         return Promise.resolve();
     }
     
     return new Promise((resolve) => {
-        elements.llmAudioPlayback.src = audioUrl;
-        elements.llmAudioPlayback.load(); // Lädt das neue Audio
-
-        // Textbereich vor dem Abspielen ausblenden
-        elements.responseText && elements.responseText.classList.add('hidden');
-        isTextCurrentlyVisible = false;
-
-        elements.llmAudioPlayback && elements.llmAudioPlayback.classList.remove('hidden'); // Audio-Player anzeigen
+        // KORREKTUR: Event-Listener vor dem Setzen der src hinzufügen
+        const audioElement = elements.llmAudioPlayback;
         
-        isLlmAudioPlaying = true; // Setze Flag
-        updateShowResponseButton(); // Button ausblenden, da Audio spielt
-
-        elements.llmAudioPlayback.onended = () => {
-            console.log("LLM Audio ended.");
-            audioHasBeenPlayed = true;
-            isLlmAudioPlaying = false; // Audio ist beendet
-            showProgressStatus(4, '✅ Audio terminé - Texte disponible!');
-            // showResponseText(); // REMOVED: Text wird nicht mehr automatisch nach Audio-Ende angezeigt
-            updateShowResponseButton(); // Button aktualisieren (sollte jetzt "Afficher le texte" sein)
-            resolve();
+        // Cleanup vorherige Event-Listener
+        audioElement.oncanplaythrough = null;
+        audioElement.onerror = null;
+        audioElement.onended = null;
+        audioElement.onloadstart = null;
+        audioElement.onplay = null;
+        
+        let resolved = false; // Verhindert mehrfaches Auflösen
+        
+        // KORREKTUR: oncanplaythrough Event für bessere Kompatibilität
+        audioElement.oncanplaythrough = () => {
+            console.log('✅ Audio can play through, attempting to play');
+            
+            audioElement.play()
+                .then(() => {
+                    console.log('✅ Audio playback started successfully');
+                    isLlmAudioPlaying = true;
+                    updateShowResponseButton();
+                    showProgressStatus(4, '🎵 Écoute en cours...');
+                })
+                .catch(playError => {
+                    console.error('❌ Play prevented:', playError);
+                    audioHasBeenPlayed = false;
+                    isLlmAudioPlaying = false;
+                    showProgressStatus(4, '⚠️ Lecture audio empêchée. Texte disponible.');
+                    elements.responseText && elements.responseText.classList.add('hidden');
+                    isTextCurrentlyVisible = false;
+                    updateShowResponseButton();
+                    
+                    if (!resolved) {
+                        resolved = true;
+                        resolve();
+                    }
+                });
         };
 
-        elements.llmAudioPlayback.onerror = (e) => {
-            // KORREKTUR: Fehler beim Reload ignorieren (leere src oder network empty)
-            if (!elements.llmAudioPlayback.src || 
-                elements.llmAudioPlayback.src === '' || 
-                elements.llmAudioPlayback.networkState === HTMLMediaElement.NETWORK_EMPTY) {
-                console.log("LLM Audio error ignored (no source set)");
+        audioElement.onended = () => {
+            console.log('✅ LLM Audio ended successfully');
+            audioHasBeenPlayed = true;
+            isLlmAudioPlaying = false;
+            showProgressStatus(4, '✅ Audio terminé - Texte disponible!');
+            updateShowResponseButton();
+            
+            if (!resolved) {
+                resolved = true;
                 resolve();
+            }
+        };
+
+        audioElement.onerror = (e) => {
+            // KORREKTUR: Bessere Fehlerbehandlung
+            if (!audioElement.src || 
+                audioElement.src === '' || 
+                audioElement.networkState === HTMLMediaElement.NETWORK_EMPTY) {
+                console.log('LLM Audio error ignored (no source set)');
+                if (!resolved) {
+                    resolved = true;
+                    resolve();
+                }
                 return;
             }
             
-            console.error("Error playing LLM audio:", e);
+            console.error('❌ Error loading/playing LLM audio:', e);
+            console.error('Audio element error details:', {
+                error: audioElement.error,
+                networkState: audioElement.networkState,
+                readyState: audioElement.readyState,
+                src: audioElement.src
+            });
+            
             audioHasBeenPlayed = false;
             isLlmAudioPlaying = false;
             showProgressStatus(4, '⚠️ Erreur de lecture audio. Texte disponible.');
             elements.responseText && elements.responseText.classList.add('hidden');
             isTextCurrentlyVisible = false;
             updateShowResponseButton();
-            resolve();
+            
+            if (!resolved) {
+                resolved = true;
+                resolve();
+            }
         };
         
-        console.log("Attempting to play LLM audio:", audioUrl);
-        elements.llmAudioPlayback.play().catch(e => {
-            console.error("Play prevented:", e);
-            audioHasBeenPlayed = false; // Mark as not played successfully
-            isLlmAudioPlaying = false; // Audio konnte nicht abgespielt werden
-            showProgressStatus(4, '⚠️ Lecture audio empêchée. Texte disponible.');
-            // showResponseText(); // REMOVED: Text wird nicht mehr automatisch angezeigt, wenn Play verhindert wird
-            elements.responseText && elements.responseText.classList.add('hidden'); // Sicherstellen, dass Textbereich versteckt ist
-            isTextCurrentlyVisible = false; // Sicherstellen, dass dies false ist
-            updateShowResponseButton(); // Button aktualisieren
-            resolve(); // Auflösen, auch wenn Play verhindert wird
+        // KORREKTUR: Audio-Element vorbereiten
+        audioElement.preload = 'auto';
+        audioElement.volume = 1.0;
+        
+        // Textbereich vor dem Laden ausblenden
+        elements.responseText && elements.responseText.classList.add('hidden');
+        isTextCurrentlyVisible = false;
+
+        // Audio-Player anzeigen
+        audioElement.classList.remove('hidden');
+        
+        // JETZT src setzen und laden
+        console.log('Setting audio src to:', audioUrl);
+        audioElement.src = audioUrl;
+        audioElement.load();
+        
+        console.log('Audio element after setup:', {
+            src: audioElement.src,
+            networkState: audioElement.networkState,
+            readyState: audioElement.readyState,
+            preload: audioElement.preload
         });
+        
+        // Timeout für den Fall, dass Events nicht gefeuert werden
+        setTimeout(() => {
+            if (!resolved) {
+                console.warn('⚠️ Audio loading timeout - resolving anyway');
+                audioHasBeenPlayed = false;
+                isLlmAudioPlaying = false;
+                showProgressStatus(4, '⚠️ Timeout audio. Texte disponible.');
+                updateShowResponseButton();
+                resolved = true;
+                resolve();
+            }
+        }, 10000); // 10 Sekunden Timeout
     });
 }
 
+// ZUSÄTZLICHE DEBUG-FUNKTION um Audio-Dateien zu testen:
+
+async function testAudioUrl(url) {
+    console.log('=== TESTING AUDIO URL ===');
+    console.log('URL:', url);
+    
+    try {
+        const response = await fetch(url, { method: 'HEAD' });
+        console.log('HTTP Status:', response.status);
+        console.log('Content-Type:', response.headers.get('content-type'));
+        console.log('Content-Length:', response.headers.get('content-length'));
+        
+        if (response.ok) {
+            console.log('✅ Audio file is accessible');
+            
+            // Test mit neuem Audio-Element
+            const testAudio = new Audio();
+            testAudio.oncanplaythrough = () => console.log('✅ Test audio can play through');
+            testAudio.onerror = (e) => console.error('❌ Test audio error:', e);
+            testAudio.src = url;
+            testAudio.load();
+            
+        } else {
+            console.error('❌ Audio file not accessible:', response.status);
+        }
+    } catch (error) {
+        console.error('❌ Error testing audio URL:', error);
+    }
+    console.log('=== END AUDIO URL TEST ===');
+}
 
   // === Event Listeners ===
 // === OPTIMIERTE KONVERSATIONS-STARTER ===
@@ -1178,33 +1292,42 @@ elements.recordBtn && elements.recordBtn.addEventListener('click', () => {
 
 // Verbesserte Audio Event Listener
 elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('play', () => {
-    console.log('🎵 LLM Audio playback started');
-    isLlmAudioPlaying = true; // Ensure this is true when playback starts
-    updateShowResponseButton(); // Update button state
-    showProgressStatus(4, '🎵 Écoute en cours...');
+    console.log('🎵 LLM Audio playback started (global listener)');
+    // Nur setzen wenn nicht bereits durch playLlmAudio gesetzt
+    if (!isLlmAudioPlaying) {
+        isLlmAudioPlaying = true;
+        updateShowResponseButton();
+        showProgressStatus(4, '🎵 Écoute en cours...');
+    }
 });
 
 elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('ended', () => {
-    console.log('✅ LLM Audio playback ended');
-    audioHasBeenPlayed = true;
-    isLlmAudioPlaying = false; // Audio finished playing
-    showProgressStatus(4, '✅ Audio terminé - Texte disponible!');
-    updateShowResponseButton(); // Update button state (should now be "Afficher le texte")
+    console.log('✅ LLM Audio playback ended (global listener)');
+    // Nur setzen wenn nicht bereits durch playLlmAudio behandelt
+    if (isLlmAudioPlaying) {
+        audioHasBeenPlayed = true;
+        isLlmAudioPlaying = false;
+        showProgressStatus(4, '✅ Audio terminé - Texte disponible!');
+        updateShowResponseButton();
+    }
 });
 
 elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('error', (e) => {
-    // KORREKTUR: Fehler beim Reload ignorieren (leere src oder network empty)
+    // Gleiche Logik wie in playLlmAudio
     if (!elements.llmAudioPlayback.src || 
         elements.llmAudioPlayback.src === '' || 
         elements.llmAudioPlayback.networkState === HTMLMediaElement.NETWORK_EMPTY) {
-        console.log("LLM Audio error ignored (no source set)");
+        console.log("LLM Audio error ignored (no source set - global listener)");
         return;
     }
-    console.error('❌ LLM Audio playback error:', e);
-    audioHasBeenPlayed = false;
-    isLlmAudioPlaying = false;
-    showProgressStatus(4, '⚠️ Erreur de lecture audio. Texte disponible.');
-    updateShowResponseButton();
+    
+    console.error('❌ LLM Audio playback error (global listener):', e);
+    if (isLlmAudioPlaying) {
+        audioHasBeenPlayed = false;
+        isLlmAudioPlaying = false;
+        showProgressStatus(4, '⚠️ Erreur de lecture audio. Texte disponible.');
+        updateShowResponseButton();
+    }
 });
 
 
