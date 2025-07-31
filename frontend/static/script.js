@@ -1484,4 +1484,3 @@ document.addEventListener('keydown', (e) => {
 // Initial UI setup
   resetUI();
   console.log('🚀 FR-AI-Tutor Frontend initialized with Real-Time Speech Recognition');
-});
