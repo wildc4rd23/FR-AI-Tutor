@@ -1478,7 +1478,7 @@ document.addEventListener('keydown', (e) => {
     }
   }
 
-}
+});
 
 // Initial UI setup
   resetUI();
