@@ -999,15 +999,15 @@ function showAudioRetryOptions() {
     };
 
 // KORRIGIERTE playLlmAudio Funktion mit log
-async function playLlmAudio(audioUrl) {
+async function playLlmAudio(audio_url) {
     console.log('=== PLAY LLM AUDIO DEBUG ===');
-    console.log('Received audioUrl:', audioUrl);
-    console.log('audioUrl type:', typeof audioUrl);
-    console.log('audioUrl length:', audioUrl ? audioUrl.length : 'N/A');
+    console.log('Received audio_url:', audio_url);
+    console.log('audio_url type:', typeof audio_url);
+    console.log('audio_url length:', audio_url ? audio_url.length : 'N/A');
     console.log('Audio element exists:', !!elements.llmAudioPlayback);
     console.log('Audio element src before:', elements.llmAudioPlayback ? elements.llmAudioPlayback.src : 'N/A');
     
-    if (!audioUrl || audioUrl.trim() === '') {
+    if (!audio_url || audio_url.trim() === '') {
         console.error('❌ Invalid audio URL provided to playLlmAudio');
         audioHasBeenPlayed = false;
         isLlmAudioPlaying = false;
@@ -1139,8 +1139,8 @@ async function playLlmAudio(audioUrl) {
         audioElement.classList.remove('hidden');
         
         // Audio laden
-        console.log('Setting audio src and loading:', audioUrl);
-        audioElement.src = audioUrl;
+        console.log('Setting audio src and loading:', audio_url);
+        audioElement.src = audio_url;
         audioElement.load();
         
         console.log('Audio setup complete, waiting for events...');

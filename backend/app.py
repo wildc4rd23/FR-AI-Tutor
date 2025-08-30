@@ -197,7 +197,7 @@ def start_conversation():
         else:
             logger.warning(f"[{user_id}] TTS für initiale Antwort fehlgeschlagen.")
 
-        return jsonify({'response': llm_initial_response_text, 'audioUrl': audio_url, 'scenario': scenario, 'userId': user_id})
+        return jsonify({'response': llm_initial_response_text, 'audio_url': audio_url, 'scenario': scenario, 'userId': user_id})
 
     except Exception as e:
         logger.critical(f"[{user_id}] KRITISCHER FEHLER beim Starten der Konversation: {str(e)}", exc_info=True)
