@@ -421,7 +421,7 @@ function updateShowResponseButton() {
     }
     
     cleanupAudioStream();
-
+  }
     elements.startSection && elements.startSection.classList.remove('hidden');
     elements.conversationSection && elements.conversationSection.classList.add('hidden');
     
@@ -433,115 +433,115 @@ function updateShowResponseButton() {
     elements.responseText && elements.responseText.classList.add('hidden');
     
     // KORREKTUR: Vollständiger Audio-Reset ohne Fehler
-if (elements.llmAudioPlayback) {
-    // Audio stoppen falls es läuft
-    if (!elements.llmAudioPlayback.paused) {
-        elements.llmAudioPlayback.pause();
-    }
-    
-    // ALLE Event-Listener entfernen
-    elements.llmAudioPlayback.oncanplaythrough = null;
-    elements.llmAudioPlayback.onerror = null;
-    elements.llmAudioPlayback.onended = null;
-    elements.llmAudioPlayback.onloadstart = null;
-    elements.llmAudioPlayback.onplay = null;
-    elements.llmAudioPlayback.onpause = null;
-    elements.llmAudioPlayback.onloadeddata = null;
-    elements.llmAudioPlayback.onloadedmetadata = null;
-    
-    // src zurücksetzen (löst keine Events aus da Listener entfernt sind)
-    elements.llmAudioPlayback.src = '';
-    elements.llmAudioPlayback.removeAttribute('src');
-    
-    // Element neu laden (sauberer Reset)
-    elements.llmAudioPlayback.load();
-    
-    // Verstecken
-    elements.llmAudioPlayback.classList.add('hidden');
-    
-    console.log('🔄 Audio element completely reset');
+    if (elements.llmAudioPlayback) {
+        // Audio stoppen falls es läuft
+        if (!elements.llmAudioPlayback.paused) {
+            elements.llmAudioPlayback.pause();
+        }
+        
+        // ALLE Event-Listener entfernen
+        elements.llmAudioPlayback.oncanplaythrough = null;
+        elements.llmAudioPlayback.onerror = null;
+        elements.llmAudioPlayback.onended = null;
+        elements.llmAudioPlayback.onloadstart = null;
+        elements.llmAudioPlayback.onplay = null;
+        elements.llmAudioPlayback.onpause = null;
+        elements.llmAudioPlayback.onloadeddata = null;
+        elements.llmAudioPlayback.onloadedmetadata = null;
+        
+        // src zurücksetzen (löst keine Events aus da Listener entfernt sind)
+        elements.llmAudioPlayback.src = '';
+        elements.llmAudioPlayback.removeAttribute('src');
+        
+        // Element neu laden (sauberer Reset)
+        elements.llmAudioPlayback.load();
+        
+        // Verstecken
+        elements.llmAudioPlayback.classList.add('hidden');
+        
+        console.log('🔄 Audio element completely reset');
 
-    elements.userAudio && (elements.userAudio.src = '');
-    elements.userAudio && elements.userAudio.classList.add('hidden');
-    
-    elements.showResponseBtn && elements.showResponseBtn.classList.add('hidden');
-    
-    updateRecordButton(); // Aktualisiere den Aufnahme-Button
-    
-    currentUserId = null; // Setze User ID zurück
-    recordedAudioBlob = null;
-    currentResponse = null; // Setze aktuelle Antwort zurück
-    audioHasBeenPlayed = false;
-    isTextCurrentlyVisible = false;
-    finalTranscript = '';
-    audioChunks = []; // Reset audio chunks
-    conversationHistory = []; // Konversationshistorie zurücksetzen
+        elements.userAudio && (elements.userAudio.src = '');
+        elements.userAudio && elements.userAudio.classList.add('hidden');
+        
+        elements.showResponseBtn && elements.showResponseBtn.classList.add('hidden');
+        
+        updateRecordButton(); // Aktualisiere den Aufnahme-Button
+        
+        currentUserId = null; // Setze User ID zurück
+        recordedAudioBlob = null;
+        currentResponse = null; // Setze aktuelle Antwort zurück
+        audioHasBeenPlayed = false;
+        isTextCurrentlyVisible = false;
+        finalTranscript = '';
+        audioChunks = []; // Reset audio chunks
+        conversationHistory = []; // Konversationshistorie zurücksetzen
 
-    hideStatus(elements.recordingStatus);
-  }
-
-  // Pause/Resume Funktionalität für Aufnahme
-  function pauseRealTimeSpeech() {
-  console.log('Pausing real-time speech...');
-  
-  isPaused = true;
-  isRecognitionRestarting = true;
-  
-  // Stop speech recognition
-  if (recognition && recognitionActive) {
-    try {
-      recognition.stop();
-    } catch (e) {
-      console.warn('Could not stop recognition:', e);
-    }
-  }
-  recognitionActive = false;
-  // Pause MediaRecorder (keep it running but stop collecting meaningful data)
-  if (mediaRecorder && mediaRecorder.state === "recording") {
-    // MediaRecorder kann nicht pausiert werden, aber wir können die Erkennung stoppen
-    console.log('Recording paused (speech recognition stopped)');
-  }
-  updateRecordButton();
-  showStatus(elements.recordingStatus, '⏸️ Enregistrement en pause', 'loading');
-  }
-
-  function resumeRealTimeSpeech() {
-      console.log('Resuming real-time speech...');
-      
-      isPaused = false;
-      isRecognitionRestarting = false;
-      
-      // Resume speech recognition
-      if (isRecording && recognition) {
-        startRecognition();
+        hideStatus(elements.recordingStatus);
       }
-      
-      updateRecordButton();
-      showStatus(elements.recordingStatus, '🎤 Enregistrement repris', 'success');
-  }
-  function updateRecordButton() {
 
-    if (!elements.recordBtn) return;
-
-    if (isRecording && !isPaused) {
-      elements.recordBtn.innerHTML = '⏸️ Pause';
-      elements.recordBtn.classList.add('recording');
-      elements.recordBtn.classList.remove('paused');
-
-    } else if (isRecording && isPaused) {
-      elements.recordBtn.innerHTML = '▶️ Reprendre';
-      elements.recordBtn.classList.remove('recording');
-      elements.recordBtn.classList.add('paused');
-
-    } else {
-      elements.recordBtn.innerHTML = '🎙️ Enregistrer';
-      elements.recordBtn.classList.remove('recording', 'paused');
+    // Pause/Resume Funktionalität für Aufnahme
+    function pauseRealTimeSpeech() {
+    console.log('Pausing real-time speech...');
+    
+    isPaused = true;
+    isRecognitionRestarting = true;
+    
+    // Stop speech recognition
+    if (recognition && recognitionActive) {
+      try {
+        recognition.stop();
+      } catch (e) {
+        console.warn('Could not stop recognition:', e);
+      }
+    }
+    recognitionActive = false;
+    // Pause MediaRecorder (keep it running but stop collecting meaningful data)
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      // MediaRecorder kann nicht pausiert werden, aber wir können die Erkennung stoppen
+      console.log('Recording paused (speech recognition stopped)');
+    }
+    updateRecordButton();
+    showStatus(elements.recordingStatus, '⏸️ Enregistrement en pause', 'loading');
     }
 
-    elements.recordBtn.disabled = false;
+    function resumeRealTimeSpeech() {
+        console.log('Resuming real-time speech...');
+        
+        isPaused = false;
+        isRecognitionRestarting = false;
+        
+        // Resume speech recognition
+        if (isRecording && recognition) {
+          startRecognition();
+        }
+        
+        updateRecordButton();
+        showStatus(elements.recordingStatus, '🎤 Enregistrement repris', 'success');
+    }
+    function updateRecordButton() {
 
-    elements.stopBtn && elements.stopBtn.classList.toggle('hidden', !isRecording); // toggle
-  }
+      if (!elements.recordBtn) return;
+
+      if (isRecording && !isPaused) {
+        elements.recordBtn.innerHTML = '⏸️ Pause';
+        elements.recordBtn.classList.add('recording');
+        elements.recordBtn.classList.remove('paused');
+
+      } else if (isRecording && isPaused) {
+        elements.recordBtn.innerHTML = '▶️ Reprendre';
+        elements.recordBtn.classList.remove('recording');
+        elements.recordBtn.classList.add('paused');
+
+      } else {
+        elements.recordBtn.innerHTML = '🎙️ Enregistrer';
+        elements.recordBtn.classList.remove('recording', 'paused');
+      }
+
+      elements.recordBtn.disabled = false;
+
+      elements.stopBtn && elements.stopBtn.classList.toggle('hidden', !isRecording); // toggle
+    }
 
   // === VERBESSERTE Audioaufnahme-Funktion mit Pause/Resume===
     async function startRealTimeSpeech() {
@@ -700,98 +700,98 @@ if (elements.llmAudioPlayback) {
       }
     }
 
-function hasAudioContent(audioBlob) {
-  return new Promise((resolve) => {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const fileReader = new FileReader();
-    
-    fileReader.onload = function(e) {
-      audioContext.decodeAudioData(e.target.result)
-        .then(buffer => {
-          // Prüfe auf tatsächlichen Audioinhalt
-          let hasSound = false;
-          const threshold = 0.01; // Mindestlautstärke
-          
-          for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
-            const channelData = buffer.getChannelData(channel);
-            for (let i = 0; i < channelData.length; i++) {
-              if (Math.abs(channelData[i]) > threshold) {
-                hasSound = true;
-                break;
+    function hasAudioContent(audioBlob) {
+      return new Promise((resolve) => {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        const audioContext = new AudioContextClass();
+        const fileReader = new FileReader();
+        
+        fileReader.onload = function(e) {
+          audioContext.decodeAudioData(e.target.result)
+            .then(buffer => {
+              // Prüfe auf tatsächlichen Audioinhalt
+              let hasSound = false;
+              const threshold = 0.01; // Mindestlautstärke
+              
+              for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+                const channelData = buffer.getChannelData(channel);
+                for (let i = 0; i < channelData.length; i++) {
+                  if (Math.abs(channelData[i]) > threshold) {
+                    hasSound = true;
+                    break;
+                  }
+                }
+                if (hasSound) break;
               }
-            }
-            if (hasSound) break;
-          }
-          
-          resolve(hasSound);
-        })
-        .catch(() => resolve(false)); // Bei Fehler beim Dekodieren, annehmen, dass kein Inhalt
-    };
-    
-    fileReader.readAsArrayBuffer(audioBlob);
-  });
-}
-    
-  function stopRealTimeSpeech() {
-    console.log('Stopping real-time speech...');
-    
-    // Set recording state
-    isRecording = false;
-    isRecognitionRestarting = true;
-    
-    // Stop speech recognition
-    if (recognition && recognitionActive) {
-      try {
-        recognition.stop();
-      } catch (e) {
-        console.warn('Could not stop recognition:', e);
-      }
-    }
-    recognitionActive = false;
-    
-    // Stop MediaRecorder
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-      console.log('Stopping MediaRecorder...');
-      try {
-        mediaRecorder.stop();
-        console.log('MediaRecorder stop called, state:', mediaRecorder.state);
-      } catch (e) {
-        console.error('Error stopping MediaRecorder:', e);
-      }
+              
+              resolve(hasSound);
+            })
+            .catch(() => resolve(false)); // Bei Fehler beim Dekodieren, annehmen, dass kein Inhalt
+        };
+        
+        fileReader.readAsArrayBuffer(audioBlob);
+      });
     }
     
-    // Clean up audio stream
-    cleanupAudioStream();
-    resetRecordButton();
+    function stopRealTimeSpeech() {
+      console.log('Stopping real-time speech...');
+      
+      // Set recording state
+      isRecording = false;
+      isRecognitionRestarting = true;
+      
+      // Stop speech recognition
+      if (recognition && recognitionActive) {
+        try {
+          recognition.stop();
+        } catch (e) {
+          console.warn('Could not stop recognition:', e);
+        }
+      }
+      recognitionActive = false;
     
-    // Update user text with final transcript
-    if (elements.userText) {
-      const finalContent = finalTranscript.trim();
-      elements.userText.textContent = finalContent;
-      console.log('Final User Text set:', finalContent);
+      // Stop MediaRecorder
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        console.log('Stopping MediaRecorder...');
+        try {
+          mediaRecorder.stop();
+          console.log('MediaRecorder stop called, state:', mediaRecorder.state);
+        } catch (e) {
+          console.error('Error stopping MediaRecorder:', e);
+        }
+      }
+    
+      // Clean up audio stream
+      cleanupAudioStream();
+      resetRecordButton();
+    
+      // Update user text with final transcript
+      if (elements.userText) {
+        const finalContent = finalTranscript.trim();
+        elements.userText.textContent = finalContent;
+        console.log('Final User Text set:', finalContent);
 
-      if (finalContent) {
-        elements.userText.classList.remove('placeholder');
-        elements.userText.dataset.isPlaceholder = 'false';
+        if (finalContent) {
+          elements.userText.classList.remove('placeholder');
+          elements.userText.dataset.isPlaceholder = 'false';
+        } else {
+          elements.userText.textContent = placeholderText;
+          elements.userText.classList.add('placeholder');
+          elements.userText.dataset.isPlaceholder = 'true';
+        }
+      }
+
+      // Send transcribed text to backend - NUR wenn konfiguriert
+      if (finalTranscript.trim()) {
+        if (autoSendAfterRecording) {
+          console.log('Auto-Send aktiviert - gesendeter Text:', finalTranscript.trim());
+          sendMessageToBackend(finalTranscript.trim());
+        } else {
+          showStatus(elements.recordingStatus, '✅ Transcription prête, Envoyer', 'success');
+        }
       } else {
-        elements.userText.textContent = placeholderText;
-        elements.userText.classList.add('placeholder');
-        elements.userText.dataset.isPlaceholder = 'true';
+        showStatus(elements.recordingStatus, '⚠️ Aucune parole détectée', 'warning');
       }
-    }
-
-
-    // Send transcribed text to backend - NUR wenn konfiguriert
-    if (finalTranscript.trim()) {
-      if (autoSendAfterRecording) {
-        console.log('Auto-Send aktiviert - gesendeter Text:', finalTranscript.trim());
-        sendMessageToBackend(finalTranscript.trim());
-      } else {
-        showStatus(elements.recordingStatus, '✅ Transcription prête, Envoyer', 'success');
-      }
-    } else {
-      showStatus(elements.recordingStatus, '⚠️ Aucune parole détectée', 'warning');
-    }
 
   }
 
@@ -1411,10 +1411,10 @@ elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('error',
     }
   });
 
-    elements.scenarioSelect && elements.scenarioSelect.addEventListener('change', (event) => {
+  elements.scenarioSelect && elements.scenarioSelect.addEventListener('change', (event) => {
         currentScenario = event.target.value;
         console.log('Scenario changed to:', currentScenario);
-    });
+  });
 
 // === VERBESSERTES DEBUGGING ===
 function debugConversationState() {
@@ -1435,7 +1435,6 @@ function debugConversationState() {
 if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     setInterval(debugConversationState, 30000);
 }
-
 
   // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
@@ -1479,8 +1478,9 @@ document.addEventListener('keydown', (e) => {
     }
   }
 
- }); 
+}
 
 // Initial UI setup
   resetUI();
   console.log('🚀 FR-AI-Tutor Frontend initialized with Real-Time Speech Recognition');
+});
