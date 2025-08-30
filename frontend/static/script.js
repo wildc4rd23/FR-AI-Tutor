@@ -1195,7 +1195,7 @@ async function testAudioUrl(url) {
 elements.startBtn && elements.startBtn.addEventListener('click', async () => {
     console.log('🚀 Starting conversation...');
 
-    const scenario = elements.scenarioSelect?.value;
+    const scenario = elements.scenarioSelect && elements.scenarioSelect.value;
     // forceReset basierend auf Szenario-Wechsel ODER wenn currentUserId noch nicht gesetzt ist
     const forceReset = currentUserId === null || scenario !== currentScenario;
     currentScenario = scenario; // Aktualisiere das aktuelle Szenario
