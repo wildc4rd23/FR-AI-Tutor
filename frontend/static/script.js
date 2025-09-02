@@ -476,7 +476,7 @@ function updateShowResponseButton() {
         finalTranscript = '';
         audioChunks = []; // Reset audio chunks
         conversationHistory = []; // Konversationshistorie zurücksetzen
-
+        updateChatHistoryUI(); 
         hideStatus(elements.recordingStatus);
       }
 
@@ -874,7 +874,7 @@ async function sendMessageToBackend(message) {
             { role: 'user', content: message },
             { role: 'assistant', content: data.response }
         );
-        
+        updateChatHistoryUI(); 
         setResponseSafely(data.response); // Setzt currentResponse und zeigt Hinweis an
 
         if (data.audio_url) {
@@ -1266,7 +1266,7 @@ console.log('🎯 Conversation started successfully:', data);
 
 currentUserId = data.userId;
 conversationHistory = [{ role: 'assistant', content: data.response }];
-
+updateChatHistoryUI();
 setResponseSafely(data.response);
 showProgressStatus(2, '📝 Conversation préparée...');
 
@@ -1479,6 +1479,39 @@ document.addEventListener('keydown', (e) => {
   }
 
 });
+
+// Chat Historie UI Update Funktion
+function updateChatHistoryUI() {
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return;
+    
+    // Leere den Container
+    chatMessages.innerHTML = '';
+    
+    // Nutze die bestehende conversationHistory
+    conversationHistory.forEach(msg => {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chat-message ${msg.role}`;
+        
+        // Kürze lange Nachrichten für die Anzeige
+        const preview = msg.content.length > 80 ? 
+            msg.content.substring(0, 80) + '...' : 
+            msg.content;
+            
+        messageDiv.innerHTML = `
+            <strong>${msg.role === 'user' ? '👤 Vous' : '👨‍🏫 Assistant'}:</strong> 
+            ${preview}
+        `;
+        
+        chatMessages.appendChild(messageDiv);
+    });
+    
+    // Auto-scroll zum Ende
+    const chatHistory = document.getElementById('chatHistory');
+    if (chatHistory) {
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+}
 
 // Initial UI setup
   resetUI();
