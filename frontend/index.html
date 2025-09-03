@@ -41,9 +41,24 @@
       margin-bottom: 5px;
     }
     
-    .header p {
+    .header-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       font-size: 0.9em;
       opacity: 0.9;
+      gap: 20px;
+    }
+    
+    .header-info p {
+      margin: 0;
+      flex: 1;
+    }
+    
+    .theme-display {
+      font-weight: bold;
+      white-space: nowrap;
+      min-width: fit-content;
     }
     
     /* Chat History Toggle */
@@ -65,7 +80,7 @@
       background: rgba(255,255,255,0.3);
     }
     
-    /* Chat History Dropdown */
+    /* Chat History Dropdown - Niedriger */
     .chat-history {
       background: #f8fafc;
       border-bottom: 2px solid #e2e8f0;
@@ -75,8 +90,8 @@
     }
     
     .chat-history.show {
-      max-height: 200px;
-      padding: 15px 20px;
+      max-height: 160px; /* Reduziert von 200px auf 160px */
+      padding: 12px 20px; /* Reduziert von 15px */
     }
     
     .chat-message {
@@ -115,11 +130,11 @@
       color: #4a5568;
     }
     
-    /* Conversation Section - Compact Grid Layout */
+    /* Conversation Section - Kompakt ohne separaten Scenario-Display */
     #conversationSection {
       display: grid;
       grid-template-columns: 1fr;
-      grid-template-rows: auto 1fr 1fr auto;
+      grid-template-rows: 1fr 1fr auto; /* Entfernt auto für scenario-display */
       gap: 15px;
       height: 100%;
       max-height: calc(925px - 120px); /* Header height */
@@ -161,7 +176,7 @@
       border-radius: 6px;
       border: 1px solid #e2e8f0;
       min-height: 80px;
-      max-height: 150px;
+      max-height: 120px; /* Reduziert von 150px auf 120px für einheitliche Höhe */
       overflow-y: auto;
     }
     
@@ -267,7 +282,7 @@
       cursor: not-allowed;
     }
     
-    /* Audio Elements - Improved */
+    /* Audio Elements - Verbesserte Darstellung */
     .audio-player {
       flex: 1;
       min-width: 200px;
@@ -275,14 +290,20 @@
       height: 30px;
     }
     
-    /* Custom Audio Controls */
+    /* Custom Audio Controls - Gleiche Länge für alle Elemente */
     .audio-player::-webkit-media-controls-panel {
       background-color: #f7fafc;
     }
     
+    .audio-player::-webkit-media-controls-timeline {
+      flex: 1;
+      min-width: 120px;
+    }
+    
     .audio-player::-webkit-media-controls-volume-slider {
-      min-width: 80px !important;
-      width: 80px !important;
+      min-width: 120px !important;
+      width: 120px !important;
+      flex: 0 0 120px;
     }
     
     /* Footer Controls */
@@ -334,6 +355,12 @@
       .header { padding: 10px 15px; }
       .header h1 { font-size: 1.3em; }
       
+      .header-info {
+        flex-direction: column;
+        gap: 5px;
+        text-align: center;
+      }
+      
       .main-content { padding: 15px; }
       
       #conversationSection {
@@ -384,7 +411,12 @@
     <div class="header">
       <button class="chat-toggle" id="chatToggle">📜 Historique</button>
       <h1>Assistant Vocal Français</h1>
-      <p>Pratiquez votre français avec un assistant intelligent (niveau B1/B2)</p>
+      <div class="header-info">
+        <p>Pratiquez votre français avec un assistant intelligent (niveau B1/B2)</p>
+        <div class="theme-display">
+          <span id="currentScenarioDisplay">Thème: Non sélectionné</span>
+        </div>
+      </div>
     </div>
 
     <!-- Chat History (Collapsible) -->
@@ -416,11 +448,6 @@
 
       <!-- Conversation Section -->
       <div id="conversationSection" class="hidden">
-        <!-- Current Scenario Display -->
-        <div class="scenario-display">
-          Thème actuel: <span id="currentScenarioDisplay">Non sélectionné</span>
-        </div>
-        
         <!-- Assistant Response -->
         <div class="text-block assistant-response">
           <h3>👨‍🏫 Réponse de l'assistant</h3>
