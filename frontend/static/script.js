@@ -1666,7 +1666,41 @@ function updateChatHistoryUI() {
 // Initial UI setup
   resetUI();
   console.log('🚀 FR-AI-Tutor Frontend initialized with Real-Time Speech Recognition');
+
+  // Chat History Functionality
+  const chatToggle = document.getElementById('chatToggle');
+  const chatHistory = document.getElementById('chatHistory');
+  const chatMessages = document.getElementById('chatMessages');
+  
+  // Toggle chat history
+  chatToggle.addEventListener('click', () => {
+    chatHistory.classList.toggle('show');
+    chatToggle.textContent = chatHistory.classList.contains('show') ? '📜 Masquer' : '📜 Historique';
+  });
+  
+  // Function to add message to chat history
+  window.addToChatHistory = function(role, message) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${role}`;
+    messageDiv.innerHTML = `<strong>${role === 'user' ? '👤 Vous' : '👨‍🏫 Assistant'}:</strong> ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`;
+    chatMessages.appendChild(messageDiv);
+    
+    // Auto-scroll to bottom
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+    
+    // Limit to 20 messages
+    while (chatMessages.children.length > 20) {
+      chatMessages.removeChild(chatMessages.firstChild);
+    }
+  };
+  
+  // Function to clear chat history
+  window.clearChatHistory = function() {
+    chatMessages.innerHTML = '';
+  };
+
 });
+
 // === ZUSÄTZLICHE Mobile Touch-Event Behandlung ===
 // Touch-Event Support für bessere Mobile Experience
 document.addEventListener('touchstart', function() {
