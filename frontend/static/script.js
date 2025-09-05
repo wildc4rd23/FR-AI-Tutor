@@ -60,6 +60,15 @@ document.addEventListener('DOMContentLoaded', function() {
     recognition.continuous = true;
     recognition.maxAlternatives = 1;
 
+    // Mobile-spezifische Optimierungen
+    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+      console.log('Applying mobile-specific speech recognition settings');
+      // Für mobile Geräte weniger aggressive continuous recognition
+      recognition.continuous = false; // Weniger Probleme auf Mobile
+      // Andere mobile Optimierungen könnten hier hinzugefügt werden
+    }
+
     recognition.onresult = (event) => {
       console.log('Speech recognition result received');
       let interimTranscript = '';
@@ -95,30 +104,38 @@ document.addEventListener('DOMContentLoaded', function() {
       showStatus(elements.recordingStatus, statusText, 'success');
     };
 
+    // ERWEITERTE Error-Handler für Mobile
     recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
+      console.error('Speech recognition error (mobile-optimized):', event.error);
       
       let errorMessage = '⚠️ Erreur de reconnaissance vocale';
       let shouldRestart = false;
+      let showInstructions = false;
       
       switch (event.error) {
         case 'not-allowed':
           errorMessage = '🚫 Accès au microphone refusé';
           recognitionActive = false;
+          showInstructions = true;
           break;
         case 'no-speech':
           console.log('No speech detected, will restart...');
-          shouldRestart = true;
-          errorMessage = null; // No error message for no-speech, just restart
+          shouldRestart = !isMobile; // Auf Mobile weniger aggressive Restarts
+          errorMessage = null;
           break;
         case 'network':
           errorMessage = '🌐 Erreur réseau';
           shouldRestart = true;
           break;
+        case 'service-not-allowed':
+          errorMessage = '🚫 Service de reconnaissance vocale bloqué';
+          recognitionActive = false;
+          showInstructions = true;
+          break;
         case 'aborted':
-          return; // Do not show error or restart if aborted manually
+          return;
         default:
-          shouldRestart = true;
+          shouldRestart = !isMobile; // Auf Mobile vorsichtiger
           break;
       }
       
@@ -128,28 +145,31 @@ document.addEventListener('DOMContentLoaded', function() {
         showStatus(elements.recordingStatus, errorMessage, 'error');
       }
       
-      // KORREKTUR: Sicherstellen, dass nur neu gestartet wird, wenn nicht manuell gestoppt oder pausiert
+      if (showInstructions) {
+        setTimeout(() => showManualPermissionInstructions(), 1000);
+      }
+      
       if (shouldRestart && !isRecognitionRestarting && isRecording && !isPaused) {
-            setTimeout(() => {
-              if (!isRecognitionRestarting && isRecording && !isPaused) {
-                startRecognition(); // Rekursiver Aufruf
-              }
-            }, 1000);
-          }
-        };
-
-        recognition.onend = () => {
-          console.log('Speech recognition ended');
-          recognitionActive = false;
-          // KORREKTUR: Sicherstellen, dass nur neu gestartet wird, wenn nicht manuell gestoppt oder pausiert
+        setTimeout(() => {
           if (!isRecognitionRestarting && isRecording && !isPaused) {
-            setTimeout(() => {
-              if (!isRecognitionRestarting && !recognitionActive && isRecording && !isPaused) {
-                startRecognition(); // Rekursiver Aufruf
-              }
-            }, 500);
+            startRecognition();
           }
-        };
+        }, isMobile ? 2000 : 1000); // Längere Wartezeit auf Mobile
+      }
+    };
+
+    recognition.onend = () => {
+      console.log('Speech recognition ended');
+      recognitionActive = false;
+      // KORREKTUR: Sicherstellen, dass nur neu gestartet wird, wenn nicht manuell gestoppt oder pausiert
+      if (!isRecognitionRestarting && isRecording && !isPaused) {
+        setTimeout(() => {
+          if (!isRecognitionRestarting && !recognitionActive && isRecording && !isPaused) {
+            startRecognition(); // Rekursiver Aufruf
+          }
+        }, 500);
+      }
+    };
 
     recognition.onstart = () => {
       console.log('Speech recognition started');
@@ -230,62 +250,192 @@ document.addEventListener('DOMContentLoaded', function() {
       elements.stopBtn && elements.stopBtn.classList.add('hidden');
     }
 
-  // === VERBESSERTE Mikrofonzugriff-Diagnose ===
-  async function checkMicrophonePermissions() {
-    try {
-      console.log('Checking microphone permissions...');
-      
-      if ('permissions' in navigator) {
-        try {
-          const permission = await navigator.permissions.query({name: 'microphone'});
-          console.log('Microphone permission state:', permission.state);
-          
-          if (permission.state === 'denied') {
-            showStatus(elements.recordingStatus, '🚫 Accès microphone refusé. Activez-le dans les paramètres du navigateur.', 'error');
-            return false;
-          }
-        } catch (permError) {
-          console.warn('Permission query failed:', permError);
-        }
-      }
-
-      if (location.protocol !== 'https:' && !location.hostname.includes('localhost') && location.hostname !== '127.0.0.1') {
-        showStatus(elements.recordingStatus, '🔒 HTTPS requis pour l\'accès microphone.', 'error');
-        return false;
-      }
-
-      try {
-        const testStream = await navigator.mediaDevices.getUserMedia({ 
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-          }
-        });
-        testStream.getTracks().forEach(track => track.stop());
-        console.log('Microphone access test successful');
-        return true;
-      } catch (mediaError) {
-        console.error('Microphone access test failed:', mediaError);
-        let errorMsg = '🎙️ Impossible d\'accéder au microphone';
-        
-        if (mediaError.name === 'NotAllowedError') {
-          errorMsg += ': Permission refusée';
-        } else if (mediaError.name === 'NotFoundError') {
-          errorMsg += ': Aucun microphone trouvé';
-        } else {
-          errorMsg += ': ' + mediaError.message;
-        }
-        
-        showStatus(elements.recordingStatus, errorMsg, 'error');
-        return false;
-      }
-
-    } catch (error) {
-      console.error('Permission check failed:', error);
+  // === VERBESSERTE Mikrofonzugriff-Diagnose mit mobile check===
+async function checkMicrophonePermissions() {
+  try {
+    console.log('Checking microphone permissions (mobile-optimized)...');
+    
+    // 1. HTTPS-Check zuerst
+    if (location.protocol !== 'https:' && 
+        !location.hostname.includes('localhost') && 
+        location.hostname !== '127.0.0.1') {
+      showStatus(elements.recordingStatus, '🔒 HTTPS requis pour l\'accès microphone.', 'error');
       return false;
     }
+
+    // 2. User-Agent basierte Mobile-Erkennung
+    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    console.log('Mobile device detected:', isMobile);
+
+    // 3. MediaDevices API Verfügbarkeit prüfen
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showStatus(elements.recordingStatus, '🚫 MediaDevices API nicht verfügbar', 'error');
+      return false;
+    }
+
+    // 4. SpeechRecognition API Verfügbarkeit prüfen (besonders wichtig für Mobile)
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) {
+      showStatus(elements.recordingStatus, '🚫 Spracherkennung in diesem Browser nicht verfügbar', 'error');
+      return false;
+    }
+
+    // 5. Permission State prüfen (wenn verfügbar)
+    let permissionState = null;
+    try {
+      if ('permissions' in navigator) {
+        const permission = await navigator.permissions.query({name: 'microphone'});
+        permissionState = permission.state;
+        console.log('Current permission state:', permissionState);
+        
+        if (permissionState === 'denied') {
+          showManualPermissionInstructions();
+          return false;
+        }
+      }
+    } catch (permError) {
+      console.warn('Permission query failed (normal on some browsers):', permError);
+    }
+
+    // 6. MOBILE-SPEZIFISCH: User Interaction Check
+    if (isMobile && !document.hasStoredGesture && !document.userActivation?.hasBeenActive) {
+      console.warn('Mobile: No user gesture detected, permission request may fail');
+      showStatus(elements.recordingStatus, '📱 Tippen Sie um Mikrofonzugriff zu aktivieren', 'warning');
+      
+      // Event Listener für User Interaction
+      return new Promise((resolve) => {
+        const interactionHandler = async () => {
+          document.removeEventListener('touchstart', interactionHandler);
+          document.removeEventListener('click', interactionHandler);
+          console.log('User interaction detected, retrying permission...');
+          resolve(await performActualPermissionTest());
+        };
+        
+        document.addEventListener('touchstart', interactionHandler, { once: true });
+        document.addEventListener('click', interactionHandler, { once: true });
+        
+        // Fallback timeout
+        setTimeout(() => {
+          document.removeEventListener('touchstart', interactionHandler);
+          document.removeEventListener('click', interactionHandler);
+          resolve(performActualPermissionTest());
+        }, 5000);
+      });
+    }
+
+    // 7. Direkte Permission-Test durchführen
+    return await performActualPermissionTest();
+
+  } catch (error) {
+    console.error('Permission check failed:', error);
+    showStatus(elements.recordingStatus, '⚠️ Fehler bei Berechtigungsprüfung: ' + error.message, 'error');
+    return false;
   }
+}
+
+// Hilfsfunktion für den eigentlichen Permission-Test
+async function performActualPermissionTest() {
+  try {
+    console.log('Performing actual microphone permission test...');
+    showStatus(elements.recordingStatus, '🎙️ Prüfe Mikrofonzugriff...', 'loading');
+
+    // Mobile-optimierte Audio-Constraints
+    const constraints = { 
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        // Mobile-spezifische Optimierungen
+        sampleRate: { ideal: 44100, min: 8000 },
+        channelCount: { ideal: 1 },
+        volume: { ideal: 1.0 }
+      }
+    };
+
+    const testStream = await navigator.mediaDevices.getUserMedia(constraints);
+    
+    // Stream-Test
+    const audioTracks = testStream.getAudioTracks();
+    if (audioTracks.length === 0) {
+      throw new Error('Keine Audio-Spuren verfügbar');
+    }
+
+    // Track-Informationen für Debug
+    const track = audioTracks[0];
+    const settings = track.getSettings();
+    console.log('Audio track settings:', settings);
+    console.log('Audio track capabilities:', track.getCapabilities());
+
+    // Stream ordnungsgemäß beenden
+    testStream.getTracks().forEach(track => track.stop());
+    
+    console.log('✅ Microphone access test successful');
+    showStatus(elements.recordingStatus, '✅ Mikrofonzugriff erfolgreich', 'success');
+    
+    // Erfolgreiche Berechtigung für 2 Sekunden anzeigen
+    setTimeout(() => {
+      if (elements.recordingStatus && !elements.recordingStatus.classList.contains('hidden')) {
+        hideStatus(elements.recordingStatus);
+      }
+    }, 2000);
+    
+    return true;
+
+  } catch (mediaError) {
+    console.error('Microphone access test failed:', mediaError);
+    
+    let errorMsg = '🎙️ Mikrofonzugriff fehlgeschlagen';
+    
+    switch(mediaError.name) {
+      case 'NotAllowedError':
+        errorMsg = '🚫 Mikrofonberechtigung verweigert';
+        showManualPermissionInstructions();
+        break;
+      case 'NotFoundError':
+        errorMsg = '🔍 Kein Mikrofon gefunden';
+        break;
+      case 'NotReadableError':
+        errorMsg = '⚠️ Mikrofon wird von anderer App verwendet';
+        break;
+      case 'OverconstrainedError':
+        errorMsg = '🔧 Mikrofon-Einstellungen nicht unterstützt';
+        break;
+      case 'SecurityError':
+        errorMsg = '🔐 Sicherheitsfehler - HTTPS erforderlich?';
+        break;
+      default:
+        errorMsg += ': ' + mediaError.message;
+        break;
+    }
+    
+    showStatus(elements.recordingStatus, errorMsg, 'error');
+    return false;
+  }
+}
+
+// Neue Funktion: Manuelle Berechtigungs-Anweisungen für Mobile
+function showManualPermissionInstructions() {
+  const instructions = `
+    <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; margin: 10px 0;">
+      <h4 style="color: #e74c3c; margin: 0 0 10px;">📱 Mikrofonberechtigung erforderlich</h4>
+      <p style="margin: 5px 0;">Für Chrome Android:</p>
+      <ol style="margin: 5px 0; padding-left: 20px; font-size: 14px;">
+        <li>Tippen Sie auf das 🔒 Symbol in der Adressleiste</li>
+        <li>Aktivieren Sie "Mikrofon"</li>
+        <li>Laden Sie die Seite neu</li>
+      </ol>
+      <p style="margin: 5px 0; font-size: 14px;">Oder: Einstellungen → Site-Einstellungen → Mikrofon → Diese Site zulassen</p>
+      <button onclick="location.reload()" style="margin-top: 10px; padding: 8px 16px; background: #3498db; color: white; border: none; border-radius: 5px;">
+        🔄 Seite neu laden
+      </button>
+    </div>
+  `;
+  
+  if (elements.responseText) {
+    elements.responseText.innerHTML = instructions;
+    elements.responseText.classList.remove('hidden');
+  }
+}
 
   // Utility Functions
   function showStatus(element, message, type = 'loading') {
@@ -1516,4 +1666,23 @@ function updateChatHistoryUI() {
 // Initial UI setup
   resetUI();
   console.log('🚀 FR-AI-Tutor Frontend initialized with Real-Time Speech Recognition');
+});
+// === ZUSÄTZLICHE Mobile Touch-Event Behandlung ===
+// Touch-Event Support für bessere Mobile Experience
+document.addEventListener('touchstart', function() {
+  // User-Aktivierung für Mobile-Browser registrieren
+  document.hasStoredGesture = true;
+}, { passive: true });
+
+// Verhindere iOS Safari Zoom bei Doppel-Touch auf Buttons
+elements.recordBtn && elements.recordBtn.addEventListener('touchend', function(e) {
+  e.preventDefault();
+});
+
+elements.sendBtn && elements.sendBtn.addEventListener('touchend', function(e) {
+  e.preventDefault();
+});
+
+elements.stopBtn && elements.stopBtn.addEventListener('touchend', function(e) {
+  e.preventDefault();
 });
