@@ -1,11 +1,11 @@
-// KORRIGIERTES und VEREINHEITLICHTES script.js für Mobile Audio
+// CSP-KOMPATIBLES script.js ohne inline onclick Events
 document.addEventListener('DOMContentLoaded', function() {
   
   // === EINHEITLICHE ELEMENT-DEFINITIONEN ===
   const elements = {
     recordBtn: document.getElementById('record'),
     stopBtn: document.getElementById('stop'),
-    sendBtn: document.getElementById('sendMessage'), // KORREKTUR: richtige ID verwenden
+    sendBtn: document.getElementById('sendMessage'),
     startBtn: document.getElementById('startConversation'),
     newConvBtn: document.getElementById('newConversation'),
     showResponseBtn: document.getElementById('showResponseBtn'),
@@ -17,7 +17,6 @@ document.addEventListener('DOMContentLoaded', function() {
     conversationSection: document.getElementById('conversationSection'),
     scenarioSelect: document.getElementById('scenario'),
     recordingStatus: document.getElementById('recordingStatus'),
-    // Chat-Elemente hinzufügen
     chatToggle: document.getElementById('chatToggle'),
     chatHistory: document.getElementById('chatHistory'),
     chatMessages: document.getElementById('chatMessages')
@@ -45,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let isLlmAudioPlaying = false; // Um Audio-Wiedergabestatus zu verfolgen
   // NEU: Konversationshistorie
   let conversationHistory = []; // Speichert Nachrichten als {role: 'user'/'assistant', content: 'text'}
-  const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
+ const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
 
   // === UI INITIALISIERUNG ===
   function initializeUI() {
@@ -57,24 +56,17 @@ document.addEventListener('DOMContentLoaded', function() {
     elements.showResponseBtn && elements.showResponseBtn.classList.add('hidden');
   }
 
-  // === MOBILE-OPTIMIERTE TOUCH-EVENTS (IM SCOPE) ===
+  // === MOBILE-OPTIMIERTE TOUCH-EVENTS ===
   function setupMobileTouchEvents() {
     // User-Aktivierung für Mobile-Browser registrieren
     document.addEventListener('touchstart', function() {
       document.hasStoredGesture = true;
     }, { passive: true });
 
-    // Verhindere iOS Safari Zoom bei Doppel-Touch auf Buttons
-    elements.recordBtn && elements.recordBtn.addEventListener('touchend', function(e) {
-      e.preventDefault();
-    });
-
-    elements.sendBtn && elements.sendBtn.addEventListener('touchend', function(e) {
-      e.preventDefault();
-    });
-
-    elements.stopBtn && elements.stopBtn.addEventListener('touchend', function(e) {
-      e.preventDefault();
+    ['recordBtn', 'sendBtn', 'stopBtn'].forEach(btnName => {
+      elements[btnName] && elements[btnName].addEventListener('touchend', function(e) {
+        e.preventDefault();
+      });
     });
   }
 
@@ -128,7 +120,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // 6. MOBILE-SPEZIFISCH: User Interaction Check
       if (isMobile && !document.hasStoredGesture && !document.userActivation?.hasBeenActive) {
         console.warn('Mobile: No user gesture detected, permission request may fail');
-        showStatus(elements.recordingStatus, '📱 Tippen Sie um Mikrofonzugriff zu aktivieren', 'warning');
+        showStatus(elements.recordingStatus, '🎙️ Tippen Sie um Mikrofonzugriff zu aktivieren', 'warning');
         
         return new Promise((resolve) => {
           const interactionHandler = async () => {
@@ -230,25 +222,56 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  // CSP-KOMPATIBLE Version ohne inline onclick
   function showManualPermissionInstructions() {
-    const instructions = `
-      <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; margin: 10px 0;">
-        <h4 style="color: #e74c3c; margin: 0 0 10px;">📱 Mikrofonberechtigung erforderlich</h4>
-        <p style="margin: 5px 0;">Für Chrome Android:</p>
-        <ol style="margin: 5px 0; padding-left: 20px; font-size: 14px;">
-          <li>Tippen Sie auf das 🔒 Symbol in der Adressleiste</li>
-          <li>Aktivieren Sie "Mikrofon"</li>
-          <li>Laden Sie die Seite neu</li>
-        </ol>
-        <p style="margin: 5px 0; font-size: 14px;">Oder: Einstellungen → Site-Einstellungen → Mikrofon → Diese Site zulassen</p>
-        <button onclick="location.reload()" style="margin-top: 10px; padding: 8px 16px; background: #3498db; color: white; border: none; border-radius: 5px;">
-          🔄 Seite neu laden
-        </button>
-      </div>
-    `;
+    const instructionsContainer = document.createElement('div');
+    instructionsContainer.style.cssText = 'padding: 15px; background: #f8f9fa; border-radius: 8px; margin: 10px 0;';
+    
+    const title = document.createElement('h4');
+    title.style.cssText = 'color: #e74c3c; margin: 0 0 10px;';
+    title.textContent = '🎙️ Mikrofonberechtigung erforderlich';
+    
+    const description = document.createElement('p');
+    description.style.cssText = 'margin: 5px 0;';
+    description.textContent = 'Für Chrome Android:';
+    
+    const list = document.createElement('ol');
+    list.style.cssText = 'margin: 5px 0; padding-left: 20px; font-size: 14px;';
+    
+    const steps = [
+      '🔒 Tippen Sie auf das Schloss Symbol in der Adressleiste',
+      '🎙️ Aktivieren Sie "Mikrofon"',
+      '🔄 Seite neu laden'
+    ];
+    
+    steps.forEach(step => {
+      const li = document.createElement('li');
+      li.textContent = step;
+      list.appendChild(li);
+    });
+    
+    const alternativeText = document.createElement('p');
+    alternativeText.style.cssText = 'margin: 5px 0; font-size: 14px;';
+    alternativeText.textContent = 'Oder: Einstellungen → Site-Einstellungen → Mikrofon → Diese Site zulassen';
+    
+    const reloadButton = document.createElement('button');
+    reloadButton.style.cssText = 'margin-top: 10px; padding: 8px 16px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;';
+    reloadButton.textContent = 'Seite neu laden';
+    
+    // CSP-KOMPATIBLE Event-Listener statt onclick
+    reloadButton.addEventListener('click', () => {
+      location.reload();
+    });
+    
+    instructionsContainer.appendChild(title);
+    instructionsContainer.appendChild(description);
+    instructionsContainer.appendChild(list);
+    instructionsContainer.appendChild(alternativeText);
+    instructionsContainer.appendChild(reloadButton);
     
     if (elements.responseText) {
-      elements.responseText.innerHTML = instructions;
+      elements.responseText.innerHTML = '';
+      elements.responseText.appendChild(instructionsContainer);
       elements.responseText.classList.remove('hidden');
     }
   }
@@ -274,7 +297,7 @@ document.addEventListener('DOMContentLoaded', function() {
       console.log('Applying mobile-specific speech recognition settings');
       recognition.continuous = false; // Weniger Probleme auf Mobile
       // Andere mobile Optimierungen könnten hier hinzugefügt werden
-    }
+   }
 
     recognition.onresult = (event) => {
       console.log('Speech recognition result received');
@@ -407,6 +430,79 @@ document.addEventListener('DOMContentLoaded', function() {
     element.classList.add('hidden');
   }
 
+  function showProgressStatus(step, message) {
+    const progressBarHTML = `
+      <div style="margin-bottom: 15px;">
+        <div style="background: #e2e8f0; border-radius: 10px; height: 20px; overflow: hidden;">
+          <div style="background: linear-gradient(90deg, #667eea, #764ba2); height: 100%; width: ${step * 25}%; transition: width 0.5s ease;"></div>
+        </div>
+        <div style="text-align: center; margin-top: 8px; font-weight: 500;">${message}</div>
+      </div>
+    `;
+    
+    elements.responseText && (elements.responseText.innerHTML = progressBarHTML);
+    elements.responseText && elements.responseText.classList.remove('hidden');
+    isTextCurrentlyVisible = false;
+  }
+
+  function showResponseText() {
+    if (currentResponse && elements.responseText) {
+      elements.responseText.innerHTML = currentResponse;
+      elements.responseText.classList.remove('hidden');
+      isTextCurrentlyVisible = true;
+      updateShowResponseButton();
+      console.log('LLM Text angezeigt');
+    }
+  }
+
+  function setResponseSafely(responseText) {
+    currentResponse = responseText;
+    console.log('Antwort gesetzt, warte auf Audio-Wiedergabe');
+    
+    if (elements.responseText) {
+      elements.responseText.innerHTML = `
+        <div style="text-align: center; padding: 20px; color: #3498db;">
+          Audio prêt - Cliquez pour écouter
+        </div>
+      `;
+      elements.responseText.classList.remove('hidden');
+      isTextCurrentlyVisible = false;
+    }
+    updateShowResponseButton();
+  }
+
+  function hideResponseText() {
+    elements.responseText && elements.responseText.classList.add('hidden');
+    isTextCurrentlyVisible = false;
+    updateShowResponseButton();
+  }
+
+  function updateShowResponseButton() {
+    if (!elements.showResponseBtn) return;
+    
+    if (currentResponse) {
+      if (isLlmAudioPlaying) {
+        elements.showResponseBtn.classList.add('hidden');
+      } else {
+        elements.showResponseBtn.classList.remove('hidden');
+        elements.showResponseBtn.style.opacity = '1';
+        elements.showResponseBtn.style.cursor = 'pointer';
+
+        if (isTextCurrentlyVisible) {
+          elements.showResponseBtn.innerHTML = 'Masquer la réponse';
+        } else if (audioHasBeenPlayed) {
+          elements.showResponseBtn.innerHTML = 'Afficher la réponse';
+        } else {
+          elements.showResponseBtn.innerHTML = 'Écoutez d\'abord l\'audio';
+          elements.showResponseBtn.style.opacity = '0.6';
+          elements.showResponseBtn.style.cursor = 'not-allowed';
+        }
+      }
+    } else {
+      elements.showResponseBtn.classList.add('hidden');
+    }
+  }
+
   // === AUDIO RECORDING FUNCTIONS ===
   async function startRealTimeSpeech() {
     console.log('Starting real-time speech with recording...');
@@ -506,6 +602,38 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  function pauseRealTimeSpeech() {
+    console.log('Pausing real-time speech...');
+    
+    isPaused = true;
+    isRecognitionRestarting = true;
+    
+    if (recognition && recognitionActive) {
+      try {
+        recognition.stop();
+      } catch (e) {
+        console.warn('Could not stop recognition:', e);
+      }
+    }
+    recognitionActive = false;
+    updateRecordButton();
+    showStatus(elements.recordingStatus, 'Enregistrement en pause', 'loading');
+  }
+
+  function resumeRealTimeSpeech() {
+    console.log('Resuming real-time speech...');
+    
+    isPaused = false;
+    isRecognitionRestarting = false;
+    
+    if (isRecording && recognition) {
+      startRecognition();
+    }
+    
+    updateRecordButton();
+    showStatus(elements.recordingStatus, 'Enregistrement repris', 'success');
+  }
+
   function startRecognition() {
     if (isRecognitionRestarting || isPaused || !recognition) {
       return;
@@ -579,7 +707,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (finalTranscript.trim()) {
-      showStatus(elements.recordingStatus, '✅ Transcription prête, Envoyer', 'success');
+      if (autoSendAfterRecording) {
+        console.log('Auto-Send aktiviert - gesendeter Text:', finalTranscript.trim());
+        sendMessageToBackend(finalTranscript.trim());
+      } else {
+        showStatus(elements.recordingStatus, '✅ Transcription prête, Envoyer', 'success');
+      }
     } else {
       showStatus(elements.recordingStatus, '⚠️ Aucune parole détectée', 'warning');
     }
@@ -591,20 +724,24 @@ document.addEventListener('DOMContentLoaded', function() {
     if (isRecording && !isPaused) {
       elements.recordBtn.innerHTML = '⏸️ Pause';
       elements.recordBtn.classList.add('recording');
+      elements.recordBtn.classList.remove('paused');
     } else if (isRecording && isPaused) {
       elements.recordBtn.innerHTML = '▶️ Reprendre';
+      elements.recordBtn.classList.remove('recording');
       elements.recordBtn.classList.add('paused');
     } else {
       elements.recordBtn.innerHTML = '🎙️ Enregistrer';
       elements.recordBtn.classList.remove('recording', 'paused');
     }
 
+    elements.recordBtn.disabled = false;
     elements.stopBtn && elements.stopBtn.classList.toggle('hidden', !isRecording);
   }
 
   function resetRecordButton() {
     elements.recordBtn && (elements.recordBtn.innerHTML = '🎙️ Enregistrer');
     elements.recordBtn && elements.recordBtn.classList.remove('recording', 'paused');
+    elements.recordBtn && (elements.recordBtn.disabled = false);
     elements.stopBtn && elements.stopBtn.classList.add('hidden');
   }
 
@@ -613,6 +750,88 @@ document.addEventListener('DOMContentLoaded', function() {
       currentAudioStream.getTracks().forEach(track => track.stop());
       currentAudioStream = null;
     }
+  }
+
+  function resetUI() {
+    console.log('Resetting UI...');
+    
+    isRecording = false;
+    isPaused = false;
+    
+    if (recognition) {
+      isRecognitionRestarting = true;
+      try {
+        recognition.stop();
+      } catch (e) {
+        console.warn('Could not stop recognition:', e);
+      }
+    }
+    
+    recognitionActive = false;
+    isRecognitionRestarting = false;
+    
+    if (recognitionTimeout) {
+      clearTimeout(recognitionTimeout);
+    }
+
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      try {
+        mediaRecorder.stop();
+      } catch (e) {
+        console.warn('Could not stop MediaRecorder:', e);
+      }
+    }
+    
+    cleanupAudioStream();
+    
+    elements.startSection && elements.startSection.classList.remove('hidden');
+    elements.conversationSection && elements.conversationSection.classList.add('hidden');
+    
+    elements.userText && (elements.userText.textContent = placeholderText);
+    elements.userText && elements.userText.classList.add('placeholder');
+    elements.userText && elements.userText.setAttribute('data-is-placeholder', 'true');
+    
+    elements.responseText && (elements.responseText.innerHTML = '');
+    elements.responseText && elements.responseText.classList.add('hidden');
+    
+    if (elements.llmAudioPlayback) {
+      if (!elements.llmAudioPlayback.paused) {
+        elements.llmAudioPlayback.pause();
+      }
+      
+      elements.llmAudioPlayback.oncanplaythrough = null;
+      elements.llmAudioPlayback.onerror = null;
+      elements.llmAudioPlayback.onended = null;
+      elements.llmAudioPlayback.onloadstart = null;
+      elements.llmAudioPlayback.onplay = null;
+      elements.llmAudioPlayback.onpause = null;
+      elements.llmAudioPlayback.onloadeddata = null;
+      elements.llmAudioPlayback.onloadedmetadata = null;
+      
+      elements.llmAudioPlayback.src = '';
+      elements.llmAudioPlayback.removeAttribute('src');
+      elements.llmAudioPlayback.load();
+      elements.llmAudioPlayback.classList.add('hidden');
+      
+      console.log('Audio element completely reset');
+    }
+
+    elements.userAudio && (elements.userAudio.src = '');
+    elements.userAudio && elements.userAudio.classList.add('hidden');
+    elements.showResponseBtn && elements.showResponseBtn.classList.add('hidden');
+    
+    updateRecordButton();
+    
+    currentUserId = null;
+    recordedAudioBlob = null;
+    currentResponse = null;
+    audioHasBeenPlayed = false;
+    isTextCurrentlyVisible = false;
+    finalTranscript = '';
+    audioChunks = [];
+    conversationHistory = [];
+    updateChatHistoryUI();
+    hideStatus(elements.recordingStatus);
   }
 
   // === CHAT HISTORY FUNCTIONS ===
@@ -642,13 +861,34 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // === BACKEND COMMUNICATION (Simplified for space) ===
+  // === BACKEND COMMUNICATION ===
+  async function extractErrorMessage(response) {
+    try {
+      const text = await response.text();
+      const parsed = JSON.parse(text);
+      return parsed.error || parsed.response || text;
+    } catch (e) {
+      return "Erreur inconnue du serveur.";
+    }
+  }
+
   async function sendMessageToBackend(message) {
+    console.log('Sending message:', message);
+    
     if (!message.trim()) {
       showStatus(elements.recordingStatus, 'Veuillez entrer un message.', 'warning');
       return;
     }
     
+    showProgressStatus(1, 'Message en cours d\'envoi...');
+    elements.sendBtn && (elements.sendBtn.disabled = true);
+    elements.recordBtn && (elements.recordBtn.disabled = true);
+    elements.stopBtn && (elements.stopBtn.disabled = true);
+
+    elements.responseText && elements.responseText.classList.add('hidden');
+    elements.llmAudioPlayback && elements.llmAudioPlayback.classList.add('hidden');
+    elements.showResponseBtn && elements.showResponseBtn.classList.add('hidden');
+
     try {
       const response = await fetch('/api/respond', {
         method: 'POST',
@@ -661,24 +901,272 @@ document.addEventListener('DOMContentLoaded', function() {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await extractErrorMessage(response);
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
-      
+      console.log('Response received:', data);
+
       conversationHistory.push(
         { role: 'user', content: message },
         { role: 'assistant', content: data.response }
       );
       updateChatHistoryUI();
-      
-      // Handle response display logic here
-      console.log('Response received:', data);
-      
+      setResponseSafely(data.response);
+
+      if (data.audio_url) {
+        await playLlmAudio(data.audio_url);
+      } else {
+        console.warn('No audio URL received for chat response');
+        elements.llmAudioPlayback && elements.llmAudioPlayback.classList.add('hidden');
+        currentResponse = data.response;
+        audioHasBeenPlayed = true;
+        isTextCurrentlyVisible = false;
+        elements.responseText && elements.responseText.classList.add('hidden');
+        updateShowResponseButton();
+        showProgressStatus(4, 'Audio non disponible. Texte affichable');
+      }
     } catch (error) {
       console.error('Error sending message:', error);
-      showStatus(elements.recordingStatus, 'Erreur de communication', 'error');
+      showStatus(elements.recordingStatus, 'Fehler beim Senden des Chats.', 'error');
+      currentResponse = 'Désolé, une erreur est survenue et je ne peux pas répondre pour le moment.';
+      elements.responseText && (elements.responseText.innerHTML = `
+        <div style="text-align: center; padding: 20px; color: #e74c3c;">
+          Erreur de communication: ${error.message}
+        </div>
+      `);
+      elements.responseText && elements.responseText.classList.remove('hidden');
+      isTextCurrentlyVisible = true;
+      elements.showResponseBtn && elements.showResponseBtn.classList.add('hidden');
+      elements.llmAudioPlayback && elements.llmAudioPlayback.classList.add('hidden');
+      audioHasBeenPlayed = false;
+    } finally {
+      elements.sendBtn && (elements.sendBtn.disabled = false);
+      elements.recordBtn && (elements.recordBtn.disabled = false);
+      elements.stopBtn && (elements.stopBtn.disabled = false);
+      hideStatus(elements.recordingStatus);
     }
+  }
+
+  async function uploadRecordedAudio(audioBlob, mimeType) {
+    if (!audioBlob || audioBlob.size === 0) {
+      console.warn('No audio blob to upload or blob is empty.');
+      return null;
+    }
+
+    const formData = new FormData();
+    const fileExtension = mimeType.split('/')[1].split(';')[0];
+    const fileName = `recording.${fileExtension}`;
+    
+    formData.append('audio', audioBlob, fileName);
+    formData.append('user_id', currentUserId);
+    console.log(`Uploading audio blob: ${audioBlob.size} bytes, type: ${mimeType}, filename: ${fileName}`);
+
+    try {
+      const response = await fetch('/api/transcribe', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await extractErrorMessage(response);
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log('Audio uploaded successfully:', data);
+      return data;
+
+    } catch (error) {
+      console.error('Error uploading audio:', error);
+      return null;
+    }
+  }
+
+  // CSP-KOMPATIBLE Audio-Retry-Funktionen
+  function showAudioRetryOptions() {
+    const retryContainer = document.createElement('div');
+    retryContainer.style.cssText = 'text-align: center; margin-top: 15px;';
+    
+    const errorDiv = document.createElement('div');
+    errorDiv.style.cssText = 'margin-bottom: 15px; color: #e74c3c;';
+    errorDiv.textContent = 'Audio manquant';
+    
+    const retryButton = document.createElement('button');
+    retryButton.style.cssText = 'margin-right: 10px; padding: 8px 16px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;';
+    retryButton.textContent = 'Réessayer l\'audio';
+    retryButton.addEventListener('click', retryAudio);
+    
+    const continueButton = document.createElement('button');
+    continueButton.style.cssText = 'padding: 8px 16px; background: #95a5a6; color: white; border: none; border-radius: 5px; cursor: pointer;';
+    continueButton.textContent = 'Voir texte sans audio';
+    continueButton.addEventListener('click', continueWithoutAudio);
+    
+    retryContainer.appendChild(errorDiv);
+    retryContainer.appendChild(retryButton);
+    retryContainer.appendChild(continueButton);
+    
+    if (elements.responseText) {
+      elements.responseText.innerHTML = '';
+      elements.responseText.appendChild(retryContainer);
+      elements.responseText.classList.remove('hidden');
+      isTextCurrentlyVisible = true;
+      elements.showResponseBtn && elements.showResponseBtn.classList.add('hidden');
+    }
+  }
+
+  function retryAudio() {
+    console.log('Manueller Audio-Retry gestartet');
+    showProgressStatus(3, 'Nouvel essai...');
+    const lastUserMessage = conversationHistory.findLast(msg => msg.role === 'user');
+    if (lastUserMessage) {
+      sendMessageToBackend(lastUserMessage.content);
+    } else {
+      console.error('Keine letzte Benutzernachricht für Retry gefunden.');
+      showStatus(elements.recordingStatus, 'Erreur: Impossible de réessayer l\'audio sans message précédent.', 'error');
+    }
+  }
+
+  function continueWithoutAudio() {
+    console.log('Benutzer wählt: ohne Audio fortfahren');
+    audioHasBeenPlayed = true;
+    showResponseText();
+    showProgressStatus(4, 'Texte affiché sans audio.');
+  }
+
+  async function playLlmAudio(audio_url) {
+    console.log('Playing LLM audio:', audio_url);
+    
+    if (!audio_url || audio_url.trim() === '') {
+      console.error('Invalid audio URL provided to playLlmAudio');
+      audioHasBeenPlayed = false;
+      isLlmAudioPlaying = false;
+      updateShowResponseButton();
+      return Promise.resolve();
+    }
+    
+    if (!elements.llmAudioPlayback) {
+      console.error('Audio playback element not found');
+      audioHasBeenPlayed = false;
+      isLlmAudioPlaying = false;
+      updateShowResponseButton();
+      return Promise.resolve();
+    }
+    
+    return new Promise((resolve) => {
+      const audioElement = elements.llmAudioPlayback;
+      let resolved = false;
+      
+      // Clear all event listeners
+      audioElement.oncanplaythrough = null;
+      audioElement.onerror = null;
+      audioElement.onended = null;
+      audioElement.onloadstart = null;
+      audioElement.onplay = null;
+      audioElement.onpause = null;
+      audioElement.onloadeddata = null;
+      audioElement.onloadedmetadata = null;
+      
+      function resolveOnce() {
+        if (!resolved) {
+          resolved = true;
+          resolve();
+        }
+      }
+      
+      audioElement.oncanplaythrough = () => {
+        console.log('Audio can play through, attempting to play');
+        
+        audioElement.play()
+          .then(() => {
+            console.log('Audio playback started successfully');
+            isLlmAudioPlaying = true;
+            updateShowResponseButton();
+            showProgressStatus(4, 'Écoute en cours...');
+          })
+          .catch(playError => {
+            console.error('Play prevented by browser:', playError.name, playError.message);
+            audioHasBeenPlayed = false;
+            isLlmAudioPlaying = false;
+            showProgressStatus(4, 'Cliquez sur le bouton play pour écouter l\'audio');
+            
+            audioElement.classList.remove('hidden');
+            elements.responseText && elements.responseText.classList.add('hidden');
+            isTextCurrentlyVisible = false;
+            updateShowResponseButton();
+            
+            resolveOnce();
+          });
+      };
+
+      audioElement.onended = () => {
+        console.log('LLM Audio ended successfully');
+        audioHasBeenPlayed = true;
+        isLlmAudioPlaying = false;
+        showProgressStatus(4, 'Audio terminé - Texte disponible!');
+        updateShowResponseButton();
+        resolveOnce();
+      };
+      
+      audioElement.onplay = () => {
+        console.log('Audio play event triggered');
+        isLlmAudioPlaying = true;
+        updateShowResponseButton();
+        showProgressStatus(4, 'Écoute en cours...');
+      };
+      
+      audioElement.onpause = () => {
+        console.log('Audio paused');
+        isLlmAudioPlaying = false;
+        updateShowResponseButton();
+      };
+
+      audioElement.onerror = (e) => {
+        console.error('Error loading/playing LLM audio');
+        
+        if (audioElement.error) {
+          const errorMessages = {
+            1: 'MEDIA_ERR_ABORTED - Audio wurde abgebrochen',
+            2: 'MEDIA_ERR_NETWORK - Netzwerkfehler beim Laden',
+            3: 'MEDIA_ERR_DECODE - Fehler beim Dekodieren der Audio-Datei',
+            4: 'MEDIA_ERR_SRC_NOT_SUPPORTED - Audio-Format nicht unterstützt'
+          };
+          console.error('Error details:', errorMessages[audioElement.error.code] || 'Unbekannter Fehler');
+        }
+        
+        audioHasBeenPlayed = false;
+        isLlmAudioPlaying = false;
+        showProgressStatus(4, 'Erreur audio - Texte disponible maintenant');
+        
+        audioHasBeenPlayed = true;
+        updateShowResponseButton();
+        
+        resolveOnce();
+      };
+      
+      audioElement.preload = 'auto';
+      audioElement.volume = 1.0;
+      
+      elements.responseText && elements.responseText.classList.add('hidden');
+      isTextCurrentlyVisible = false;
+      audioElement.classList.remove('hidden');
+      
+      console.log('Setting audio src and loading:', audio_url);
+      audioElement.src = audio_url;
+      audioElement.load();
+      
+      setTimeout(() => {
+        if (!resolved) {
+          console.warn('Audio loading timeout (15s) - making text available');
+          audioHasBeenPlayed = true;
+          isLlmAudioPlaying = false;
+          showProgressStatus(4, 'Timeout - Texte maintenant disponible');
+          updateShowResponseButton();
+          resolveOnce();
+        }
+      }, 15000);
+    });
   }
 
   // === EVENT LISTENERS ===
@@ -686,13 +1174,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Record button
     elements.recordBtn && elements.recordBtn.addEventListener('click', () => {
       if (isRecording && !isPaused) {
-        // Pause logic here
-        isPaused = true;
-        updateRecordButton();
+        pauseRealTimeSpeech();
       } else if (isRecording && isPaused) {
-        // Resume logic here
-        isPaused = false;
-        updateRecordButton();
+        resumeRealTimeSpeech();
       } else {
         startRealTimeSpeech();
       }
@@ -724,6 +1208,128 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
 
+    // Show response button
+    elements.showResponseBtn && elements.showResponseBtn.addEventListener('click', () => {
+      if (currentResponse) {
+        if (isTextCurrentlyVisible) {
+          hideResponseText();
+        } else {
+          if (audioHasBeenPlayed || !elements.llmAudioPlayback || !elements.llmAudioPlayback.src) {
+            showResponseText();
+          } else {
+            showStatus(elements.recordingStatus, 'Veuillez d\'abord écouter l\'audio', 'error');
+            setTimeout(() => hideStatus(elements.recordingStatus), 3000);
+          }
+        }
+      }
+    });
+
+    // New conversation button
+    elements.newConvBtn && elements.newConvBtn.addEventListener('click', () => {
+      resetUI();
+    });
+
+    // Start conversation button
+    elements.startBtn && elements.startBtn.addEventListener('click', async () => {
+      console.log('Starting conversation...');
+
+      const scenario = elements.scenarioSelect && elements.scenarioSelect.value;
+      const forceReset = currentUserId === null || scenario !== currentScenario;
+      currentScenario = scenario;
+      
+      if (!scenario) {
+        showStatus(elements.recordingStatus, "Veuillez choisir un thème.", 'error');
+        return;
+      }
+
+      elements.startSection && elements.startSection.classList.add('hidden');
+      elements.conversationSection && elements.conversationSection.classList.remove('hidden');
+      
+      if (!currentUserId) {
+        currentUserId = Date.now().toString();
+        console.log('Temporäre User ID für Start generiert:', currentUserId);
+      }
+      
+      elements.responseText && (elements.responseText.innerHTML = '');
+      elements.responseText && elements.responseText.classList.add('hidden');
+      elements.llmAudioPlayback && (elements.llmAudioPlayback.src = '');
+      elements.llmAudioPlayback && elements.llmAudioPlayback.classList.add('hidden');
+      elements.showResponseBtn && elements.showResponseBtn.classList.add('hidden');
+      currentResponse = null;
+      audioHasBeenPlayed = false;
+      isTextCurrentlyVisible = false;
+
+      const currentScenarioDisplay = document.getElementById('currentScenarioDisplay');
+      if (currentScenarioDisplay) {
+        const scenarioNames = {
+          "libre": "Conversation libre",
+          "restaurant": "Au restaurant",
+          "faire_les_courses": "Faire les courses",
+          "visite_chez_le_médecin": "Visite chez le médecin",
+          "loisirs": "Loisirs et hobbies", 
+          "travail": "Monde du travail",
+          "voyage": "Voyage en France"
+        };
+        currentScenarioDisplay.innerText = scenarioNames[scenario] || scenario;
+      }
+
+      if (scenario !== "libre") {
+        showProgressStatus(1, 'Préparation de la conversation...');
+        
+        try {
+          const response = await fetch('/api/start_conversation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              scenario: scenario,
+              userId: currentUserId,
+              force_reset: forceReset
+            })
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`HTTP error! status: ${response.status} - ${errorData.error}`);
+          }
+
+          const data = await response.json();
+          console.log('Conversation started successfully:', data);
+
+          currentUserId = data.userId;
+          conversationHistory = [{ role: 'assistant', content: data.response }];
+          updateChatHistoryUI();
+          setResponseSafely(data.response);
+          showProgressStatus(2, 'Conversation préparée...');
+
+          if (data.audio_url) { 
+            console.log('Audio URL erhalten:', data.audio_url);
+            await playLlmAudio(data.audio_url);
+          } else {
+            console.warn('No audio URL received for initial response.');
+            elements.llmAudioPlayback && elements.llmAudioPlayback.classList.add('hidden');
+            currentResponse = data.response;
+            audioHasBeenPlayed = true;
+            isTextCurrentlyVisible = false;
+            elements.responseText && elements.responseText.classList.add('hidden');
+            updateShowResponseButton();
+            showProgressStatus(4, 'Audio non disponible. Texte affichable via bouton.');
+          }
+        } catch (err) {
+          console.error('Error starting conversation:', err);
+          showStatus(elements.recordingStatus, `Erreur: ${err.message}`, 'error');
+          elements.startSection && elements.startSection.classList.remove('hidden');
+          elements.conversationSection && elements.conversationSection.classList.add('hidden');
+        } finally {
+          hideStatus(elements.recordingStatus);
+        }
+      } else {
+        currentResponse = "Conversation libre - parlez de ce qui vous intéresse!";
+        audioHasBeenPlayed = true;
+        showResponseText();
+        hideStatus(elements.recordingStatus);
+      }
+    });
+
     // Chat toggle
     elements.chatToggle && elements.chatToggle.addEventListener('click', () => {
       elements.chatHistory && elements.chatHistory.classList.toggle('show');
@@ -733,11 +1339,28 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
 
+    // Scenario select
+    elements.scenarioSelect && elements.scenarioSelect.addEventListener('change', (event) => {
+      currentScenario = event.target.value;
+      console.log('Scenario changed to:', currentScenario);
+    });
+
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
         elements.sendBtn && elements.sendBtn.click();
+      }
+      
+      if (e.code === 'Space' && e.target === document.body && elements.conversationSection && !elements.conversationSection.classList.contains('hidden')) {
+        e.preventDefault();
+        if (isRecording && !isPaused) {
+          pauseRealTimeSpeech();
+        } else if (isRecording && isPaused) {
+          resumeRealTimeSpeech();
+        } else {
+          startRealTimeSpeech();
+        }
       }
     });
   }
