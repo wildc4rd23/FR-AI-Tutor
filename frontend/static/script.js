@@ -668,7 +668,7 @@ function updateShowResponseButton() {
         hideStatus(elements.recordingStatus);
       }
     }
-    
+
     // Pause/Resume Funktionalität für Aufnahme
     function pauseRealTimeSpeech() {
     console.log('Pausing real-time speech...');
@@ -1748,24 +1748,25 @@ function updateChatHistoryUI() {
     chatMessages.innerHTML = '';
   };
 
+  // === ZUSÄTZLICHE Mobile Touch-Event Behandlung ===
+  // Touch-Event Support für bessere Mobile Experience
+  document.addEventListener('touchstart', function() {
+    // User-Aktivierung für Mobile-Browser registrieren
+    document.hasStoredGesture = true;
+  }, { passive: true });
+
+  // Verhindere iOS Safari Zoom bei Doppel-Touch auf Buttons
+  elements.recordBtn && elements.recordBtn.addEventListener('touchend', function(e) {
+    e.preventDefault();
+  });
+
+  elements.sendBtn && elements.sendBtn.addEventListener('touchend', function(e) {
+    e.preventDefault();
+  });
+
+  elements.stopBtn && elements.stopBtn.addEventListener('touchend', function(e) {
+    e.preventDefault();
+  });
+
 });
 
-// === ZUSÄTZLICHE Mobile Touch-Event Behandlung ===
-// Touch-Event Support für bessere Mobile Experience
-document.addEventListener('touchstart', function() {
-  // User-Aktivierung für Mobile-Browser registrieren
-  document.hasStoredGesture = true;
-}, { passive: true });
-
-// Verhindere iOS Safari Zoom bei Doppel-Touch auf Buttons
-elements.recordBtn && elements.recordBtn.addEventListener('touchend', function(e) {
-  e.preventDefault();
-});
-
-elements.sendBtn && elements.sendBtn.addEventListener('touchend', function(e) {
-  e.preventDefault();
-});
-
-elements.stopBtn && elements.stopBtn.addEventListener('touchend', function(e) {
-  e.preventDefault();
-});
