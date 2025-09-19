@@ -21,7 +21,7 @@ def get_scenario_system_prompt(scenario):
     
     RÈGLES IMPORTANTES POUR TES RÉPONSES:
     - Réponds TOUJOURS en français
-    - Garde tes réponses concises mais informatives (2-3 phrases maximum)
+    - Garde tes réponses concises mais informatives (2-3 phrases courtes maximum)
     - NE réponds PAS par des phrases trop courtes ou des mots uniques (sauf si c'est une question très simple)
     - Corrige gentiment les erreurs de l'étudiant sans être condescendant
     - Pose TOUJOURS EXACTEMENT UNE question ouverte pour relancer la conversation
@@ -245,12 +245,12 @@ def query_llm_for_scenario(prompt, scenario="libre", history=None, max_tokens=16
     Diese Funktion wurde korrigiert - sie holt jetzt den System-Prompt richtig ab.
     """
     scenario_configs = {
-        "restaurant": {"max_tokens": 120, "temperature": 0.6},
-        "faire_les_courses": {"max_tokens": 120, "temperature": 0.6},
-        "visite_chez_le_médecin": {"max_tokens": 120, "temperature": 0.6},
-        "loisirs": {"max_tokens": 160, "temperature": 0.8},
-        "travail": {"max_tokens": 140, "temperature": 0.5},
-        "voyage": {"max_tokens": 150, "temperature": 0.7},
+        "restaurant": {"max_tokens": 180, "temperature": 0.6},
+        "faire_les_courses": {"max_tokens": 180, "temperature": 0.6},
+        "visite_chez_le_médecin": {"max_tokens": 180, "temperature": 0.6},
+        "loisirs": {"max_tokens": 180, "temperature": 0.8},
+        "travail": {"max_tokens": 180, "temperature": 0.5},
+        "voyage": {"max_tokens": 180, "temperature": 0.7},
         "libre": {"max_tokens": 150, "temperature": 0.7}
     }
     

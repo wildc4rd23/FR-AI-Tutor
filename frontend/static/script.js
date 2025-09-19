@@ -1347,14 +1347,14 @@ async function playLlmAudio(audio_url) {
         // Sicherheits-Timeout (15 Sekunden)
         setTimeout(() => {
             if (!resolved) {
-                console.warn('⚠️ Audio loading timeout (15s) - making text available');
+                console.warn('⚠️ Audio loading timeout (30s) - making text available');
                 audioHasBeenPlayed = true; // Text verfügbar machen
                 isLlmAudioPlaying = false;
                 showProgressStatus(4, '⚠️ Timeout - Texte maintenant disponible');
                 updateShowResponseButton();
                 resolveOnce();
             }
-        }, 15000);
+        }, 30000);
     });
 }
 
