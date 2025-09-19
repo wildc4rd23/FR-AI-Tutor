@@ -609,7 +609,7 @@ function updateShowResponseButton() {
     }
     
     cleanupAudioStream();
-  }
+  
     elements.startSection && elements.startSection.classList.remove('hidden');
     elements.conversationSection && elements.conversationSection.classList.add('hidden');
     
@@ -667,7 +667,8 @@ function updateShowResponseButton() {
         updateChatHistoryUI(); 
         hideStatus(elements.recordingStatus);
       }
-
+    }
+    
     // Pause/Resume Funktionalität für Aufnahme
     function pauseRealTimeSpeech() {
     console.log('Pausing real-time speech...');
