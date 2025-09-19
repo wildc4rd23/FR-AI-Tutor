@@ -195,7 +195,7 @@ def query_llm(messages, max_tokens=160, temperature=0.7):
         "model": "mistral-tiny", # Oder Ihr gewähltes Modell
         "messages": messages,
         "temperature": temperature,
-        "random_seed": 42
+        "random_seed": int(time.time())
     }
     # Nur max_tokens hinzufügen, wenn es nicht None ist
     if max_tokens is not None:
