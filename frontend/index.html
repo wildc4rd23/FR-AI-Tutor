@@ -6,207 +6,590 @@
   <title>Assistant Vocal Français</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-
+    
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #f4f6fb;
-      color: #333;
-      padding: 10px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8fafc;
+      min-height: 100vh;
+      color: #1a202c;
+      padding: 20px;
     }
-
+    
     .container {
       max-width: 950px;
       max-height: 925px;
-      margin: auto;
+      margin: 0 auto;
       background: white;
-      border-radius: 12px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
       display: flex;
       flex-direction: column;
       overflow: hidden;
     }
-
-    /* Header */
+    
+    /* Header - Minimiert */
     .header {
-      background: #667eea;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
       color: white;
-      padding: 12px 20px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
+      padding: 20px 24px;
+      position: relative;
     }
-
-    .header h1 { font-size: 1.4em; font-weight: 500; }
-
+    
+    .header h1 {
+      font-size: 1.4em;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    
+    .theme-display {
+      font-size: 0.9em;
+      opacity: 0.9;
+      font-weight: 400;
+    }
+    
+    /* Chat History Toggle */
     .chat-toggle {
       position: absolute;
-      top: 12px;
-      right: 20px;
+      top: 20px;
+      right: 24px;
       background: rgba(255,255,255,0.15);
       border: none;
       color: white;
-      padding: 6px 10px;
-      border-radius: 6px;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
       cursor: pointer;
-      font-size: 0.8em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s ease;
     }
-
+    
+    .chat-toggle:hover {
+      background: rgba(255,255,255,0.25);
+    }
+    
     /* Chat History */
     .chat-history {
-      background: #f9fafc;
-      border-bottom: 1px solid #e2e8f0;
+      background: #f1f5f9;
       max-height: 0;
-      overflow: hidden;
+      overflow-y: auto;
       transition: max-height 0.3s ease;
     }
-    .chat-history.show { max-height: 140px; padding: 10px 20px; }
-
+    
+    .chat-history.show {
+      max-height: 160px;
+      padding: 16px 24px;
+    }
+    
     .chat-message {
-      margin-bottom: 6px;
-      padding: 6px 10px;
-      border-radius: 6px;
-      font-size: 0.85em;
-    }
-    .chat-message.user { background: #e6fffa; border-left: 3px solid #38b2ac; }
-    .chat-message.assistant { background: #fef5e7; border-left: 3px solid #ed8936; }
-
-    /* Main */
-    .main-content { flex: 1; overflow-y: auto; padding: 20px; }
-
-    #startSection { text-align: center; padding: 30px 20px; }
-    #startSection h3 { margin-bottom: 15px; color: #4a5568; }
-
-    select, button {
-      padding: 8px 14px;
-      font-size: 0.9em;
-      border-radius: 6px;
-      border: 1px solid #d1d5db;
-      cursor: pointer;
-      background: white;
-    }
-
-    .btn-primary { background: #667eea; color: white; border: none; }
-    .btn-primary:hover { background: #5a67d8; }
-
-    /* Conversation */
-    #conversationSection { display: flex; flex-direction: column; gap: 15px; }
-
-    .text-block {
-      background: #f8fafc;
+      margin-bottom: 8px;
+      padding: 8px 12px;
       border-radius: 8px;
-      padding: 12px;
+      font-size: 0.85em;
+      line-height: 1.4;
+    }
+    
+    .chat-message.user {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    
+    .chat-message.assistant {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+    }
+    
+    /* Start Section */
+    #startSection {
+      text-align: center;
+      padding: 60px 20px;
+    }
+    
+    #startSection h3 {
+      margin-bottom: 24px;
+      color: #374151;
+      font-weight: 500;
+    }
+    
+    select {
+      width: 100%;
+      max-width: 400px;
+      padding: 12px 16px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      font-size: 1em;
+      background: white;
+      margin-bottom: 20px;
+      transition: border-color 0.2s ease;
+    }
+    
+    select:focus {
+      outline: none;
+      border-color: #6366f1;
+    }
+    
+    /* Conversation Layout */
+    #conversationSection {
+      display: grid;
+      grid-template-rows: 1fr 1fr auto;
+      gap: 20px;
+      height: 100%;
+      max-height: calc(925px - 180px);
+    }
+    
+    /* Message Blocks */
+    .message-block {
+      border-radius: 16px;
+      padding: 20px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      min-height: 0;
     }
-
-    .text-block.assistant-response { border-left: 4px solid #ed8936; }
-    .text-block.user-input { border-left: 4px solid #38b2ac; }
-
-    .block-header {
+    
+    .assistant-block {
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      position: relative;
+    }
+    
+    .user-block {
+      background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+      position: relative;
+    }
+    
+    .message-icon {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      font-size: 12px;
+    }
+    
+    .assistant-block .message-icon {
+      background: #f59e0b;
+      color: white;
+    }
+    
+    .user-block .message-icon {
+      background: #3b82f6;
+      color: white;
+    }
+    
+    .message-content {
+      margin-left: 44px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .text-content {
+      flex: 1;
+      background: rgba(255,255,255,0.7);
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 0.95em;
+      line-height: 1.5;
+      min-height: 80px;
+      max-height: 140px;
+      overflow-y: auto;
+      border: none;
+      margin-bottom: 12px;
+    }
+    
+    .editable-text {
+      background: rgba(255,255,255,0.9) !important;
+      outline: none;
+      cursor: text;
+    }
+    
+    .editable-text:focus {
+      background: white !important;
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+    }
+    
+    /* Controls */
+    .controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: flex-start;
+    }
+    
+    /* Buttons - Nur Icons */
+    .btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      transition: all 0.2s ease;
+      color: white;
+    }
+    
+    .btn-primary {
+      background: #6366f1;
+      padding: 12px 24px;
+      width: auto;
+      height: auto;
+      font-size: 0.95em;
+      font-weight: 500;
+    }
+    
+    .btn-primary:hover {
+      background: #5856eb;
+      transform: translateY(-1px);
+    }
+    
+    .btn-record {
+      background: #ef4444;
+    }
+    
+    .btn-record:hover:not(:disabled) {
+      background: #dc2626;
+    }
+    
+    .btn-record.recording {
+      background: #f97316;
+      animation: pulse 1.5s infinite;
+    }
+    
+    .btn-stop {
+      background: #374151;
+    }
+    
+    .btn-stop:hover {
+      background: #1f2937;
+    }
+    
+    .btn-play {
+      background: #10b981;
+    }
+    
+    .btn-play:hover {
+      background: #059669;
+    }
+    
+    .btn-send {
+      background: #3b82f6;
+    }
+    
+    .btn-send:hover:not(:disabled) {
+      background: #2563eb;
+    }
+    
+    .btn-secondary {
+      background: #6b7280;
+      padding: 10px 20px;
+      width: auto;
+      height: auto;
+      font-size: 0.9em;
+    }
+    
+    .btn-secondary:hover {
+      background: #4b5563;
+    }
+    
+    .btn:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    /* Audio Player - Überarbeitet */
+    .audio-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+      max-width: 300px;
+    }
+    
+    .custom-audio {
       display: flex;
       align-items: center;
       gap: 8px;
-      font-weight: 500;
-      color: #4a5568;
-      font-size: 0.95em;
+      background: rgba(255,255,255,0.5);
+      border-radius: 8px;
+      padding: 6px 12px;
+      flex: 1;
     }
-
-    .text-content {
-      background: white;
-      padding: 10px;
-      border-radius: 6px;
-      border: 1px solid #e2e8f0;
-      min-height: 70px;
-      font-size: 0.9em;
-      overflow-y: auto;
+    
+    .progress-container {
+      flex: 1;
+      height: 4px;
+      background: rgba(0,0,0,0.1);
+      border-radius: 2px;
+      cursor: pointer;
+      position: relative;
     }
-
-    .editable-text { background: #f0fff4; border: 2px solid #38a169; }
-
-    /* Controls */
-    .controls-inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-
-    .btn-record { background: #e53e3e; color: white; border: none; }
-    .btn-stop { background: #2d3748; color: white; border: none; }
-    .btn-send { background: #38a169; color: white; border: none; }
-
-    /* Audio Controls (separate sliders) */
-    .audio-wrapper { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 300px; }
-    .slider { width: 100%; }
-
+    
+    .progress-bar {
+      height: 100%;
+      background: #3b82f6;
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.1s ease;
+    }
+    
+    .time-display {
+      font-size: 0.75em;
+      color: #6b7280;
+      min-width: 40px;
+      text-align: center;
+    }
+    
     /* Footer */
-    .footer-controls { text-align: center; padding: 12px 0; border-top: 1px solid #e2e8f0; }
-
-    /* Responsive */
+    .footer-controls {
+      text-align: center;
+      padding: 16px 0;
+      border-top: 1px solid #e5e7eb;
+    }
+    
+    /* Status Messages */
+    .status-message {
+      padding: 8px 12px;
+      border-radius: 8px;
+      margin: 8px 0;
+      font-size: 0.85em;
+      text-align: center;
+    }
+    
+    .status-loading { background: #dbeafe; color: #1e40af; }
+    .status-error { background: #fee2e2; color: #dc2626; }
+    .status-success { background: #d1fae5; color: #065f46; }
+    .status-warning { background: #fef3c7; color: #92400e; }
+    
+    /* Utilities */
+    .hidden { display: none !important; }
+    .placeholder { color: #9ca3af; font-style: italic; }
+    
+    .keyboard-hint {
+      font-size: 0.7em;
+      color: #6b7280;
+      text-align: center;
+      margin-top: 8px;
+      opacity: 0.8;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    
+    /* Mobile Responsive */
     @media (max-width: 768px) {
-      .block-header { flex-direction: column; align-items: flex-start; }
+      body { padding: 10px; }
+      
+      .container {
+        max-height: 100vh;
+        border-radius: 12px;
+      }
+      
+      .header { 
+        padding: 16px 20px; 
+      }
+      
+      .header h1 { 
+        font-size: 1.2em; 
+      }
+      
+      .main-content { 
+        padding: 20px; 
+      }
+      
+      #conversationSection {
+        grid-template-rows: auto auto auto;
+        gap: 16px;
+        max-height: calc(100vh - 140px);
+      }
+      
+      .message-block {
+        padding: 16px;
+      }
+      
+      .message-icon {
+        position: static;
+        margin-bottom: 8px;
+        align-self: flex-start;
+      }
+      
+      .message-content {
+        margin-left: 0;
+      }
+      
+      .text-content {
+        max-height: 120px;
+        font-size: 1em;
+      }
+      
+      .controls {
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      
+      .audio-container {
+        max-width: 100%;
+        order: 1;
+        width: 100%;
+      }
+      
+      .chat-toggle {
+        position: static;
+        margin-top: 12px;
+        align-self: center;
+      }
+      
+      #startSection {
+        padding: 40px 16px;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .controls {
+        flex-direction: column;
+        gap: 8px;
+        align-items: stretch;
+      }
+      
+      .btn {
+        width: 100%;
+        height: 44px;
+      }
+      
+      .audio-container {
+        width: 100%;
+        max-width: none;
+      }
+      
+      .text-content {
+        max-height: 100px;
+      }
     }
   </style>
 </head>
 <body>
   <div class="container">
+    <!-- Header -->
     <div class="header">
       <h1>Assistant Vocal Français B1/B2</h1>
-      <button class="chat-toggle" id="chatToggle">📜 Historique</button>
+      <button class="chat-toggle" id="chatToggle">📜</button>
+      <div class="theme-display">
+        <span id="currentScenarioDisplay">Thème: Non sélectionné</span>
+      </div>
     </div>
 
+    <!-- Chat History -->
     <div class="chat-history" id="chatHistory">
-      <div id="chatMessages"></div>
+      <div id="chatMessages">
+        <!-- Chat messages will be inserted here -->
+      </div>
     </div>
 
+    <!-- Main Content -->
     <div class="main-content">
-      <!-- Start -->
+      <!-- Start Section -->
       <div id="startSection">
-        <h3>Choisissez un thème :</h3>
+        <h3>Choisissez un thème de conversation :</h3>
         <select id="scenario">
-          <option value="">-- Sélectionnez --</option>
-          <option value="restaurant">🍽️ Restaurant</option>
-          <option value="loisirs">🎯 Loisirs</option>
-          <option value="travail">💼 Travail</option>
-          <option value="courses">🛒 Courses</option>
-          <option value="medecin">🏥 Médecin</option>
-          <option value="voyage">✈️ Voyage</option>
-          <option value="libre">💬 Sujet libre</option>
+          <option value="">-- Sélectionnez un thème --</option>
+          <option value="restaurant">🍽️ Restaurant - Commander un repas</option>
+          <option value="loisirs">🎯 Loisirs - Parler de vos hobbies</option>
+          <option value="travail">💼 Travail - Environnement professionnel</option>
+          <option value="faire_les_courses">🛒 Faire les courses - Au supermarché</option>
+          <option value="visite_chez_le_médecin">🏥 Visite chez le médecin</option>
+          <option value="voyage">✈️ Voyage - Planifier des vacances</option>
+          <option value="libre">💬 Sujet libre (conversation ouverte)</option>
         </select>
-        <div style="margin-top: 15px;">
-          <button id="startConversation" class="btn-primary">🚀 Démarrer</button>
-        </div>
+        <button id="startConversation" class="btn btn-primary">🚀 Démarrer la conversation</button>
       </div>
 
-      <!-- Conversation -->
+      <!-- Conversation Section -->
       <div id="conversationSection" class="hidden">
-        <div class="text-block assistant-response">
-          <div class="block-header">👨‍🏫 Réponse</div>
-          <div class="text-content" id="responseText">...</div>
-          <div class="audio-wrapper hidden" id="assistantAudioControls">
-            <label>▶️ Lecture
-              <input type="range" id="playbackSlider" class="slider">
-            </label>
-            <label>🔊 Volume
-              <input type="range" id="volumeSlider" class="slider">
-            </label>
+        <!-- Assistant Response -->
+        <div class="message-block assistant-block">
+          <div class="message-icon">🤖</div>
+          <div class="message-content">
+            <div class="text-content" id="responseText">...</div>
+            
+            <div class="controls">
+              <div class="audio-container hidden" id="assistantAudioContainer">
+                <div class="custom-audio">
+                  <div class="progress-container" id="assistantProgress">
+                    <div class="progress-bar" id="assistantProgressBar"></div>
+                  </div>
+                  <div class="time-display" id="assistantTime">0:00</div>
+                </div>
+              </div>
+              <button id="playAssistantAudio" class="btn btn-play hidden">▶️</button>
+              <button id="showResponseBtn" class="btn btn-secondary hidden">👁️</button>
+            </div>
           </div>
         </div>
 
-        <div class="text-block user-input">
-          <div class="block-header">🎙️ Votre réponse</div>
-          <div class="controls-inline">
-            <button id="record" class="btn-record">Enregistrer</button>
-            <button id="stop" class="btn-stop hidden">Stop</button>
-            <button id="sendMessage" class="btn-send">Envoyer</button>
-          </div>
-          <div class="text-content editable-text" id="userText" contenteditable="true">
-            Tapez votre message ici...
+        <!-- User Input Section -->
+        <div class="message-block user-block">
+          <div class="message-icon">👤</div>
+          <div class="message-content">
+            <div class="text-content editable-text" 
+                 id="userText" 
+                 contenteditable="true"
+                 data-placeholder="Tapez votre message ici ou utilisez l'enregistrement...">
+              Tapez votre message ici ou utilisez l'enregistrement...
+            </div>
+            
+            <div class="controls">
+              <button id="record" class="btn btn-record">🎙️</button>
+              <button id="stop" class="btn btn-stop hidden">⏹️</button>
+              
+              <div class="audio-container hidden" id="userAudioContainer">
+                <div class="custom-audio">
+                  <div class="progress-container" id="userProgress">
+                    <div class="progress-bar" id="userProgressBar"></div>
+                  </div>
+                  <div class="time-display" id="userTime">0:00</div>
+                </div>
+              </div>
+              
+              <button id="playUserAudio" class="btn btn-play hidden">▶️</button>
+              <button id="sendMessage" class="btn btn-send">📤</button>
+            </div>
+            
+            <div class="keyboard-hint">
+              Raccourcis: Espace = Pause/Reprendre | Ctrl+Entrée = Envoyer
+            </div>
+            
+            <div id="recordingStatus" class="hidden"></div>
           </div>
         </div>
 
+        <!-- Footer Controls -->
         <div class="footer-controls">
-          <button id="newConversation">🔄 Nouveau sujet</button>
+          <button id="newConversation" class="btn btn-secondary">🔄 Nouveau sujet</button>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Hidden audio elements -->
+  <audio id="audioPlayback" preload="metadata"></audio>
+  <audio id="userAudio" preload="metadata"></audio>
+
+<script src="/static/script.js"></script>
 </body>
 </html>
