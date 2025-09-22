@@ -9,9 +9,9 @@
     
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f8fafc;
+      background: #0f0f0f;
       min-height: 100vh;
-      color: #1a202c;
+      color: #e5e7eb;
       padding: 20px;
     }
     
@@ -19,9 +19,9 @@
       max-width: 950px;
       max-height: 925px;
       margin: 0 auto;
-      background: white;
+      background: #1a1a1a;
       border-radius: 16px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -29,7 +29,7 @@
     
     /* Header - Minimiert */
     .header {
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      background: #2d2d2d;
       color: white;
       padding: 20px 24px;
       position: relative;
@@ -71,7 +71,7 @@
     
     /* Chat History */
     .chat-history {
-      background: #f1f5f9;
+      background: #262626;
       max-height: 0;
       overflow-y: auto;
       transition: max-height 0.3s ease;
@@ -91,13 +91,13 @@
     }
     
     .chat-message.user {
-      background: #dbeafe;
-      color: #1e40af;
+      background: #1e3a8a;
+      color: #bfdbfe;
     }
     
     .chat-message.assistant {
-      background: #fef3c7;
-      color: #92400e;
+      background: #374151;
+      color: #d1d5db;
     }
     
     /* Main Content */
@@ -115,7 +115,7 @@
     
     #startSection h3 {
       margin-bottom: 24px;
-      color: #374151;
+      color: #d1d5db;
       font-weight: 500;
     }
     
@@ -123,17 +123,18 @@
       width: 100%;
       max-width: 400px;
       padding: 12px 16px;
-      border: 2px solid #e5e7eb;
+      border: 2px solid #4b5563;
       border-radius: 12px;
       font-size: 1em;
-      background: white;
+      background: #374151;
+      color: #f9fafb;
       margin-bottom: 20px;
       transition: border-color 0.2s ease;
     }
     
     select:focus {
       outline: none;
-      border-color: #6366f1;
+      border-color: #6b7280;
     }
     
     /* Conversation Layout */
@@ -155,40 +156,21 @@
     }
     
     .assistant-block {
-      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      background: #404040;
       position: relative;
     }
     
     .user-block {
-      background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+      background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
       position: relative;
     }
     
     .message-icon {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      width: 24px;
-      height: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
-      font-size: 12px;
-    }
-    
-    .assistant-block .message-icon {
-      background: #f59e0b;
-      color: white;
-    }
-    
-    .user-block .message-icon {
-      background: #3b82f6;
-      color: white;
+      display: none;
     }
     
     .message-content {
-      margin-left: 44px;
+      margin-left: 0;
       flex: 1;
       display: flex;
       flex-direction: column;
@@ -196,7 +178,7 @@
     
     .text-content {
       flex: 1;
-      background: rgba(255,255,255,0.7);
+      background: rgba(255,255,255,0.05);
       border-radius: 12px;
       padding: 16px;
       font-size: 0.95em;
@@ -204,19 +186,20 @@
       min-height: 80px;
       max-height: 140px;
       overflow-y: auto;
-      border: none;
+      border: 1px solid rgba(255,255,255,0.1);
       margin-bottom: 12px;
+      color: #f9fafb;
     }
     
     .editable-text {
-      background: rgba(255,255,255,0.9) !important;
+      background: rgba(255,255,255,0.08) !important;
       outline: none;
       cursor: text;
     }
     
     .editable-text:focus {
-      background: white !important;
-      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+      background: rgba(255,255,255,0.12) !important;
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
     }
     
     /* Controls */
@@ -227,7 +210,7 @@
       justify-content: flex-start;
     }
     
-    /* Buttons - Nur Icons */
+    /* Buttons - Grau mit farbigen Icons */
     .btn {
       width: 40px;
       height: 40px;
@@ -239,62 +222,53 @@
       justify-content: center;
       font-size: 16px;
       transition: all 0.2s ease;
-      color: white;
+      background: #4b5563;
+      color: #9ca3af;
+    }
+    
+    .btn:hover:not(:disabled) {
+      background: #6b7280;
     }
     
     .btn-primary {
-      background: #6366f1;
+      background: #4b5563;
       padding: 12px 24px;
       width: auto;
       height: auto;
       font-size: 0.95em;
       font-weight: 500;
+      color: #f9fafb;
     }
     
     .btn-primary:hover {
-      background: #5856eb;
+      background: #6b7280;
       transform: translateY(-1px);
     }
     
     .btn-record {
-      background: #ef4444;
-    }
-    
-    .btn-record:hover:not(:disabled) {
-      background: #dc2626;
+      color: #ef4444;
     }
     
     .btn-record.recording {
-      background: #f97316;
+      color: #f97316;
       animation: pulse 1.5s infinite;
     }
     
     .btn-stop {
-      background: #374151;
-    }
-    
-    .btn-stop:hover {
-      background: #1f2937;
+      color: #9ca3af;
     }
     
     .btn-play {
-      background: #10b981;
-    }
-    
-    .btn-play:hover {
-      background: #059669;
+      color: #10b981;
     }
     
     .btn-send {
-      background: #3b82f6;
-    }
-    
-    .btn-send:hover:not(:disabled) {
-      background: #2563eb;
+      color: #3b82f6;
     }
     
     .btn-secondary {
-      background: #6b7280;
+      background: #4b5563;
+      color: #d1d5db;
       padding: 10px 20px;
       width: auto;
       height: auto;
@@ -302,11 +276,12 @@
     }
     
     .btn-secondary:hover {
-      background: #4b5563;
+      background: #6b7280;
     }
     
     .btn:disabled {
-      background: #9ca3af;
+      background: #374151;
+      color: #6b7280;
       cursor: not-allowed;
       transform: none;
     }
@@ -324,7 +299,7 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      background: rgba(255,255,255,0.5);
+      background: rgba(255,255,255,0.1);
       border-radius: 8px;
       padding: 6px 12px;
       flex: 1;
@@ -333,7 +308,7 @@
     .progress-container {
       flex: 1;
       height: 4px;
-      background: rgba(0,0,0,0.1);
+      background: rgba(255,255,255,0.2);
       border-radius: 2px;
       cursor: pointer;
       position: relative;
@@ -341,7 +316,7 @@
     
     .progress-bar {
       height: 100%;
-      background: #3b82f6;
+      background: #10b981;
       border-radius: 2px;
       width: 0%;
       transition: width 0.1s ease;
@@ -349,7 +324,7 @@
     
     .time-display {
       font-size: 0.75em;
-      color: #6b7280;
+      color: #d1d5db;
       min-width: 40px;
       text-align: center;
     }
@@ -358,7 +333,7 @@
     .footer-controls {
       text-align: center;
       padding: 16px 0;
-      border-top: 1px solid #e5e7eb;
+      border-top: 1px solid #4b5563;
     }
     
     /* Status Messages */
@@ -370,18 +345,18 @@
       text-align: center;
     }
     
-    .status-loading { background: #dbeafe; color: #1e40af; }
-    .status-error { background: #fee2e2; color: #dc2626; }
-    .status-success { background: #d1fae5; color: #065f46; }
-    .status-warning { background: #fef3c7; color: #92400e; }
+    .status-loading { background: #1e3a8a; color: #bfdbfe; }
+    .status-error { background: #7f1d1d; color: #fca5a5; }
+    .status-success { background: #14532d; color: #86efac; }
+    .status-warning { background: #78350f; color: #fcd34d; }
     
     /* Utilities */
     .hidden { display: none !important; }
-    .placeholder { color: #9ca3af; font-style: italic; }
+    .placeholder { color: #6b7280; font-style: italic; }
     
     .keyboard-hint {
       font-size: 0.7em;
-      color: #6b7280;
+      color: #9ca3af;
       text-align: center;
       margin-top: 8px;
       opacity: 0.8;
@@ -538,6 +513,11 @@
               </div>
               <button id="playAssistantAudio" class="btn btn-play hidden">▶️</button>
               <button id="showResponseBtn" class="btn btn-secondary hidden">👁️</button>
+              
+              <!-- Assistant Audio Player -->
+              <audio id="audioPlayback" controls class="hidden">
+                Votre navigateur ne supporte pas l'élément audio.
+              </audio>
             </div>
           </div>
         </div>
@@ -575,6 +555,11 @@
             </div>
             
             <div id="recordingStatus" class="hidden"></div>
+            
+            <!-- User Audio Player -->
+            <audio id="userAudio" controls class="hidden">
+              Votre navigateur ne supporte pas l'élément audio.
+            </audio>
           </div>
         </div>
 
@@ -586,9 +571,11 @@
     </div>
   </div>
 
-  <!-- Hidden audio elements -->
-  <audio id="audioPlayback" preload="metadata"></audio>
-  <audio id="userAudio" preload="metadata"></audio>
+  <!-- Hidden audio elements for script compatibility -->
+  <div class="hidden">
+    <audio id="audioPlaybackHidden" preload="metadata"></audio>
+    <audio id="userAudioHidden" preload="metadata"></audio>
+  </div>
 
 <script src="/static/script.js"></script>
 </body>
