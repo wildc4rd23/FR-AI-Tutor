@@ -243,7 +243,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function resetRecordButton() {
-      elements.recordBtn && (elements.recordBtn.innerHTML = '🎙️ Enregistrer');
+      elements.recordBtn && (elements.recordBtn.innerHTML = '🔴');
       elements.recordBtn && elements.recordBtn.classList.remove('recording', 'paused');
       elements.recordBtn && (elements.recordBtn.disabled = false);
 
@@ -562,11 +562,11 @@ function updateShowResponseButton() {
             elements.showResponseBtn.style.cursor = 'pointer';
 
             if (isTextCurrentlyVisible) {
-                elements.showResponseBtn.innerHTML = '🙈 Masquer la réponse';
+                elements.showResponseBtn.innerHTML = '✖';
             } else if (audioHasBeenPlayed) { // Audio played (or no audio), text not visible
-                elements.showResponseBtn.innerHTML = '👁️ Afficher la réponse';
+                elements.showResponseBtn.innerHTML = '👁️';
             } else { // Should not happen if currentResponse exists and audio hasn't played or failed
-                elements.showResponseBtn.innerHTML = '🔊 Écoutez d\'abord l\'audio';
+                elements.showResponseBtn.innerHTML = '▶';
                 elements.showResponseBtn.style.opacity = '0.6';
                 elements.showResponseBtn.style.cursor = 'not-allowed';
             }
@@ -706,24 +706,24 @@ function updateShowResponseButton() {
         }
         
         updateRecordButton();
-        showStatus(elements.recordingStatus, '🎤 Enregistrement repris', 'success');
+        showStatus(elements.recordingStatus, '⏺ Enregistrement repris', 'success');
     }
     function updateRecordButton() {
 
       if (!elements.recordBtn) return;
 
       if (isRecording && !isPaused) {
-        elements.recordBtn.innerHTML = '⏸️ Pause';
+        elements.recordBtn.innerHTML = '🔴';
         elements.recordBtn.classList.add('recording');
         elements.recordBtn.classList.remove('paused');
 
       } else if (isRecording && isPaused) {
-        elements.recordBtn.innerHTML = '▶️ Reprendre';
+        elements.recordBtn.innerHTML = '⏺';
         elements.recordBtn.classList.remove('recording');
         elements.recordBtn.classList.add('paused');
 
       } else {
-        elements.recordBtn.innerHTML = '🎙️ Enregistrer';
+        elements.recordBtn.innerHTML = '🔴';
         elements.recordBtn.classList.remove('recording', 'paused');
       }
 
@@ -1595,11 +1595,11 @@ elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('error',
     if (currentResponse) { // nur wenn Antwort vorhanden
         if (isTextCurrentlyVisible) {
             hideResponseText();
-            elements.showResponseBtn && (elements.showResponseBtn.textContent = 'Afficher le texte');
+            elements.showResponseBtn && (elements.showResponseBtn.textContent = '👁️ Afficher');
         } else { //wenn text noch nicht sichtbar oder kein Audio 
             if (audioHasBeenPlayed || !elements.llmAudioPlayback || !elements.llmAudioPlayback.src) { // Use llmAudioPlayback
                 showResponseText();
-                elements.showResponseBtn && (elements.showResponseBtn.textContent = 'Masquer le texte');
+                elements.showResponseBtn && (elements.showResponseBtn.textContent = '🙈 Masquer');
             } else {
                 showStatus(elements.recordingStatus, '⚠️ Veuillez d\'abord écouter l\'audio', 'error');
                 setTimeout(() => hideStatus(elements.recordingStatus), 3000);
