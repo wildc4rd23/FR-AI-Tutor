@@ -243,7 +243,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function resetRecordButton() {
-      elements.recordBtn && (elements.recordBtn.innerHTML = '🔴');
+      elements.recordBtn && (elements.recordBtn.innerHTML = '〇');
       elements.recordBtn && elements.recordBtn.classList.remove('recording', 'paused');
       elements.recordBtn && (elements.recordBtn.disabled = false);
 
@@ -718,7 +718,7 @@ function updateShowResponseButton() {
         elements.recordBtn.classList.remove('paused');
 
       } else if (isRecording && isPaused) {
-        elements.recordBtn.innerHTML = '⏺';
+        elements.recordBtn.innerHTML = '〇';
         elements.recordBtn.classList.remove('recording');
         elements.recordBtn.classList.add('paused');
 
@@ -1595,11 +1595,11 @@ elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('error',
     if (currentResponse) { // nur wenn Antwort vorhanden
         if (isTextCurrentlyVisible) {
             hideResponseText();
-            elements.showResponseBtn && (elements.showResponseBtn.textContent = '👁️ Afficher');
+            elements.showResponseBtn && (elements.showResponseBtn.textContent = '👁️');
         } else { //wenn text noch nicht sichtbar oder kein Audio 
             if (audioHasBeenPlayed || !elements.llmAudioPlayback || !elements.llmAudioPlayback.src) { // Use llmAudioPlayback
                 showResponseText();
-                elements.showResponseBtn && (elements.showResponseBtn.textContent = '🙈 Masquer');
+                elements.showResponseBtn && (elements.showResponseBtn.textContent = '✖');
             } else {
                 showStatus(elements.recordingStatus, '⚠️ Veuillez d\'abord écouter l\'audio', 'error');
                 setTimeout(() => hideStatus(elements.recordingStatus), 3000);

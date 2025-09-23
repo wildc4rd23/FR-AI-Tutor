@@ -214,7 +214,7 @@
     .btn {
       width: 40px;
       height: 40px;
-      border-radius: 10px;
+      border-radius: 20px;
       border: none;
       cursor: pointer;
       display: flex;
@@ -264,19 +264,6 @@
     
     .btn-send {
       color: #3b82f6;
-    }
-    
-    .btn-secondary {
-      background: #4b5563;
-      color: #d1d5db;
-      padding: 10px 20px;
-      width: auto;
-      height: auto;
-      font-size: 0.9em;
-    }
-    
-    .btn-secondary:hover {
-      background: #6b7280;
     }
     
     .btn:disabled {
@@ -455,6 +442,15 @@
       .text-content {
         max-height: 100px;
       }
+
+      .custom-player {
+        background-color: #4b5563; /* Beispiel: Hintergrundfarbe */
+        border-radius: 20px;
+      /*padding: 12px 24px;*/
+        font-size: 0.95em;
+        font-weight: 500;
+        color: #f9fafb;
+      }
     }
   </style>
 </head>
@@ -512,10 +508,10 @@
                 </div>
               </div>
               <button id="playAssistantAudio" class="btn btn-play hidden">▶️</button>
-              <button id="showResponseBtn" class="btn btn-secondary hidden">👁️</button>
+              <button id="showResponseBtn" class="btn hidden">👁️</button>
               
               <!-- Assistant Audio Player -->
-              <audio id="audioPlayback" controls class="hidden">
+              <audio id="audioPlayback" controls class="custom-player hidden">
                 Votre navigateur ne supporte pas l'élément audio.
               </audio>
             </div>
@@ -534,8 +530,8 @@
             </div>
             
             <div class="controls">
-              <button id="record" class="btn btn-record">🔴</button>
-              <button id="stop" class="btn btn-stop hidden">□</button>
+              <button id="record" class="btn btn-record">〇</button>
+              <button id="stop" class="btn btn-stop hidden">▢</button>
               
               <div class="audio-container hidden" id="userAudioContainer">
                 <div class="custom-audio">
@@ -557,7 +553,7 @@
             <div id="recordingStatus" class="hidden"></div>
             
             <!-- User Audio Player -->
-            <audio id="userAudio" controls class="hidden">
+            <audio id="userAudio" controls class="custom-player hidden">
               Votre navigateur ne supporte pas l'élément audio.
             </audio>
           </div>
@@ -565,7 +561,7 @@
 
         <!-- Footer Controls -->
         <div class="footer-controls">
-          <button id="newConversation" class="btn btn-secondary">🔄 Nouveau sujet</button>
+          <button id="newConversation" class="btn btn-primary">🔄 Nouveau sujet</button>
         </div>
       </div>
     </div>
