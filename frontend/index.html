@@ -214,7 +214,7 @@
     .btn {
       width: 40px;
       height: 40px;
-      border-radius: 20px;
+      border-radius: 10px;
       border: none;
       cursor: pointer;
       display: flex;
@@ -266,6 +266,19 @@
       color: #3b82f6;
     }
     
+    .btn-secondary {
+      background: #4b5563;
+      color: #d1d5db;
+      padding: 10px 20px;
+      width: auto;
+      height: auto;
+      font-size: 0.9em;
+    }
+    
+    .btn-secondary:hover {
+      background: #6b7280;
+    }
+    
     .btn:disabled {
       background: #374151;
       color: #6b7280;
@@ -273,30 +286,30 @@
       transform: none;
     }
     
-    /* Audio Player - Überarbeitet */
-    .audio-container {
+    /* Custom Audio Player */
+    .custom-audio-player {
       display: flex;
       align-items: center;
       gap: 12px;
+      background: #4b5563;
+      border-radius: 8px;
+      padding: 8px 16px;
       flex: 1;
-      max-width: 300px;
+      max-width: 320px;
     }
     
-    .custom-audio {
+    .progress-section {
       display: flex;
       align-items: center;
       gap: 8px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 8px;
-      padding: 6px 12px;
       flex: 1;
     }
     
     .progress-container {
       flex: 1;
-      height: 4px;
+      height: 6px;
       background: rgba(255,255,255,0.2);
-      border-radius: 2px;
+      border-radius: 3px;
       cursor: pointer;
       position: relative;
     }
@@ -304,16 +317,82 @@
     .progress-bar {
       height: 100%;
       background: #10b981;
-      border-radius: 2px;
+      border-radius: 3px;
       width: 0%;
       transition: width 0.1s ease;
+    }
+    
+    .progress-handle {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      background: #10b981;
+      border-radius: 50%;
+      cursor: pointer;
+      left: 0%;
+      transition: left 0.1s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    .progress-handle:hover {
+      transform: translateY(-50%) scale(1.1);
     }
     
     .time-display {
       font-size: 0.75em;
       color: #d1d5db;
-      min-width: 40px;
+      min-width: 45px;
       text-align: center;
+      font-family: monospace;
+    }
+    
+    .volume-section {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 80px;
+    }
+    
+    .volume-icon {
+      color: #9ca3af;
+      font-size: 14px;
+    }
+    
+    .volume-container {
+      width: 60px;
+      height: 4px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 2px;
+      cursor: pointer;
+      position: relative;
+    }
+    
+    .volume-bar {
+      height: 100%;
+      background: #6b7280;
+      border-radius: 2px;
+      width: 100%;
+      transition: width 0.1s ease;
+    }
+    
+    .volume-handle {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 10px;
+      height: 10px;
+      background: #6b7280;
+      border-radius: 50%;
+      cursor: pointer;
+      right: 0px;
+      transition: right 0.1s ease;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    
+    .volume-handle:hover {
+      transform: translateY(-50%) scale(1.1);
     }
     
     /* Footer */
@@ -442,15 +521,6 @@
       .text-content {
         max-height: 100px;
       }
-
-      .custom-player {
-        background-color: #4b5563; /* Beispiel: Hintergrundfarbe */
-        border-radius: 20px;
-      /*padding: 12px 24px;*/
-        font-size: 0.95em;
-        font-weight: 500;
-        color: #f9fafb;
-      }
     }
   </style>
 </head>
@@ -508,10 +578,10 @@
                 </div>
               </div>
               <button id="playAssistantAudio" class="btn btn-play hidden">▶️</button>
-              <button id="showResponseBtn" class="btn hidden">👁️</button>
+              <button id="showResponseBtn" class="btn btn-secondary hidden">☰</button>
               
               <!-- Assistant Audio Player -->
-              <audio id="audioPlayback" controls class="custom-player hidden">
+              <audio id="audioPlayback" controls class="hidden">
                 Votre navigateur ne supporte pas l'élément audio.
               </audio>
             </div>
@@ -533,17 +603,28 @@
               <button id="record" class="btn btn-record">〇</button>
               <button id="stop" class="btn btn-stop hidden">▢</button>
               
-              <div class="audio-container hidden" id="userAudioContainer">
-                <div class="custom-audio">
+              <div class="custom-audio-player hidden" id="userAudioContainer">
+                <div class="progress-section">
                   <div class="progress-container" id="userProgress">
                     <div class="progress-bar" id="userProgressBar"></div>
+                    <div class="progress-handle" id="userProgressHandle"></div>
                   </div>
                   <div class="time-display" id="userTime">0:00</div>
+                </div>
+                <div class="volume-section">
+                  <span class="volume-icon">◁</span>
+                  <div class="volume-container" id="userVolumeContainer">
+                    <div class="volume-bar" id="userVolumeBar"></div>
+                    <div class="volume-handle" id="userVolumeHandle"></div>
+                  </div>
                 </div>
               </div>
               
               <button id="playUserAudio" class="btn btn-play hidden">▶️</button>
               <button id="sendMessage" class="btn btn-send">✉</button>
+              
+              <!-- Hidden Audio Element -->
+              <audio id="userAudio" preload="metadata" class="hidden"></audio>
             </div>
             
             <div class="keyboard-hint">
@@ -553,7 +634,7 @@
             <div id="recordingStatus" class="hidden"></div>
             
             <!-- User Audio Player -->
-            <audio id="userAudio" controls class="custom-player hidden">
+            <audio id="userAudio" controls class="hidden">
               Votre navigateur ne supporte pas l'élément audio.
             </audio>
           </div>
@@ -561,7 +642,7 @@
 
         <!-- Footer Controls -->
         <div class="footer-controls">
-          <button id="newConversation" class="btn btn-primary">🔄 Nouveau sujet</button>
+          <button id="newConversation" class="btn btn-secondary"> ↺ Nouveau sujet</button>
         </div>
       </div>
     </div>
