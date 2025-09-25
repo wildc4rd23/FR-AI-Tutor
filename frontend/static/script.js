@@ -159,7 +159,7 @@ class CustomAudioPlayer {
     const pos = (e.clientX - rect.left) / rect.width;
     const clampedPos = Math.max(0, Math.min(1, pos));
     
-    if (this.audio.duration) {
+    if (this.audio.duration && !isNaN(this.audio.duration) && isFinite(this.audio.duration)) {
       this.audio.currentTime = clampedPos * this.audio.duration;
     }
   }
@@ -838,7 +838,7 @@ function updateShowResponseButton() {
             } else if (audioHasBeenPlayed) { // Audio played (or no audio), text not visible
                 elements.showResponseBtn.innerHTML = '☰';
             } else { // Should not happen if currentResponse exists and audio hasn't played or failed
-                elements.showResponseBtn.innerHTML = '▶';
+                elements.showResponseBtn.innerHTML = '☰';
                 elements.showResponseBtn.style.opacity = '0.6';
                 elements.showResponseBtn.style.cursor = 'not-allowed';
             }

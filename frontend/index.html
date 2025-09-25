@@ -559,7 +559,7 @@
         </select>
         <button id="startConversation" class="btn btn-primary">🚀 Démarrer la conversation</button>
       </div>
-
+      <div id="recordingStatus" class="hidden"></div>
       <!-- Conversation Section -->
       <div id="conversationSection" class="hidden">
         <!-- Assistant Response -->
@@ -569,19 +569,27 @@
             <div class="text-content" id="responseText">...</div>
             
             <div class="controls">
-              <div class="audio-container hidden" id="assistantAudioContainer">
-                <div class="custom-audio">
+              <div class="custom-audio-player hidden" id="assistantAudioContainer">
+                <div class="progress-section">
                   <div class="progress-container" id="assistantProgress">
                     <div class="progress-bar" id="assistantProgressBar"></div>
+                    <div class="progress-handle" id="assistantProgressHandle"></div>
                   </div>
                   <div class="time-display" id="assistantTime">0:00</div>
+                </div>
+                <div class="volume-section">
+                  <span class="volume-icon">🔊</span>
+                  <div class="volume-container" id="assistantVolumeContainer">
+                    <div class="volume-bar" id="assistantVolumeBar"></div>
+                    <div class="volume-handle" id="assistantVolumeHandle"></div>
+                  </div>
                 </div>
               </div>
               <button id="playAssistantAudio" class="btn btn-play hidden">▶️</button>
               <button id="showResponseBtn" class="btn btn-secondary hidden">☰</button>
               
               <!-- Assistant Audio Player -->
-              <audio id="audioPlayback" controls class="hidden">
+              <audio id="audioPlayback" preload="metadata" class="hidden">
                 Votre navigateur ne supporte pas l'élément audio.
               </audio>
             </div>
@@ -624,19 +632,12 @@
               <button id="sendMessage" class="btn btn-send">✉</button>
               
               <!-- Hidden Audio Element -->
-              <audio id="userAudio" preload="metadata" class="hidden"></audio>
+              <audio id="userAudio" preload="metadata" class="hidden">Votre navigateur ne supporte pas l'élément audio.</audio>
             </div>
             
             <div class="keyboard-hint">
               Raccourcis: Espace = Pause/Reprendre | Ctrl+Entrée = Envoyer
             </div>
-            
-            <div id="recordingStatus" class="hidden"></div>
-            
-            <!-- User Audio Player -->
-            <audio id="userAudio" controls class="hidden">
-              Votre navigateur ne supporte pas l'élément audio.
-            </audio>
           </div>
         </div>
 
