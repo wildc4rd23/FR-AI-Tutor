@@ -1,5 +1,5 @@
 // Custom Audio Player Klassen
-// 👁️▶️🔄☰✖🔴〇  △▽ used icons
+// 👁️▶️🔄☰✖🔴〇  △▽◁▷ used icons
 class CustomAudioPlayer {
   constructor(audioElement, containerId, progressId, handleId, timeId, volumeContainerId, volumeBarId, volumeHandleId, playButtonId) {
     this.audio = audioElement;
@@ -222,14 +222,14 @@ class CustomAudioPlayer {
   
   onPause() {
     if (this.playButton) {
-      this.playButton.innerHTML = '▶️';
+      this.playButton.innerHTML = '▷';
       this.playButton.style.color = '#10b981';
     }
   }
   
   onEnded() {
     if (this.playButton) {
-      this.playButton.innerHTML = '▶️';
+      this.playButton.innerHTML = '▷';
       this.playButton.style.color = '#10b981';
     }
   }

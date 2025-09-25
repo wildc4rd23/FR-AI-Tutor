@@ -55,7 +55,7 @@
       background: rgba(255,255,255,0.15);
       border: none;
       color: white;
-      width: 36px;
+      width: 80px;
       height: 36px;
       border-radius: 8px;
       cursor: pointer;
@@ -533,7 +533,7 @@
     <!-- Header -->
     <div class="header">
       <h1>Assistant Vocal Français B1/B2</h1>
-      <button class="chat-toggle" hidden id="chatToggle">▽ Historique<</button>
+      <button class="chat-toggle hidden" id="chatToggle">▽ Historique</button>
       <div class="theme-display">
         <span id="currentScenarioDisplay">Thème: Non sélectionné</span>
       </div>
@@ -582,14 +582,14 @@
                   <div class="time-display" id="assistantTime">0:00</div>
                 </div>
                 <div class="volume-section">
-                  <span class="volume-icon">🔊</span>
+                  <span class="volume-icon">◁</span>
                   <div class="volume-container" id="assistantVolumeContainer">
                     <div class="volume-bar" id="assistantVolumeBar"></div>
                     <div class="volume-handle" id="assistantVolumeHandle"></div>
                   </div>
                 </div>
               </div>
-              <button id="playAssistantAudio" class="btn btn-play hidden">▶️</button>
+              <button id="playAssistantAudio" class="btn btn-play hidden">▷</button>
               <button id="showResponseBtn" class="btn btn-secondary hidden">☰</button>
               
               <!-- Assistant Audio Player -->
@@ -629,7 +629,7 @@
                 </div>
               </div>
               
-              <button id="playUserAudio" class="btn btn-play hidden">▶️</button>
+              <button id="playUserAudio" class="btn btn-play hidden">▷</button>
               <button id="sendMessage" class="btn btn-send">✉</button>
               
               <!-- Hidden Audio Element -->
