@@ -1,4 +1,5 @@
 // Custom Audio Player Klassen
+// 👁️▶️🔄☰✖🔴〇  △▽ used icons
 class CustomAudioPlayer {
   constructor(audioElement, containerId, progressId, handleId, timeId, volumeContainerId, volumeBarId, volumeHandleId, playButtonId) {
     this.audio = audioElement;
@@ -214,7 +215,7 @@ class CustomAudioPlayer {
   
   onPlay() {
     if (this.playButton) {
-      this.playButton.innerHTML = 'll ║';
+      this.playButton.innerHTML = 'll';
       this.playButton.style.color = '#f59e0b';
     }
   }
@@ -1589,6 +1590,7 @@ async function playLlmAudio(audio_url) {
             isLlmAudioPlaying = false;
             showProgressStatus(4, '✅ Audio terminé - Texte disponible!');
             updateShowResponseButton();
+            elements.recordBtn && elements.recordBtn.classList.remove('hidden');
             resolveOnce();
         };
         
@@ -1799,6 +1801,7 @@ showProgressStatus(2, '📝 Conversation préparée...');
     } else {
         currentResponse = "🎯 Conversation libre - parlez de ce qui vous intéresse!";
         audioHasBeenPlayed = true;
+        elements.recordBtn && elements.recordBtn.classList.remove('hidden');
         showResponseText(); // In diesem speziellen Fall (libre, kein Audio) wird der Text direkt angezeigt
         hideStatus(elements.recordingStatus);
     }
@@ -1818,49 +1821,6 @@ elements.recordBtn && elements.recordBtn.addEventListener('click', () => {
     startRealTimeSpeech();
   }
 });
-
-// Verbesserte Audio Event Listener
-/* !!!!!!!! playLlmAudio() behandelt bereits alle Events !!!!!!!!!!
-
-elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('play', () => {
-    console.log('🎵 LLM Audio playback started (global listener)');
-    // Nur setzen wenn nicht bereits durch playLlmAudio gesetzt
-    if (!isLlmAudioPlaying) {
-        isLlmAudioPlaying = true;
-        updateShowResponseButton();
-        showProgressStatus(4, '🎵 Écoute en cours...');
-    }
-});
-
-elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('ended', () => {
-    console.log('✅ LLM Audio playback ended (global listener)');
-    // Nur setzen wenn nicht bereits durch playLlmAudio behandelt
-    if (isLlmAudioPlaying) {
-        audioHasBeenPlayed = true;
-        isLlmAudioPlaying = false;
-        showProgressStatus(4, '✅ Audio terminé - Texte disponible!');
-        updateShowResponseButton();
-    }
-});
-
-elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('error', (e) => {
-    // Gleiche Logik wie in playLlmAudio
-    if (!elements.llmAudioPlayback.src || 
-        elements.llmAudioPlayback.src === '' || 
-        elements.llmAudioPlayback.networkState === HTMLMediaElement.NETWORK_EMPTY) {
-        console.log("LLM Audio error ignored (no source set - global listener)");
-        return;
-    }
-    
-    console.error('❌ LLM Audio playback error (global listener):', e);
-    if (isLlmAudioPlaying) {
-        audioHasBeenPlayed = false;
-        isLlmAudioPlaying = false;
-        showProgressStatus(4, '⚠️ Erreur de lecture audio. Texte disponible.');
-        updateShowResponseButton();
-    }
-});
-*/
 
   elements.stopBtn && elements.stopBtn.addEventListener('click', () => {
     stopRealTimeSpeech();
@@ -1899,7 +1859,7 @@ elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('error',
     if (currentResponse) { // nur wenn Antwort vorhanden
         if (isTextCurrentlyVisible) {
             hideResponseText();
-            elements.showResponseBtn && (elements.showResponseBtn.textContent = '👁️');
+            elements.showResponseBtn && (elements.showResponseBtn.textContent = '☰');
         } else { //wenn text noch nicht sichtbar oder kein Audio 
             if (audioHasBeenPlayed || !elements.llmAudioPlayback || !elements.llmAudioPlayback.src) { // Use llmAudioPlayback
                 showResponseText();
@@ -2027,10 +1987,12 @@ function updateChatHistoryUI() {
   const chatMessages = document.getElementById('chatMessages');
   
   // Toggle chat history
-  chatToggle.addEventListener('click', () => {
+  if(chatMessages){
+    chatToggle.addEventListener('click', () => {
     chatHistory.classList.toggle('show');
-    chatToggle.textContent = chatHistory.classList.contains('show') ? '📜 Masquer' : '📜 Historique';
-  });
+    chatToggle.textContent = chatHistory.classList.contains('show') ? '△ Historique' : '▽ Historique';
+    });
+  }
   
   // Function to add message to chat history
   window.addToChatHistory = function(role, message) {
