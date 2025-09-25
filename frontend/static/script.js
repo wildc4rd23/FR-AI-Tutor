@@ -290,6 +290,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Initialer Zustand der UI-Elemente mit robusteren bedingten Operationen
   elements.stopBtn && elements.stopBtn.classList.add('hidden');
   elements.sendBtn && elements.sendBtn.classList.add('hidden');
+  elements.recordBtn && elements.recordBtn.classList.add('hidden');
   elements.userAudio && elements.userAudio.classList.add('hidden');
   elements.llmAudioPlayback && elements.llmAudioPlayback.classList.add('hidden'); // LLM-Antwort Audio
   elements.responseText && elements.responseText.classList.add('hidden'); // LLM-Antwort Text
@@ -1006,7 +1007,7 @@ function updateShowResponseButton() {
         elements.recordBtn.classList.add('paused');
 
       } else {
-        elements.recordBtn.innerHTML = '🔴';
+        elements.recordBtn.innerHTML = '〇';
         elements.recordBtn.classList.remove('recording', 'paused');
       }
 
@@ -1297,6 +1298,7 @@ async function sendMessageToBackend(message) {
     
     if (!message.trim()) {
         showStatus(elements.recordingStatus, 'Veuillez entrer un message.', 'warning');
+        setTimeout(() => hideStatus(elements.recordingStatus), 3000);
         return;
     }
     
@@ -1699,6 +1701,7 @@ elements.startBtn && elements.startBtn.addEventListener('click', async () => {
     
     if (!scenario) {
         showStatus(elements.recordingStatus, "⚠️ Veuillez choisir un thème.", 'error');
+        setTimeout(() => hideStatus(elements.recordingStatus), 3000);
         return;
     }
 
@@ -1887,6 +1890,7 @@ elements.llmAudioPlayback && elements.llmAudioPlayback.addEventListener('error',
     } else {
         console.log('Kein gültiger Text zum Senden gefunden');
         showStatus(elements.recordingStatus, 'Veuillez d\'abord enregistrer ou taper un message.', 'warning');
+        setTimeout(() => hideStatus(elements.recordingStatus), 3000);
     }
   });
 
@@ -1962,6 +1966,7 @@ document.addEventListener('keydown', (e) => {
     } else {
       console.log('Kein gültiger Text zum Senden gefunden via Keyboard');
       showStatus(elements.recordingStatus, 'Veuillez d\'abord enregistrer ou taper un message.', 'warning');
+      setTimeout(() => hideStatus(elements.recordingStatus), 3000);
     }
   }
   

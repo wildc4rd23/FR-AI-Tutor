@@ -109,7 +109,11 @@
     
     /* Start Section */
     #startSection {
-      text-align: center;
+      display: flex;             /* Aktiviert Flexbox */
+      flex-direction: column;    /* Ordnet die Kindelemente vertikal an (h3, select, button) */
+      align-items: center;       /* ZENTRIERT ALLE KINDER HORIZONTAL */
+      justify-content: center;   /* Zentriert alle Kinder vertikal (optional, aber empfohlen) */
+      height: 100%;              /* Stellt sicher, dass das Flex-Elternteil die volle Höhe einnimmt */
       padding: 60px 20px;
     }
     
@@ -161,7 +165,7 @@
     }
     
     .user-block {
-      background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+      background: linear-gradient(135deg, #989898 0%, #6f7782 100%);
       position: relative;
     }
     
@@ -529,7 +533,7 @@
     <!-- Header -->
     <div class="header">
       <h1>Assistant Vocal Français B1/B2</h1>
-      <button class="chat-toggle" id="chatToggle">📜</button>
+      <button class="chat-toggle" hidden id="chatToggle">📜</button>
       <div class="theme-display">
         <span id="currentScenarioDisplay">Thème: Non sélectionné</span>
       </div>
