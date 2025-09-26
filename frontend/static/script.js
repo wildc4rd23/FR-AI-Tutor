@@ -1248,6 +1248,7 @@ function updateShowResponseButton() {
         if (finalContent) {
           elements.userText.classList.remove('placeholder');
           elements.userText.dataset.isPlaceholder = 'false';
+          elements.sendBtn.classList.remove('hidden');
         } else {
           elements.userText.textContent = placeholderText;
           elements.userText.classList.add('placeholder');
@@ -1344,14 +1345,6 @@ async function sendMessageToBackend(message) {
         }
         console.log('=== END DEBUG ===');
 
-        // Lokale Historie nur zur Anzeige
-        conversationHistory.push(
-            { role: 'user', content: message },
-            { role: 'assistant', content: data.response }
-        );
-        updateChatHistoryUI(); 
-        setResponseSafely(data.response); // Setzt currentResponse und zeigt Hinweis an
-
         if (data.audio_url) {
             await playLlmAudio(data.audio_url); // Call playLlmAudio
         } else {
@@ -1364,8 +1357,16 @@ async function sendMessageToBackend(message) {
             isTextCurrentlyVisible = false; // Text ist NICHT sichtbar
             elements.responseText && elements.responseText.classList.add('hidden'); // Sicherstellen, dass Textbereich versteckt ist
             updateShowResponseButton(); // Aktualisiere den Button-Zustand (sollte "Afficher" anzeigen)
-            showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable 860'); // Angepasste Meldung
+            showProgressStatus(4, '⚠️ Audio non disponible. Texte affichable'); // Angepasste Meldung
         }
+        // Lokale Historie nur zur Anzeige
+        conversationHistory.push(
+            { role: 'user', content: message },
+            { role: 'assistant', content: data.response }
+        );
+        updateChatHistoryUI(); 
+        setResponseSafely(data.response); // Setzt currentResponse und zeigt Hinweis an
+
     } catch (error) {
       console.error('❌ Error sending message:', error);
       showStatus(elements.recordingStatus, 'Fehler beim Senden des Chats.', 'error');
@@ -1766,13 +1767,13 @@ elements.startBtn && elements.startBtn.addEventListener('click', async () => {
             }
 
             const data = await response.json();
-console.log('🎯 Conversation started successfully:', data);
+            console.log('🎯 Conversation started successfully:', data);
 
-currentUserId = data.userId;
-conversationHistory = [{ role: 'assistant', content: data.response }];
-updateChatHistoryUI();
-setResponseSafely(data.response);
-showProgressStatus(2, '📝 Conversation préparée...');
+            currentUserId = data.userId;
+            conversationHistory = [{ role: 'assistant', content: data.response }];
+            updateChatHistoryUI();
+            setResponseSafely(data.response);
+            showProgressStatus(2, '📝 Conversation préparée...');
 
             if (data.audio_url) { 
                 console.log('Audio URL erhalten:', data.audio_url);
@@ -1894,11 +1895,6 @@ function debugConversationState() {
     console.log('=================================');
 }
 
-// Debug-Funktion alle 30 Sekunden (nur in Development)
-if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    setInterval(debugConversationState, 30000);
-}
-
   // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
   // Ctrl+Enter to send message
@@ -1958,8 +1954,8 @@ function updateChatHistoryUI() {
         messageDiv.className = `chat-message ${msg.role}`;
         
         // Kürze lange Nachrichten für die Anzeige
-        const preview = msg.content.length > 80 ? 
-            msg.content.substring(0, 80) + '...' : 
+        const preview = msg.content.length > 100 ? 
+            msg.content.substring(0, 100) + '...' : 
             msg.content;
             
         messageDiv.innerHTML = `
