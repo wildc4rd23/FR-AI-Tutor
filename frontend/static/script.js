@@ -848,6 +848,7 @@ function updateShowResponseButton() {
     } else {
         elements.showResponseBtn.classList.add('hidden'); // Hide the button if no response
     }
+    updateChatHistoryUI();
 }
 
   function resetUI() {
@@ -1022,6 +1023,15 @@ function updateShowResponseButton() {
       console.log('Starting real-time speech with recording...');
       
       try {
+
+        // ANDROID FIX: Spezielle Behandlung für Android
+        const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const isAndroid = /Android/i.test(navigator.userAgent);
+        
+        if (isAndroid) {
+            console.log('Android detected - applying special recording setup');
+        }
+
         const permissionsOk = await checkMicrophonePermissions();
         if (!permissionsOk || !recognition) {
           showStatus(elements.recordingStatus, '⚠️ Microphone ou reconnaissance vocale non disponibles', 'error');
@@ -1045,8 +1055,14 @@ function updateShowResponseButton() {
         }
         
         // Get audio stream with optimized constraints
-        const constraints = { 
-          audio: {
+        // ereinfachte Constraints für Android
+        const constraints = isAndroid ? {
+            audio: {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false
+            }
+        } : { audio: {
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true,
@@ -1054,7 +1070,7 @@ function updateShowResponseButton() {
             channelCount: 1
           }
         };
-        
+        console.log('Using constraints for', isAndroid ? 'Android' : 'Other', ':', constraints);
         currentAudioStream = await navigator.mediaDevices.getUserMedia(constraints);
         console.log('Audio stream obtained successfully');
         
@@ -1298,6 +1314,14 @@ function updateShowResponseButton() {
 async function sendMessageToBackend(message) {
     console.log('📤 Sending message:', message);
     
+    // Recording stoppen falls aktiv
+    if (isRecording) {
+        console.log('Auto-stopping recording before sending message');
+        stopRealTimeSpeech();
+        // Kurz warten damit Stop-Prozess abgeschlossen wird
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
     if (!message.trim()) {
         showStatus(elements.recordingStatus, 'Veuillez entrer un message.', 'warning');
         setTimeout(() => hideStatus(elements.recordingStatus), 3000);
@@ -1943,7 +1967,9 @@ document.addEventListener('keydown', (e) => {
 // Chat Historie UI Update Funktion
 function updateChatHistoryUI() {
     const chatMessages = document.getElementById('chatMessages');
-    if (!chatMessages) return;
+    const chatToggle = document.getElementById('chatToggle');
+    
+    if (!chatMessages || !chatToggle) return;
     
     // Leere den Container
     chatMessages.innerHTML = '';
@@ -1965,6 +1991,13 @@ function updateChatHistoryUI() {
         
         chatMessages.appendChild(messageDiv);
     });
+
+    // History Button nur anzeigen wenn History vorhanden UND Audio nicht spielt
+    if (conversationHistory.length > 0 && !isLlmAudioPlaying) {
+        chatToggle.classList.remove('hidden');
+    } else {
+        chatToggle.classList.add('hidden');
+    }
     
     // Auto-scroll zum Ende
     const chatHistory = document.getElementById('chatHistory');
