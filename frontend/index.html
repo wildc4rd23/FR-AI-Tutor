@@ -295,7 +295,7 @@
       align-items: center;
       gap: 12px;
       background: #4b5563;
-      border-radius: 8px;
+      border-radius: 10px;
       padding: 8px 16px;
       flex: 1;
       max-width: 320px;
@@ -319,7 +319,7 @@
     
     .progress-bar {
       height: 100%;
-      background: #10b981;
+      background: #87af99;
       border-radius: 3px;
       width: 0%;
       transition: width 0.1s ease;
@@ -331,7 +331,7 @@
       transform: translateY(-50%);
       width: 14px;
       height: 14px;
-      background: #10b981;
+      background: #87af99;
       border-radius: 50%;
       cursor: pointer;
       left: 0%;
@@ -344,7 +344,7 @@
     }
     
     .time-display {
-      font-size: 0.75em;
+      font-size: 0.9em;
       color: #d1d5db;
       min-width: 45px;
       text-align: center;
@@ -441,7 +441,7 @@
       body { padding: 0; 
       font-size: 18px;
       }
-      .btn {
+      .btn, .btn-secondary {
         height: 48px; 
         min-width: 48px;
         font-size: 18px;
@@ -496,13 +496,14 @@
       .controls {
         justify-content: center;
         flex-wrap: wrap;
-        min-height: 48 px;
+        height: 48 px;
       }
       
       .audio-container {
         max-width: 100%;
         order: 1;
         width: 100%;
+        height: 48 px;
       }
       
       .chat-toggle {
@@ -510,6 +511,9 @@
         margin-top: 12px;
         align-self: center;
       }
+      .chat-history{
+        font-size: 1.2em;
+      } 
       
       #startSection {
         padding: 40px 16px;
@@ -534,7 +538,7 @@
         height: 52px;
       }
       
-      .btn {
+      .btn, .btn-secondary {
         width: 100%;
         height: 52px;
         min-width: 52px;
@@ -543,12 +547,17 @@
       .audio-container {
         width: 100%;
         max-width: none;
+        height: 52px;
       }
       
       .text-content {
-        font-size: 1.2em; /* Größere Schrift */
+        font-size: 1.2em;
         min-height: 120px;
       }
+
+      .chat-history{
+        font-size: 1.2em;
+      } 
     }
   </style>
 </head>
@@ -668,7 +677,7 @@
 
         <!-- Footer Controls -->
         <div class="footer-controls">
-          <button id="newConversation" class="btn btn-secondary"> ↺ Nouveau sujet</button>
+          <button id="newConversation" class="btn btn-secondary">↺ Nouveau sujet</button>
         </div>
       </div>
     </div>
