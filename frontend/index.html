@@ -275,6 +275,7 @@
       color: #d1d5db;
       padding: 10px 10px;
       font-size: 0.9em;
+      min-width: 100px;
     }
     
     .btn-secondary:hover {
@@ -441,7 +442,8 @@
       font-size: 18px;
       }
       .btn {
-        min-height: 48px; 
+        height: 48px; 
+        min-width: 48px;
         font-size: 18px;
       }
       
@@ -494,6 +496,7 @@
       .controls {
         justify-content: center;
         flex-wrap: wrap;
+        min-height: 48 px;
       }
       
       .audio-container {
@@ -528,11 +531,13 @@
         flex-direction: column;
         gap: 8px;
         align-items: stretch;
+        height: 52px;
       }
       
       .btn {
         width: 100%;
         height: 52px;
+        min-width: 52px;
       }
       
       .audio-container {
@@ -609,7 +614,7 @@
                 </div>
               </div>
               <button id="playAssistantAudio" class="btn btn-play hidden">▷</button>
-              <button id="showResponseBtn" class="btn btn-secondary hidden">☰</button>
+              <button id="showResponseBtn" class="btn hidden">☰</button>
               
               <!-- Assistant Audio Player -->
               <audio id="audioPlayback" preload="metadata" class="hidden">
