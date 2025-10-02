@@ -433,6 +433,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let isRecording = false;
   let isPaused = false;
   let isLlmAudioPlaying = false;
+  let microphonePermissionGranted = false;
   let conversationHistory = [];
 
   const placeholderText = "Tapez votre message ici ou utilisez l'enregistrement...";
@@ -599,8 +600,15 @@ document.addEventListener('DOMContentLoaded', function() {
 async function checkMicrophonePermissions() {
   try {
     mobileDebug.log('Checking microphone permissions...');
+    // Wenn auf Mobile bereits früh gewährt, überspringe erneuten Test
+    if (isMobile && microphonePermissionGranted) {
+      mobileDebug.log('Using cached permission from early request');
+      showStatus(elements.recordingStatus, '✅ Microphone déjà autorisé', 'success');
+      setTimeout(() => hideStatus(elements.recordingStatus), 1000);
+      return true;
+    }
     
-    // 1. HTTPS Check
+    // HTTPS Check
     if (location.protocol !== 'https:' && 
         !location.hostname.includes('localhost') && 
         location.hostname !== '127.0.0.1') {
@@ -609,7 +617,7 @@ async function checkMicrophonePermissions() {
       return false;
     }
 
-    // 2. MediaDevices API Check
+    // MediaDevices API Check
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       mobileDebug.error('MediaDevices API not available');
       showStatus(elements.recordingStatus, '🚫 MediaDevices API non disponible', 'error');
@@ -1892,6 +1900,7 @@ async function requestMicrophonePermissionEarly() {
             font-size: 16px;
             cursor: pointer;
             margin-right: 10px;
+            margin-bottom:10px;
         ">Autoriser</button>
         <button id="denyMicBtn" style="
             padding: 12px 24px;
@@ -1925,6 +1934,10 @@ async function requestMicrophonePermissionEarly() {
                 
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 mobileDebug.log('✅ Early permission granted');
+
+                // Permission-Status speichern
+                microphonePermissionGranted = true;
+                document.hasStoredGesture = true;
                 
                 // Stream sofort wieder stoppen
                 stream.getTracks().forEach(track => track.stop());
@@ -1956,6 +1969,7 @@ async function requestMicrophonePermissionEarly() {
                 
             } catch (error) {
                 mobileDebug.error(`Permission denied: ${error.message}`);
+                microphonePermissionGranted = false;
                 document.body.removeChild(permissionDialog);
                 
                 // Fehler-Dialog anzeigen
