@@ -607,7 +607,7 @@ async function checkMicrophonePermissions() {
       setTimeout(() => hideStatus(elements.recordingStatus), 1000);
       return true;
     }
-    
+
     // HTTPS Check
     if (location.protocol !== 'https:' && 
         !location.hostname.includes('localhost') && 
@@ -1860,16 +1860,8 @@ window.clearChatHistory = function() {
     }
 };
 
-// Early microphone permission request for mobile
-async function requestMicrophonePermissionEarly() {
-    if (!isMobile) {
-        mobileDebug.log('Desktop detected - skipping early permission request');
-        return;
-    }
-    
-    mobileDebug.log('Mobile detected - requesting microphone permission early');
-    
-    // Zeige Benutzer-freundlichen Dialog
+// EINFACHE Permission-Anfrage - direkt beim Laden
+function showPermissionDialogImmediately() {
     const permissionDialog = document.createElement('div');
     permissionDialog.id = 'earlyPermissionDialog';
     permissionDialog.style.cssText = `
@@ -1887,10 +1879,8 @@ async function requestMicrophonePermissionEarly() {
     `;
     
     permissionDialog.innerHTML = `
-        <h3 style="margin: 0 0 15px; color: #2c3e50;">🎤 Accès Microphone</h3>
-        <p style="margin: 0 0 20px; color: #555;">
-            Cette application nécessite l'accès au microphone pour la reconnaissance vocale.
-        </p>
+        <h3>🎤 Accès Microphone</h3>
+        <p>Cliquez pour autoriser le microphone</p>
         <button id="allowMicBtn" style="
             padding: 12px 24px;
             background: #3498db;
@@ -1898,92 +1888,35 @@ async function requestMicrophonePermissionEarly() {
             border: none;
             border-radius: 6px;
             font-size: 16px;
-            cursor: pointer;
-            margin-right: 10px;
-            margin-bottom:10px;
-        ">Autoriser</button>
-        <button id="denyMicBtn" style="
-            padding: 12px 24px;
-            background: #95a5a6;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            cursor: pointer;
-        ">Plus tard</button>
+        ">Autoriser Maintenant</button>
     `;
     
     document.body.appendChild(permissionDialog);
     
-    return new Promise((resolve) => {
-        const allowBtn = document.getElementById('allowMicBtn');
-        const denyBtn = document.getElementById('denyMicBtn');
+    // DIREKT onclick (nicht addEventListener, nicht async)
+    document.getElementById('allowMicBtn').onclick = function() {
+        mobileDebug.log('Button clicked - calling getUserMedia SYNCHRONOUSLY');
         
-        allowBtn.addEventListener('click', async () => {
-            mobileDebug.log('User clicked Allow - requesting permission');
-            
-            try {
-                const constraints = isAndroid ? {
-                    audio: true
-                } : {
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true
-                    }
-                };
-                
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                mobileDebug.log('✅ Early permission granted');
-
-                // Permission-Status speichern
+        // SYNCHRONER Call - keine Promise, kein await
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(function(stream) {
+                mobileDebug.log('✅ Stream received!');
                 microphonePermissionGranted = true;
-                document.hasStoredGesture = true;
                 
-                // Stream sofort wieder stoppen
-                stream.getTracks().forEach(track => track.stop());
+                stream.getTracks().forEach(function(track) {
+                    track.stop();
+                });
                 
-                // Dialog entfernen
                 document.body.removeChild(permissionDialog);
                 
-                // Erfolgs-Nachricht kurz anzeigen
-                const successMsg = document.createElement('div');
-                successMsg.style.cssText = `
-                    position: fixed;
-                    top: 20px;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    background: #27ae60;
-                    color: white;
-                    padding: 15px 25px;
-                    border-radius: 8px;
-                    z-index: 10002;
-                `;
-                successMsg.textContent = '✅ Microphone autorisé';
-                document.body.appendChild(successMsg);
-                
-                setTimeout(() => {
-                    document.body.removeChild(successMsg);
-                }, 2000);
-                
-                resolve(true);
-                
-            } catch (error) {
-                mobileDebug.error(`Permission denied: ${error.message}`);
-                microphonePermissionGranted = false;
+                mobileDebug.log('Permission saved successfully');
+            })
+            .catch(function(error) {
+                mobileDebug.error('❌ getUserMedia failed: ' + error.name);
+                mobileDebug.error('Error message: ' + error.message);
                 document.body.removeChild(permissionDialog);
-                
-                // Fehler-Dialog anzeigen
-                showManualPermissionInstructions();
-                resolve(false);
-            }
-        });
-        
-        denyBtn.addEventListener('click', () => {
-            mobileDebug.log('User clicked Later - skipping early permission');
-            document.body.removeChild(permissionDialog);
-            resolve(false);
-        });
-    });
+            });
+    };
 }
 
 // Initial UI setup
@@ -1995,23 +1928,18 @@ mobileDebug.log(`Touch support: ${('ontouchstart' in window)}`);
 
 // Show mobile debug panel on mobile devices by default
 if (isMobile) {
+    mobileDebug.log('Mobile detected - waiting for user interaction');
+    
+    // Debug Panel anzeigen
     setTimeout(() => {
         const debugPanel = document.getElementById('mobileDebugPanel');
         if (debugPanel) {
             debugPanel.style.display = 'block';
         }
     }, 1000);
-
-    // Frühe Mikrofonberechtigung für Mobile anfordern
-    setTimeout(() => {
-        requestMicrophonePermissionEarly().then(granted => {
-            if (granted) {
-                mobileDebug.log('Early microphone permission granted');
-            } else {
-                mobileDebug.warn('Early microphone permission not granted - will ask later');
-            }
-        });
-    }, 1500); // Nach 1.5 Sekunden, damit UI geladen ist
+    
+    // SOFORT Dialog anzeigen (nicht mit setTimeout)
+    showPermissionDialogImmediately();
 }
 
 // Debug function for development
