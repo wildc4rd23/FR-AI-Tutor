@@ -596,180 +596,131 @@ document.addEventListener('DOMContentLoaded', function() {
     recognitionActive = false;
   }
 
-// Microphone Permission Check - Mobile Optimized
+// Microphone Permission Check
 async function checkMicrophonePermissions() {
   try {
-    mobileDebug.log('Checking microphone permissions...');
-    // Wenn auf Mobile bereits früh gewährt, überspringe erneuten Test
+    mobileDebug.log('=== CHECKING MICROPHONE PERMISSIONS ===');
+    
+    // Auf Mobile: Wenn bereits gecached, skip
     if (isMobile && microphonePermissionGranted) {
-      mobileDebug.log('Using cached permission from early request');
-      showStatus(elements.recordingStatus, '✅ Microphone déjà autorisé', 'success');
-      setTimeout(() => hideStatus(elements.recordingStatus), 1000);
+      mobileDebug.log('Using cached permission');
       return true;
     }
-
+    
     // HTTPS Check
     if (location.protocol !== 'https:' && 
         !location.hostname.includes('localhost') && 
         location.hostname !== '127.0.0.1') {
-      mobileDebug.error('HTTPS required for microphone access');
-      showStatus(elements.recordingStatus, '🔒 HTTPS requis pour l\'accès microphone.', 'error');
+      mobileDebug.error('HTTPS required');
+      showStatus(elements.recordingStatus, '🔒 HTTPS requis', 'error');
       return false;
     }
 
-    // MediaDevices API Check
+    // MediaDevices Check
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       mobileDebug.error('MediaDevices API not available');
-      showStatus(elements.recordingStatus, '🚫 MediaDevices API non disponible', 'error');
+      showStatus(elements.recordingStatus, '🚫 MediaDevices non disponible', 'error');
       return false;
     }
 
-    // 3. Speech Recognition Check
-    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognitionAPI) {
-      mobileDebug.warn('SpeechRecognition API not available');
-      showStatus(elements.recordingStatus, '⚠️ Reconnaissance vocale non supportée', 'warning');
-    }
-
-    // 4. Permission State Check - ERWEITERT für Mobile
-    let permissionState = null;
-    try {
-      if ('permissions' in navigator) {
-        const permission = await navigator.permissions.query({name: 'microphone'});
-        permissionState = permission.state;
-        mobileDebug.log(`Permission state: ${permissionState}`);
-        
-        if (permissionState === 'denied') {
-          mobileDebug.error('Microphone permission explicitly DENIED');
-          showManualPermissionInstructions();
-          return false;
-        }
-        
-        // Auf Mobile: Wenn 'prompt', zeige Hinweis
-        if (permissionState === 'prompt' && isMobile) {
-          mobileDebug.log('Mobile: Permission in prompt state - will request on user action');
-          showStatus(elements.recordingStatus, '🎤 Préparation de l\'accès microphone...', 'loading');
-        }
+    // Permission State prüfen
+    if ('permissions' in navigator) {
+      const permission = await navigator.permissions.query({name: 'microphone'});
+      mobileDebug.log(`Current permission state: ${permission.state}`);
+      
+      if (permission.state === 'denied') {
+        mobileDebug.error('Permission explicitly DENIED');
+        showManualPermissionInstructions();
+        return false;
       }
-    } catch (permError) {
-      mobileDebug.warn(`Permission query failed: ${permError.message}`);
-    }
-
-    // 5. Mobile: User Gesture Check
-    if (isMobile) {
-      if (!document.hasStoredGesture && !document.userActivation?.hasBeenActive) {
-        mobileDebug.warn('Mobile: No user gesture detected yet');
-        showStatus(elements.recordingStatus, '👆 Cliquez pour activer le microphone', 'warning');
-        
-        // Warte auf User-Interaktion
-        return new Promise((resolve) => {
-          const interactionHandler = async () => {
-            document.removeEventListener('touchstart', interactionHandler);
-            document.removeEventListener('click', interactionHandler);
-            mobileDebug.log('User interaction detected, retrying permission...');
-            document.hasStoredGesture = true;
-            resolve(await performActualPermissionTest());
-          };
-          
-          document.addEventListener('touchstart', interactionHandler, { once: true });
-          document.addEventListener('click', interactionHandler, { once: true });
-          
-          // Fallback: Nach 5 Sekunden trotzdem versuchen
-          setTimeout(() => {
-            document.removeEventListener('touchstart', interactionHandler);
-            document.removeEventListener('click', interactionHandler);
-            mobileDebug.log('Timeout: Attempting permission without stored gesture');
-            resolve(performActualPermissionTest());
-          }, 5000);
-        });
-      } else {
-        document.hasStoredGesture = true;
-        mobileDebug.log('Mobile: User gesture available');
+      
+      if (permission.state === 'granted') {
+        mobileDebug.log('Permission already GRANTED');
+        microphonePermissionGranted = true;
+        return true;
       }
     }
-
+    
+    // State ist 'prompt' - performActualPermissionTest aufrufen
+    mobileDebug.log('Permission state is PROMPT - calling performActualPermissionTest');
     return await performActualPermissionTest();
 
   } catch (error) {
     mobileDebug.error(`Permission check failed: ${error.message}`);
-    showStatus(elements.recordingStatus, '⚠️ Erreur lors de la vérification: ' + error.message, 'error');
     return false;
   }
 }
 
-  async function performActualPermissionTest() {
-    try {
-      mobileDebug.log('Performing microphone permission test...');
-      showStatus(elements.recordingStatus, '🎤 Vérification de l\'accès au micro...', 'chargement');
+async function performActualPermissionTest() {
+  try {
+    mobileDebug.log('=== PERFORMING ACTUAL PERMISSION TEST ===');
+    showStatus(elements.recordingStatus, '🎤 Demande d\'autorisation...', 'loading');
 
-      const constraints = isMobile ? {
-        audio: true // Simple constraints for mobile
-      } : { 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: { ideal: 44100, min: 8000 },
-          channelCount: { ideal: 1 },
-          volume: { ideal: 1.0 }
-        }
-      };
-
-      const testStream = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      const audioTracks = testStream.getAudioTracks();
-      if (audioTracks.length === 0) {
-        throw new Error('No audio tracks available');
+    const constraints = isMobile ? {
+      audio: true
+    } : { 
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        sampleRate: { ideal: 44100, min: 8000 },
+        channelCount: { ideal: 1 }
       }
+    };
 
-      const track = audioTracks[0];
-      const settings = track.getSettings();
-      mobileDebug.log(`Audio track configured: ${JSON.stringify(settings)}`);
-
-      testStream.getTracks().forEach(track => track.stop());
-      
-      mobileDebug.log('✅ Microphone access test successful');
-      showStatus(elements.recordingStatus, '✅ Mikrofonzugriff erfolgreich', 'success');
-      
-      setTimeout(() => {
-        if (elements.recordingStatus && !elements.recordingStatus.classList.contains('hidden')) {
-          hideStatus(elements.recordingStatus);
-        }
-      }, 2000);
-      
-      return true;
-
-    } catch (mediaError) {
-      mobileDebug.error(`Microphone access failed: ${mediaError.name} - ${mediaError.message}`);
-      
-      let errorMsg = '🎤 Mikrofonzugriff fehlgeschlagen';
-      
-      switch(mediaError.name) {
-        case 'NotAllowedError':
-          errorMsg = '🚫 Mikrofonberechtigung verweigert';
-          showManualPermissionInstructions();
-          break;
-        case 'NotFoundError':
-          errorMsg = '🔍 Kein Mikrofon gefunden';
-          break;
-        case 'NotReadableError':
-          errorMsg = '⚠️ Mikrofon wird von anderer App verwendet';
-          break;
-        case 'OverconstrainedError':
-          errorMsg = '🔧 Mikrofon-Einstellungen nicht unterstützt';
-          break;
-        case 'SecurityError':
-          errorMsg = '🔐 Sicherheitsfehler - HTTPS erforderlich?';
-          break;
-        default:
-          errorMsg += ': ' + mediaError.message;
-          break;
-      }
-      
-      showStatus(elements.recordingStatus, errorMsg, 'error');
-      return false;
+    mobileDebug.log(`Using constraints: ${JSON.stringify(constraints)}`);
+    const testStream = await navigator.mediaDevices.getUserMedia(constraints);
+    
+    const audioTracks = testStream.getAudioTracks();
+    mobileDebug.log(`✅ Got ${audioTracks.length} audio tracks`);
+    
+    if (audioTracks.length === 0) {
+      throw new Error('No audio tracks available');
     }
+
+    const track = audioTracks[0];
+    const settings = track.getSettings();
+    mobileDebug.log(`Track settings: ${JSON.stringify(settings)}`);
+
+    testStream.getTracks().forEach(track => track.stop());
+    
+    mobileDebug.log('✅ Permission test successful');
+    microphonePermissionGranted = true;
+    
+    showStatus(elements.recordingStatus, '✅ Microphone autorisé', 'success');
+    setTimeout(() => hideStatus(elements.recordingStatus), 1000);
+    
+    return true;
+
+  } catch (mediaError) {
+    mobileDebug.error(`=== PERMISSION TEST FAILED ===`);
+    mobileDebug.error(`Error: ${mediaError.name} - ${mediaError.message}`);
+    
+    let errorMsg = '🎤 Accès microphone échoué';
+    
+    switch(mediaError.name) {
+      case 'NotAllowedError':
+        errorMsg = '🚫 Permission refusée';
+        showManualPermissionInstructions();
+        break;
+      case 'NotFoundError':
+        errorMsg = '🔍 Aucun microphone trouvé';
+        break;
+      case 'NotReadableError':
+        errorMsg = '⚠️ Microphone utilisé par une autre app';
+        break;
+      case 'OverconstrainedError':
+        errorMsg = '🔧 Paramètres microphone non supportés';
+        break;
+      default:
+        errorMsg += ': ' + mediaError.message;
+        break;
+    }
+    
+    showStatus(elements.recordingStatus, errorMsg, 'error');
+    return false;
   }
+}
 
   // Manual Permission Instructions
   function showManualPermissionInstructions() {
@@ -1811,26 +1762,15 @@ document.addEventListener('touchstart', function() {
     document.hasStoredGesture = true;
 }, { passive: true });
 
-// Mobile-spezifische Button-Behandlung (KEINE preventDefault mehr!)
 if (isMobile) {
-    mobileDebug.log('Setting up mobile-specific event handlers');
+    mobileDebug.log('Mobile: Permission will be requested on first recording');
     
-    // Prevent double-tap zoom nur auf Non-Button Elementen
-    document.addEventListener('touchend', function(e) {
-        // Nur auf Buttons NICHT preventDefault aufrufen
-        if (!e.target.matches('button, input, select, textarea')) {
-            e.preventDefault();
+    setTimeout(() => {
+        const debugPanel = document.getElementById('mobileDebugPanel');
+        if (debugPanel) {
+            debugPanel.style.display = 'block';
         }
-    });
-    
-    // Bessere Touch-Behandlung für Buttons
-    [elements.recordBtn, elements.stopBtn, elements.sendBtn].forEach(btn => {
-        if (btn) {
-            btn.addEventListener('touchstart', function() {
-                mobileDebug.log(`Touch start on ${btn.id}`);
-            });
-        }
-    });
+    }, 1000);
 }
 
 // Global utility functions
@@ -1860,117 +1800,7 @@ window.clearChatHistory = function() {
     }
 };
 
-// DEBUG: Vollständiger Security & Permission Check
-async function debugSecurityStatus() {
-    mobileDebug.log('=== SECURITY STATUS CHECK ===');
-    mobileDebug.log(`Protocol: ${location.protocol}`);
-    mobileDebug.log(`Hostname: ${location.hostname}`);
-    mobileDebug.log(`isSecureContext: ${window.isSecureContext}`);
-    
-    // Permission Status
-    try {
-        const permission = await navigator.permissions.query({name: 'microphone'});
-        mobileDebug.log(`Permission state: ${permission.state}`);
-    } catch (e) {
-        mobileDebug.error(`Permission query failed: ${e.message}`);
-    }
-    
-    // MediaDevices Check
-    mobileDebug.log(`MediaDevices available: ${!!navigator.mediaDevices}`);
-    mobileDebug.log(`getUserMedia available: ${!!navigator.mediaDevices?.getUserMedia}`);
-    
-    // Enumerate Devices
-    try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const audioInputs = devices.filter(d => d.kind === 'audioinput');
-        mobileDebug.log(`Audio inputs found: ${audioInputs.length}`);
-        audioInputs.forEach((device, i) => {
-            mobileDebug.log(`  Device ${i}: ${device.label || 'Unknown'}`);
-        });
-    } catch (e) {
-        mobileDebug.error(`enumerateDevices failed: ${e.message}`);
-    }
-    
-    mobileDebug.log('=== END SECURITY CHECK ===');
-}
 
-function showPermissionDialogImmediately() {
-    // ERST Security Status checken
-    debugSecurityStatus();
-    
-    const permissionDialog = document.createElement('div');
-    permissionDialog.id = 'earlyPermissionDialog';
-    permissionDialog.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        padding: 25px;
-        border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-        z-index: 10001;
-        max-width: 90%;
-        text-align: center;
-    `;
-    
-    permissionDialog.innerHTML = `
-        <h3>🎤 Accès Microphone</h3>
-        <p>Cliquez pour autoriser le microphone</p>
-        <button id="allowMicBtn" style="
-            padding: 12px 24px;
-            background: #3498db;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-        ">Autoriser Maintenant</button>
-    `;
-    
-    document.body.appendChild(permissionDialog);
-    
-    document.getElementById('allowMicBtn').onclick = function() {
-        mobileDebug.log('=== PERMISSION REQUEST START ===');
-        mobileDebug.log('Button clicked - calling getUserMedia SYNCHRONOUSLY');
-        
-        // ZUSÄTZLICHER Check VOR dem Request
-        if (!window.isSecureContext) {
-            mobileDebug.error('NOT A SECURE CONTEXT!');
-            document.body.removeChild(permissionDialog);
-            showManualPermissionInstructions();
-            return;
-        }
-        
-        navigator.mediaDevices.getUserMedia({ audio: true })
-            .then(function(stream) {
-                mobileDebug.log('✅ getUserMedia SUCCESS - Stream received!');
-                mobileDebug.log(`Stream has ${stream.getTracks().length} tracks`);
-                microphonePermissionGranted = true;
-                
-                stream.getTracks().forEach(function(track) {
-                    mobileDebug.log(`Stopping track: ${track.kind}, enabled: ${track.enabled}`);
-                    track.stop();
-                });
-                
-                document.body.removeChild(permissionDialog);
-                mobileDebug.log('Permission saved successfully');
-            })
-            .catch(function(error) {
-                mobileDebug.error('=== getUserMedia FAILED ===');
-                mobileDebug.error(`Error name: ${error.name}`);
-                mobileDebug.error(`Error message: ${error.message}`);
-                mobileDebug.error(`Error constructor: ${error.constructor.name}`);
-                
-                // Bei NotAllowedError: Site ist blockiert
-                if (error.name === 'NotAllowedError') {
-                    mobileDebug.error('SITE IS BLOCKED IN CHROME SETTINGS!');
-                }
-                
-                document.body.removeChild(permissionDialog);
-                showManualPermissionInstructions();
-            });
-    };
-}
 
 // Initial UI setup
 resetUI();
@@ -1979,21 +1809,6 @@ mobileDebug.log(`Device Info: ${navigator.userAgent}`);
 mobileDebug.log(`Screen: ${window.innerWidth}x${window.innerHeight}`);
 mobileDebug.log(`Touch support: ${('ontouchstart' in window)}`);
 
-// Show mobile debug panel on mobile devices by default
-if (isMobile) {
-    mobileDebug.log('Mobile detected - waiting for user interaction');
-    
-    // Debug Panel anzeigen
-    setTimeout(() => {
-        const debugPanel = document.getElementById('mobileDebugPanel');
-        if (debugPanel) {
-            debugPanel.style.display = 'block';
-        }
-    }, 1000);
-    
-    // SOFORT Dialog anzeigen (nicht mit setTimeout)
-    showPermissionDialogImmediately();
-}
 
 // Debug function for development
 function debugConversationState() {
