@@ -1860,8 +1860,44 @@ window.clearChatHistory = function() {
     }
 };
 
-// EINFACHE Permission-Anfrage - direkt beim Laden
+// DEBUG: Vollständiger Security & Permission Check
+async function debugSecurityStatus() {
+    mobileDebug.log('=== SECURITY STATUS CHECK ===');
+    mobileDebug.log(`Protocol: ${location.protocol}`);
+    mobileDebug.log(`Hostname: ${location.hostname}`);
+    mobileDebug.log(`isSecureContext: ${window.isSecureContext}`);
+    
+    // Permission Status
+    try {
+        const permission = await navigator.permissions.query({name: 'microphone'});
+        mobileDebug.log(`Permission state: ${permission.state}`);
+    } catch (e) {
+        mobileDebug.error(`Permission query failed: ${e.message}`);
+    }
+    
+    // MediaDevices Check
+    mobileDebug.log(`MediaDevices available: ${!!navigator.mediaDevices}`);
+    mobileDebug.log(`getUserMedia available: ${!!navigator.mediaDevices?.getUserMedia}`);
+    
+    // Enumerate Devices
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioInputs = devices.filter(d => d.kind === 'audioinput');
+        mobileDebug.log(`Audio inputs found: ${audioInputs.length}`);
+        audioInputs.forEach((device, i) => {
+            mobileDebug.log(`  Device ${i}: ${device.label || 'Unknown'}`);
+        });
+    } catch (e) {
+        mobileDebug.error(`enumerateDevices failed: ${e.message}`);
+    }
+    
+    mobileDebug.log('=== END SECURITY CHECK ===');
+}
+
 function showPermissionDialogImmediately() {
+    // ERST Security Status checken
+    debugSecurityStatus();
+    
     const permissionDialog = document.createElement('div');
     permissionDialog.id = 'earlyPermissionDialog';
     permissionDialog.style.cssText = `
@@ -1893,28 +1929,45 @@ function showPermissionDialogImmediately() {
     
     document.body.appendChild(permissionDialog);
     
-    // DIREKT onclick (nicht addEventListener, nicht async)
     document.getElementById('allowMicBtn').onclick = function() {
+        mobileDebug.log('=== PERMISSION REQUEST START ===');
         mobileDebug.log('Button clicked - calling getUserMedia SYNCHRONOUSLY');
         
-        // SYNCHRONER Call - keine Promise, kein await
+        // ZUSÄTZLICHER Check VOR dem Request
+        if (!window.isSecureContext) {
+            mobileDebug.error('NOT A SECURE CONTEXT!');
+            document.body.removeChild(permissionDialog);
+            showManualPermissionInstructions();
+            return;
+        }
+        
         navigator.mediaDevices.getUserMedia({ audio: true })
             .then(function(stream) {
-                mobileDebug.log('✅ Stream received!');
+                mobileDebug.log('✅ getUserMedia SUCCESS - Stream received!');
+                mobileDebug.log(`Stream has ${stream.getTracks().length} tracks`);
                 microphonePermissionGranted = true;
                 
                 stream.getTracks().forEach(function(track) {
+                    mobileDebug.log(`Stopping track: ${track.kind}, enabled: ${track.enabled}`);
                     track.stop();
                 });
                 
                 document.body.removeChild(permissionDialog);
-                
                 mobileDebug.log('Permission saved successfully');
             })
             .catch(function(error) {
-                mobileDebug.error('❌ getUserMedia failed: ' + error.name);
-                mobileDebug.error('Error message: ' + error.message);
+                mobileDebug.error('=== getUserMedia FAILED ===');
+                mobileDebug.error(`Error name: ${error.name}`);
+                mobileDebug.error(`Error message: ${error.message}`);
+                mobileDebug.error(`Error constructor: ${error.constructor.name}`);
+                
+                // Bei NotAllowedError: Site ist blockiert
+                if (error.name === 'NotAllowedError') {
+                    mobileDebug.error('SITE IS BLOCKED IN CHROME SETTINGS!');
+                }
+                
                 document.body.removeChild(permissionDialog);
+                showManualPermissionInstructions();
             });
     };
 }
