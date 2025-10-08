@@ -661,7 +661,8 @@ async function performActualPermissionTest() {
                            navigator.userActivation?.hasBeenActive ||
                            document.hasStoredGesture;
       
-      mobileDebug.log(`User activation: isActive=${navigator.userActivation?.isActive}, hasBeenActive=${navigator.userActivation?.hasBeenActive}`);
+      mobileDebug.log(`User activation isActive: ${navigator.userActivation?.isActive}`);
+      mobileDebug.log(`User activation hasBeenActive: ${navigator.userActivation?.hasBeenActive}`);
       
       if (!hasActivation) {
         mobileDebug.error('NO USER ACTIVATION DETECTED!');
@@ -682,15 +683,15 @@ async function performActualPermissionTest() {
     
     showStatus(elements.recordingStatus, '🎤 Demande d\'autorisation...', 'loading');
 
-    const constraints = { audio: true }; // SIMPLEST possible für Mobile
+    const constraints = { audio: true };
     
-    mobileDebug.log('Calling getUserMedia with constraints:', JSON.stringify(constraints));
-    mobileDebug.log('MediaDevices:', navigator.mediaDevices);
-    mobileDebug.log('getUserMedia function:', typeof navigator.mediaDevices.getUserMedia);
+    mobileDebug.log(`Using constraints: ${JSON.stringify(constraints)}`);
+    mobileDebug.log(`MediaDevices available: ${!!navigator.mediaDevices}`);
+    mobileDebug.log(`getUserMedia type: ${typeof navigator.mediaDevices.getUserMedia}`);
     
     const testStream = await navigator.mediaDevices.getUserMedia(constraints);
     
-    mobileDebug.log(`✅ SUCCESS! Got stream with ${testStream.getTracks().length} tracks`);
+    mobileDebug.log(`SUCCESS! Got stream with ${testStream.getTracks().length} tracks`);
     
     const audioTracks = testStream.getAudioTracks();
     
@@ -699,7 +700,7 @@ async function performActualPermissionTest() {
     }
 
     const track = audioTracks[0];
-    mobileDebug.log(`Track: kind=${track.kind}, enabled=${track.enabled}, readyState=${track.readyState}`);
+    mobileDebug.log(`Track kind: ${track.kind}, enabled: ${track.enabled}, state: ${track.readyState}`);
 
     testStream.getTracks().forEach(track => {
       mobileDebug.log(`Stopping track ${track.id}`);
@@ -714,30 +715,24 @@ async function performActualPermissionTest() {
     return true;
 
   } catch (mediaError) {
-    mobileDebug.error(`=== PERMISSION TEST FAILED ===`);
+    mobileDebug.error('=== PERMISSION TEST FAILED ===');
     mobileDebug.error(`Error name: ${mediaError.name}`);
     mobileDebug.error(`Error message: ${mediaError.message}`);
-    mobileDebug.error(`Error stack: ${mediaError.stack}`);
     
     // WICHTIG: Prüfe ob es ein ECHTER Permission-Fehler ist
     if (mediaError.name === 'NotAllowedError') {
-      // Manchmal gibt Chrome NotAllowedError auch bei anderen Problemen
-      mobileDebug.error('NotAllowedError - checking if permission was actually denied...');
+      mobileDebug.error('NotAllowedError - checking permission state...');
       
-      // Nochmal Permission State checken
       try {
         const perm = await navigator.permissions.query({name: 'microphone'});
         mobileDebug.error(`Permission state AFTER error: ${perm.state}`);
         
         if (perm.state === 'prompt') {
-          mobileDebug.error('STATE IS STILL PROMPT - Browser blocked dialog for security reasons!');
-          mobileDebug.error('Possible reasons:');
-          mobileDebug.error('1. Page was opened in background tab');
-          mobileDebug.error('2. Render.com domain not fully trusted');
-          mobileDebug.error('3. Chrome Android security policy blocking');
+          mobileDebug.error('STATE IS STILL PROMPT - Browser blocked dialog!');
+          mobileDebug.error('Possible: Page opened in background or domain not trusted');
         }
       } catch (e) {
-        mobileDebug.error(`Could not query permission after error: ${e.message}`);
+        mobileDebug.error(`Could not query permission: ${e.message}`);
       }
     }
     
