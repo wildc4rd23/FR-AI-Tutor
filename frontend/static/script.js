@@ -654,37 +654,58 @@ async function checkMicrophonePermissions() {
 async function performActualPermissionTest() {
   try {
     mobileDebug.log('=== PERFORMING ACTUAL PERMISSION TEST ===');
+    
+    // KRITISCH für Mobile: User Activation Check
+    if (isMobile) {
+      const hasActivation = navigator.userActivation?.isActive || 
+                           navigator.userActivation?.hasBeenActive ||
+                           document.hasStoredGesture;
+      
+      mobileDebug.log(`User activation: isActive=${navigator.userActivation?.isActive}, hasBeenActive=${navigator.userActivation?.hasBeenActive}`);
+      
+      if (!hasActivation) {
+        mobileDebug.error('NO USER ACTIVATION DETECTED!');
+        throw new Error('User activation required for microphone access');
+      }
+    }
+    
+    // Feature Policy Check (wichtig für Chrome Android)
+    if ('featurePolicy' in document) {
+      const allowed = document.featurePolicy?.allowsFeature('microphone');
+      mobileDebug.log(`Feature Policy allows microphone: ${allowed}`);
+      
+      if (allowed === false) {
+        mobileDebug.error('MICROPHONE BLOCKED BY FEATURE POLICY!');
+        throw new Error('Microphone blocked by Feature Policy');
+      }
+    }
+    
     showStatus(elements.recordingStatus, '🎤 Demande d\'autorisation...', 'loading');
 
-    const constraints = isMobile ? {
-      audio: true
-    } : { 
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        sampleRate: { ideal: 44100, min: 8000 },
-        channelCount: { ideal: 1 }
-      }
-    };
-
-    mobileDebug.log(`Using constraints: ${JSON.stringify(constraints)}`);
+    const constraints = { audio: true }; // SIMPLEST possible für Mobile
+    
+    mobileDebug.log('Calling getUserMedia with constraints:', JSON.stringify(constraints));
+    mobileDebug.log('MediaDevices:', navigator.mediaDevices);
+    mobileDebug.log('getUserMedia function:', typeof navigator.mediaDevices.getUserMedia);
+    
     const testStream = await navigator.mediaDevices.getUserMedia(constraints);
     
+    mobileDebug.log(`✅ SUCCESS! Got stream with ${testStream.getTracks().length} tracks`);
+    
     const audioTracks = testStream.getAudioTracks();
-    mobileDebug.log(`✅ Got ${audioTracks.length} audio tracks`);
     
     if (audioTracks.length === 0) {
-      throw new Error('No audio tracks available');
+      throw new Error('No audio tracks in stream');
     }
 
     const track = audioTracks[0];
-    const settings = track.getSettings();
-    mobileDebug.log(`Track settings: ${JSON.stringify(settings)}`);
+    mobileDebug.log(`Track: kind=${track.kind}, enabled=${track.enabled}, readyState=${track.readyState}`);
 
-    testStream.getTracks().forEach(track => track.stop());
+    testStream.getTracks().forEach(track => {
+      mobileDebug.log(`Stopping track ${track.id}`);
+      track.stop();
+    });
     
-    mobileDebug.log('✅ Permission test successful');
     microphonePermissionGranted = true;
     
     showStatus(elements.recordingStatus, '✅ Microphone autorisé', 'success');
@@ -694,30 +715,33 @@ async function performActualPermissionTest() {
 
   } catch (mediaError) {
     mobileDebug.error(`=== PERMISSION TEST FAILED ===`);
-    mobileDebug.error(`Error: ${mediaError.name} - ${mediaError.message}`);
+    mobileDebug.error(`Error name: ${mediaError.name}`);
+    mobileDebug.error(`Error message: ${mediaError.message}`);
+    mobileDebug.error(`Error stack: ${mediaError.stack}`);
     
-    let errorMsg = '🎤 Accès microphone échoué';
-    
-    switch(mediaError.name) {
-      case 'NotAllowedError':
-        errorMsg = '🚫 Permission refusée';
-        showManualPermissionInstructions();
-        break;
-      case 'NotFoundError':
-        errorMsg = '🔍 Aucun microphone trouvé';
-        break;
-      case 'NotReadableError':
-        errorMsg = '⚠️ Microphone utilisé par une autre app';
-        break;
-      case 'OverconstrainedError':
-        errorMsg = '🔧 Paramètres microphone non supportés';
-        break;
-      default:
-        errorMsg += ': ' + mediaError.message;
-        break;
+    // WICHTIG: Prüfe ob es ein ECHTER Permission-Fehler ist
+    if (mediaError.name === 'NotAllowedError') {
+      // Manchmal gibt Chrome NotAllowedError auch bei anderen Problemen
+      mobileDebug.error('NotAllowedError - checking if permission was actually denied...');
+      
+      // Nochmal Permission State checken
+      try {
+        const perm = await navigator.permissions.query({name: 'microphone'});
+        mobileDebug.error(`Permission state AFTER error: ${perm.state}`);
+        
+        if (perm.state === 'prompt') {
+          mobileDebug.error('STATE IS STILL PROMPT - Browser blocked dialog for security reasons!');
+          mobileDebug.error('Possible reasons:');
+          mobileDebug.error('1. Page was opened in background tab');
+          mobileDebug.error('2. Render.com domain not fully trusted');
+          mobileDebug.error('3. Chrome Android security policy blocking');
+        }
+      } catch (e) {
+        mobileDebug.error(`Could not query permission after error: ${e.message}`);
+      }
     }
     
-    showStatus(elements.recordingStatus, errorMsg, 'error');
+    showManualPermissionInstructions();
     return false;
   }
 }
